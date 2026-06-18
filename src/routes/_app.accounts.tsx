@@ -45,7 +45,7 @@ const schema = z.object({
   name: z.string().min(1, "Informe um nome"),
   type: z.enum(["CHECKING", "SAVINGS", "CASH", "OTHER"]),
   balance: z.coerce.number().min(0, "Saldo inicial deve ser ≥ 0"),
-  currency: z.string().min(3).max(3).default("BRL"),
+  currency: z.string().min(3).max(3),
 });
 type Values = z.infer<typeof schema>;
 

@@ -13,6 +13,8 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthRegisterRouteImport } from './routes/auth.register'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
+import { Route as AppCardsRouteImport } from './routes/_app.cards'
+import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
 
 const AppRoute = AppRouteImport.update({
   id: '/_app',
@@ -33,13 +35,27 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppCardsRoute = AppCardsRouteImport.update({
+  id: '/cards',
+  path: '/cards',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAccountsRoute = AppAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
+  '/accounts': typeof AppAccountsRoute
+  '/cards': typeof AppCardsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
 }
 export interface FileRoutesByTo {
+  '/accounts': typeof AppAccountsRoute
+  '/cards': typeof AppCardsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/': typeof AppIndexRoute
@@ -47,16 +63,25 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
+  '/_app/accounts': typeof AppAccountsRoute
+  '/_app/cards': typeof AppCardsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth/login' | '/auth/register'
+  fullPaths: '/' | '/accounts' | '/cards' | '/auth/login' | '/auth/register'
   fileRoutesByTo: FileRoutesByTo
-  to: '/auth/login' | '/auth/register' | '/'
-  id: '__root__' | '/_app' | '/auth/login' | '/auth/register' | '/_app/'
+  to: '/accounts' | '/cards' | '/auth/login' | '/auth/register' | '/'
+  id:
+    | '__root__'
+    | '/_app'
+    | '/_app/accounts'
+    | '/_app/cards'
+    | '/auth/login'
+    | '/auth/register'
+    | '/_app/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -95,14 +120,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/cards': {
+      id: '/_app/cards'
+      path: '/cards'
+      fullPath: '/cards'
+      preLoaderRoute: typeof AppCardsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/accounts': {
+      id: '/_app/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AppAccountsRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
 interface AppRouteChildren {
+  AppAccountsRoute: typeof AppAccountsRoute
+  AppCardsRoute: typeof AppCardsRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAccountsRoute: AppAccountsRoute,
+  AppCardsRoute: AppCardsRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
