@@ -13,7 +13,13 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
 import { Route as AuthRegisterRouteImport } from './routes/auth.register'
 import { Route as AuthLoginRouteImport } from './routes/auth.login'
+import { Route as AppTransactionsRouteImport } from './routes/_app.transactions'
+import { Route as AppReportsRouteImport } from './routes/_app.reports'
+import { Route as AppRecurrencesRouteImport } from './routes/_app.recurrences'
+import { Route as AppCategoriesRouteImport } from './routes/_app.categories'
 import { Route as AppCardsRouteImport } from './routes/_app.cards'
+import { Route as AppBudgetsRouteImport } from './routes/_app.budgets'
+import { Route as AppAlertsRouteImport } from './routes/_app.alerts'
 import { Route as AppAccountsRouteImport } from './routes/_app.accounts'
 
 const AppRoute = AppRouteImport.update({
@@ -35,9 +41,39 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppTransactionsRoute = AppTransactionsRouteImport.update({
+  id: '/transactions',
+  path: '/transactions',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRecurrencesRoute = AppRecurrencesRouteImport.update({
+  id: '/recurrences',
+  path: '/recurrences',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCategoriesRoute = AppCategoriesRouteImport.update({
+  id: '/categories',
+  path: '/categories',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCardsRoute = AppCardsRouteImport.update({
   id: '/cards',
   path: '/cards',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBudgetsRoute = AppBudgetsRouteImport.update({
+  id: '/budgets',
+  path: '/budgets',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAlertsRoute = AppAlertsRouteImport.update({
+  id: '/alerts',
+  path: '/alerts',
   getParentRoute: () => AppRoute,
 } as any)
 const AppAccountsRoute = AppAccountsRouteImport.update({
@@ -49,13 +85,25 @@ const AppAccountsRoute = AppAccountsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/accounts': typeof AppAccountsRoute
+  '/alerts': typeof AppAlertsRoute
+  '/budgets': typeof AppBudgetsRoute
   '/cards': typeof AppCardsRoute
+  '/categories': typeof AppCategoriesRoute
+  '/recurrences': typeof AppRecurrencesRoute
+  '/reports': typeof AppReportsRoute
+  '/transactions': typeof AppTransactionsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
 }
 export interface FileRoutesByTo {
   '/accounts': typeof AppAccountsRoute
+  '/alerts': typeof AppAlertsRoute
+  '/budgets': typeof AppBudgetsRoute
   '/cards': typeof AppCardsRoute
+  '/categories': typeof AppCategoriesRoute
+  '/recurrences': typeof AppRecurrencesRoute
+  '/reports': typeof AppReportsRoute
+  '/transactions': typeof AppTransactionsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/': typeof AppIndexRoute
@@ -64,21 +112,55 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_app/accounts': typeof AppAccountsRoute
+  '/_app/alerts': typeof AppAlertsRoute
+  '/_app/budgets': typeof AppBudgetsRoute
   '/_app/cards': typeof AppCardsRoute
+  '/_app/categories': typeof AppCategoriesRoute
+  '/_app/recurrences': typeof AppRecurrencesRoute
+  '/_app/reports': typeof AppReportsRoute
+  '/_app/transactions': typeof AppTransactionsRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/_app/': typeof AppIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/accounts' | '/cards' | '/auth/login' | '/auth/register'
+  fullPaths:
+    | '/'
+    | '/accounts'
+    | '/alerts'
+    | '/budgets'
+    | '/cards'
+    | '/categories'
+    | '/recurrences'
+    | '/reports'
+    | '/transactions'
+    | '/auth/login'
+    | '/auth/register'
   fileRoutesByTo: FileRoutesByTo
-  to: '/accounts' | '/cards' | '/auth/login' | '/auth/register' | '/'
+  to:
+    | '/accounts'
+    | '/alerts'
+    | '/budgets'
+    | '/cards'
+    | '/categories'
+    | '/recurrences'
+    | '/reports'
+    | '/transactions'
+    | '/auth/login'
+    | '/auth/register'
+    | '/'
   id:
     | '__root__'
     | '/_app'
     | '/_app/accounts'
+    | '/_app/alerts'
+    | '/_app/budgets'
     | '/_app/cards'
+    | '/_app/categories'
+    | '/_app/recurrences'
+    | '/_app/reports'
+    | '/_app/transactions'
     | '/auth/login'
     | '/auth/register'
     | '/_app/'
@@ -120,11 +202,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/transactions': {
+      id: '/_app/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof AppTransactionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/recurrences': {
+      id: '/_app/recurrences'
+      path: '/recurrences'
+      fullPath: '/recurrences'
+      preLoaderRoute: typeof AppRecurrencesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/categories': {
+      id: '/_app/categories'
+      path: '/categories'
+      fullPath: '/categories'
+      preLoaderRoute: typeof AppCategoriesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/cards': {
       id: '/_app/cards'
       path: '/cards'
       fullPath: '/cards'
       preLoaderRoute: typeof AppCardsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/budgets': {
+      id: '/_app/budgets'
+      path: '/budgets'
+      fullPath: '/budgets'
+      preLoaderRoute: typeof AppBudgetsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/alerts': {
+      id: '/_app/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AppAlertsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/accounts': {
@@ -139,13 +263,25 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAccountsRoute: typeof AppAccountsRoute
+  AppAlertsRoute: typeof AppAlertsRoute
+  AppBudgetsRoute: typeof AppBudgetsRoute
   AppCardsRoute: typeof AppCardsRoute
+  AppCategoriesRoute: typeof AppCategoriesRoute
+  AppRecurrencesRoute: typeof AppRecurrencesRoute
+  AppReportsRoute: typeof AppReportsRoute
+  AppTransactionsRoute: typeof AppTransactionsRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppAccountsRoute: AppAccountsRoute,
+  AppAlertsRoute: AppAlertsRoute,
+  AppBudgetsRoute: AppBudgetsRoute,
   AppCardsRoute: AppCardsRoute,
+  AppCategoriesRoute: AppCategoriesRoute,
+  AppRecurrencesRoute: AppRecurrencesRoute,
+  AppReportsRoute: AppReportsRoute,
+  AppTransactionsRoute: AppTransactionsRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
