@@ -94,11 +94,12 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   }
 
   if (!res.ok) {
-    const msg =
-      (parsed && typeof parsed === "object" && (parsed as ApiErrorBody).message) ||
-      (typeof parsed === "string" && parsed) ||
-      res.statusText ||
-      "Erro inesperado";
+    let msg = res.statusText || "Erro inesperado";
+    if (parsed && typeof parsed === "object" && typeof (parsed as ApiErrorBody).message === "string") {
+      msg = (parsed as ApiErrorBody).message as string;
+    } else if (typeof parsed === "string" && parsed) {
+      msg = parsed;
+    }
     throw new ApiError(res.status, msg, parsed as ApiErrorBody | string);
   }
 
