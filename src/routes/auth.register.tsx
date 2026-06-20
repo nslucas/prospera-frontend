@@ -40,16 +40,16 @@ function RegisterPage() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm space-y-6">
+    <main className="soft-grid flex min-h-screen items-center justify-center px-6 py-12">
+      <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(21,84,61,0.09)] md:p-8">
         <Link to="/auth/login" className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground font-display text-lg">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-display text-lg shadow-sm">
             F
           </div>
-          <span className="font-display text-2xl">Finanx</span>
+          <span className="text-2xl font-semibold tracking-tight">Finanx</span>
         </Link>
         <div>
-          <h1 className="font-display text-3xl">Criar conta</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Criar conta</h1>
           <p className="text-sm text-muted-foreground">Comece a organizar sua vida financeira.</p>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>

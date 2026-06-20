@@ -71,9 +71,23 @@ export interface CardStatement {
     expenseId: number;
     expenseName: string;
     installmentNumber: number;
-    totalInstallments: number;
     amount: number;
+    dueDate?: string | null;
+    cardId?: number | null;
+    totalInstallments?: number;
   }>;
+}
+
+export interface CardPayment {
+  id: number;
+  cardId: number;
+  accountId: number;
+  month: number;
+  year: number;
+  amount: number;
+  paymentDate: string;
+  description?: string | null;
+  transactionId?: number | null;
 }
 
 export interface Expense {
@@ -182,6 +196,13 @@ export interface MonthlySummary {
   budgetProgress: BudgetProgress[];
 }
 
+export interface CategorySummary {
+  categoryId?: number | null;
+  categoryName: string;
+  categoryType: CategoryType;
+  amount: number;
+}
+
 export interface TrendPoint {
   month: number;
   year: number;
@@ -189,6 +210,54 @@ export interface TrendPoint {
   accountExpenseTotal: number;
   cardStatementExpenseTotal: number;
   netTotal: number;
+}
+
+export interface YearlySummary {
+  year: number;
+  months: TrendPoint[];
+  incomeTotal: number;
+  accountExpenseTotal: number;
+  cardStatementExpenseTotal: number;
+  netTotal: number;
+}
+
+export interface CardMonthlySummary {
+  cardId: number;
+  cardName: string;
+  month: number;
+  year: number;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: CardStatementStatus;
+}
+
+export interface FixedVariableSummary {
+  month: number;
+  year: number;
+  fixedAmount: number;
+  variableAmount: number;
+  unclassifiedAmount: number;
+}
+
+export interface UpcomingCardStatement {
+  cardId: number;
+  cardName: string;
+  month: number;
+  year: number;
+  dueDate: string;
+  closingDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  status: CardStatementStatus;
+}
+
+export interface UpcomingSummary {
+  from: string;
+  to: string;
+  recurrenceOccurrences: RecurrenceOccurrence[];
+  cardStatements: UpcomingCardStatement[];
 }
 
 export interface ForecastPoint {
@@ -207,6 +276,7 @@ export interface ForecastPoint {
 
 export interface AuthResponse {
   token: string;
-  id: number;
+  id?: number;
+  userId?: number;
   email: string;
 }

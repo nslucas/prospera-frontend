@@ -1,11 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plus, Trash2, Tag as TagIcon } from "lucide-react";
+import { Pencil, Plus, Trash2, Tag as TagIcon } from "lucide-react";
 import { categoriesQuery } from "@/lib/queries";
 import { api, ApiError } from "@/lib/api";
 import type { Category, CategoryType } from "@/lib/types";
@@ -44,18 +44,33 @@ function CategoriesPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery(categoriesQuery());
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Category | null>(null);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: { type: "EXPENSE" },
   });
 
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      form.reset({ name: editing.name, type: editing.type });
+    } else {
+      form.reset({ name: "", type: "EXPENSE" });
+    }
+  }, [editing, form, open]);
+
   const create = useMutation({
-    mutationFn: (v: Values) => api<Category>("/categories", { method: "POST", body: v }),
+    mutationFn: (v: Values) =>
+      api<Category>(editing ? `/categories/${editing.id}` : "/categories", {
+        method: editing ? "PUT" : "POST",
+        body: v,
+      }),
     onSuccess: () => {
-      toast.success("Categoria criada");
+      toast.success(editing ? "Categoria atualizada" : "Categoria criada");
       qc.invalidateQueries({ queryKey: ["categories"] });
       setOpen(false);
+      setEditing(null);
       form.reset({ type: "EXPENSE", name: "" });
     },
     onError: (e: ApiError) => toast.error(e.message),
@@ -79,10 +94,16 @@ function CategoriesPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl md:text-4xl">Categorias</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Categorias</h1>
           <p className="text-sm text-muted-foreground">Organize receitas e despesas.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (!next) setEditing(null);
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4" /> Nova
@@ -90,7 +111,7 @@ function CategoriesPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nova categoria</DialogTitle>
+              <DialogTitle>{editing ? "Editar categoria" : "Nova categoria"}</DialogTitle>
             </DialogHeader>
             <form className="space-y-4" onSubmit={form.handleSubmit((v) => create.mutate(v))}>
               <div className="space-y-1.5">
@@ -100,7 +121,7 @@ function CategoriesPage() {
               <div className="space-y-1.5">
                 <Label>Tipo</Label>
                 <Select
-                  defaultValue="EXPENSE"
+                  value={form.watch("type")}
                   onValueChange={(v) => form.setValue("type", v as CategoryType)}
                 >
                   <SelectTrigger>
@@ -146,6 +167,17 @@ function CategoriesPage() {
                             <span className="truncate text-sm">{c.name}</span>
                             {!c.active && <Badge variant="outline">inativa</Badge>}
                           </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setEditing(c);
+                              setOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"

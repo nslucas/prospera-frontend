@@ -1,18 +1,67 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { toast } from "sonner";
-import { Check, X, Calendar } from "lucide-react";
-import { occurrencesQuery, recurrencesQuery } from "@/lib/queries";
+import { Calendar, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { accountsQuery, cardsQuery, categoriesQuery, occurrencesQuery, recurrencesQuery } from "@/lib/queries";
 import { api, ApiError } from "@/lib/api";
+import type { Recurrence } from "@/lib/types";
 import { addDaysIso, formatBRL, formatDate, todayIsoDate } from "@/lib/format";
+import { invalidateFinanceQueries } from "@/lib/query-invalidation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/_app/recurrences")({
   component: RecurrencesPage,
 });
+
+const schema = z
+  .object({
+    name: z.string().min(1, "Informe o nome"),
+    description: z.string().optional(),
+    targetType: z.enum(["ACCOUNT_TRANSACTION", "CARD_EXPENSE"]),
+    transactionType: z.enum(["INCOME", "EXPENSE"]).optional(),
+    amount: z.coerce.number().positive("Valor deve ser > 0"),
+    frequency: z.enum(["MONTHLY", "ANNUAL"]),
+    startDate: z.string().min(1, "Informe a data inicial"),
+    endDate: z.string().optional(),
+    dayOfMonth: z.coerce.number().int().min(1).max(31),
+    monthOfYear: z.coerce.number().int().min(1).max(12).optional(),
+    accountId: z.coerce.number().int().optional(),
+    cardId: z.coerce.number().int().optional(),
+    categoryId: z.coerce.number().int().optional(),
+    installmentCount: z.coerce.number().int().positive().optional(),
+    classification: z.enum(["FIXED", "VARIABLE"]),
+  })
+  .superRefine((values, ctx) => {
+    if (values.targetType === "ACCOUNT_TRANSACTION") {
+      if (!values.accountId) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione a conta" });
+      if (!values.transactionType) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["transactionType"], message: "Selecione o tipo" });
+    }
+    if (values.targetType === "CARD_EXPENSE" && !values.cardId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione o cartao" });
+    }
+    if (values.frequency === "ANNUAL" && !values.monthOfYear) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["monthOfYear"], message: "Informe o mes" });
+    }
+  });
+type Values = z.infer<typeof schema>;
 
 function RecurrencesPage() {
   const qc = useQueryClient();
@@ -20,79 +69,203 @@ function RecurrencesPage() {
   const to = addDaysIso(today, 60);
   const list = useQuery(recurrencesQuery());
   const occ = useQuery(occurrencesQuery(today, to));
+  const accounts = useQuery(accountsQuery());
+  const cards = useQuery(cardsQuery());
+  const categories = useQuery(categoriesQuery());
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Recurrence | null>(null);
+
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      targetType: "ACCOUNT_TRANSACTION",
+      transactionType: "EXPENSE",
+      frequency: "MONTHLY",
+      startDate: today,
+      dayOfMonth: new Date().getDate(),
+      installmentCount: 1,
+      classification: "FIXED",
+    },
+  });
+  const targetType = form.watch("targetType");
+  const frequency = form.watch("frequency");
+  const transactionType = form.watch("transactionType");
+
+  const save = useMutation({
+    mutationFn: (values: Values) =>
+      api<Recurrence>(editing ? `/recurrences/${editing.id}` : "/recurrences", {
+        method: editing ? "PUT" : "POST",
+        body: toPayload(values),
+      }),
+    onSuccess: () => {
+      toast.success(editing ? "Recorrencia atualizada" : "Recorrencia criada");
+      invalidateFinanceQueries(qc);
+      setOpen(false);
+      setEditing(null);
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: number) => api(`/recurrences/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Recorrencia removida");
+      invalidateFinanceQueries(qc);
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
 
   const materialize = useMutation({
     mutationFn: ({ id, date }: { id: number; date: string }) =>
       api(`/recurrences/${id}/occurrences`, { method: "POST", body: { occurrenceDate: date } }),
     onSuccess: () => {
-      toast.success("Lançado");
-      qc.invalidateQueries({ queryKey: ["recurrence-occurrences"] });
-      qc.invalidateQueries({ queryKey: ["accounts"] });
-      qc.invalidateQueries({ queryKey: ["transactions"] });
+      toast.success("Lancado");
+      invalidateFinanceQueries(qc);
     },
     onError: (e: ApiError) => toast.error(e.message),
   });
+
   const skip = useMutation({
     mutationFn: ({ id, date }: { id: number; date: string }) =>
       api(`/recurrences/${id}/occurrences/skip`, { method: "POST", body: { occurrenceDate: date } }),
     onSuccess: () => {
-      toast.success("Pulado");
-      qc.invalidateQueries({ queryKey: ["recurrence-occurrences"] });
+      toast.success("Ocorrencia pulada");
+      invalidateFinanceQueries(qc);
     },
     onError: (e: ApiError) => toast.error(e.message),
   });
 
+  const activeAccounts = (accounts.data ?? []).filter((account) => account.active);
+  const activeCards = (cards.data ?? []).filter((card) => card.active);
+  const filteredCategories = (categories.data ?? []).filter((category) => {
+    if (!category.active) return false;
+    if (targetType === "CARD_EXPENSE") return category.type === "EXPENSE";
+    return category.type === transactionType;
+  });
+
+  const openNew = () => {
+    setEditing(null);
+    form.reset({
+      name: "",
+      description: "",
+      targetType: "ACCOUNT_TRANSACTION",
+      transactionType: "EXPENSE",
+      amount: 0,
+      frequency: "MONTHLY",
+      startDate: today,
+      endDate: "",
+      dayOfMonth: new Date().getDate(),
+      monthOfYear: undefined,
+      accountId: undefined,
+      cardId: undefined,
+      categoryId: undefined,
+      installmentCount: 1,
+      classification: "FIXED",
+    });
+    setOpen(true);
+  };
+
+  const openEdit = (recurrence: Recurrence) => {
+    setEditing(recurrence);
+    form.reset({
+      name: recurrence.name,
+      description: recurrence.description ?? "",
+      targetType: recurrence.targetType,
+      transactionType: recurrence.transactionType === "INCOME" || recurrence.transactionType === "EXPENSE" ? recurrence.transactionType : undefined,
+      amount: recurrence.amount,
+      frequency: recurrence.frequency,
+      startDate: recurrence.startDate,
+      endDate: recurrence.endDate ?? "",
+      dayOfMonth: recurrence.dayOfMonth,
+      monthOfYear: recurrence.monthOfYear ?? undefined,
+      accountId: recurrence.accountId ?? undefined,
+      cardId: recurrence.cardId ?? undefined,
+      categoryId: recurrence.categoryId ?? undefined,
+      installmentCount: recurrence.installmentCount ?? 1,
+      classification: recurrence.classification,
+    });
+    setOpen(true);
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="font-display text-3xl md:text-4xl">Recorrências</h1>
-        <p className="text-sm text-muted-foreground">
-          Visualize e materialize lançamentos futuros nos próximos 60 dias.
-        </p>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Recorrencias</h1>
+          <p className="text-sm text-muted-foreground">Crie regras, visualize proximas ocorrencias e lance quando quiser.</p>
+        </div>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (!next) setEditing(null);
+          }}
+        >
+          <DialogTrigger asChild>
+            <Button onClick={openNew}>
+              <Plus className="h-4 w-4" /> Nova
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editing ? "Editar recorrencia" : "Nova recorrencia"}</DialogTitle>
+            </DialogHeader>
+            <form className="space-y-4" onSubmit={form.handleSubmit((values) => save.mutate(values))}>
+              <RecurrenceFields
+                form={form}
+                targetType={targetType}
+                frequency={frequency}
+                activeAccounts={activeAccounts}
+                activeCards={activeCards}
+                categories={filteredCategories}
+              />
+              <DialogFooter>
+                <Button type="submit" disabled={save.isPending}>
+                  {save.isPending ? "Salvando..." : "Salvar"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Tabs defaultValue="upcoming">
         <TabsList>
-          <TabsTrigger value="upcoming">Próximas</TabsTrigger>
+          <TabsTrigger value="upcoming">Proximas</TabsTrigger>
           <TabsTrigger value="rules">Regras</TabsTrigger>
         </TabsList>
 
         <TabsContent value="upcoming" className="mt-4 space-y-3">
           {occ.isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando…</p>
+            <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : !occ.data?.length ? (
             <Card>
               <CardContent className="p-10 text-center text-sm text-muted-foreground">
-                <Calendar className="mx-auto mb-2 h-5 w-5" /> Nada nos próximos 60 dias.
+                <Calendar className="mx-auto mb-2 h-5 w-5" /> Nada nos proximos 60 dias.
               </CardContent>
             </Card>
           ) : (
-            occ.data.map((o) => (
-              <Card key={`${o.recurrenceId}-${o.occurrenceDate}`}>
+            occ.data.map((item) => (
+              <Card key={`${item.recurrenceId}-${item.occurrenceDate}`}>
                 <CardContent className="flex items-center gap-3 p-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{o.recurrenceName}</span>
-                      <Badge variant="outline" className="text-[10px]">
-                        {o.classification}
-                      </Badge>
-                      <Badge
-                        variant={o.status === "MATERIALIZED" ? "secondary" : "outline"}
-                        className="text-[10px]"
-                      >
-                        {o.status}
+                      <span className="truncate text-sm font-medium">{item.recurrenceName}</span>
+                      <Badge variant="outline" className="text-[10px]">{item.classification}</Badge>
+                      <Badge variant={item.status === "MATERIALIZED" ? "secondary" : "outline"} className="text-[10px]">
+                        {item.status}
                       </Badge>
                     </div>
-                    <div className="text-xs text-muted-foreground">{formatDate(o.occurrenceDate)}</div>
+                    <div className="text-xs text-muted-foreground">{formatDate(item.occurrenceDate)}</div>
                   </div>
-                  <div className="text-sm font-semibold tabular-nums">{formatBRL(o.amount)}</div>
-                  {o.status === "PENDING" && (
+                  <div className="text-sm font-semibold tabular-nums">{formatBRL(item.amount)}</div>
+                  {item.status === "PENDING" && (
                     <div className="flex gap-1">
                       <Button
                         size="icon"
                         variant="outline"
                         className="h-8 w-8"
-                        onClick={() => materialize.mutate({ id: o.recurrenceId, date: o.occurrenceDate })}
+                        onClick={() => materialize.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
                       >
                         <Check className="h-4 w-4" />
                       </Button>
@@ -100,7 +273,7 @@ function RecurrencesPage() {
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
-                        onClick={() => skip.mutate({ id: o.recurrenceId, date: o.occurrenceDate })}
+                        onClick={() => skip.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -114,27 +287,35 @@ function RecurrencesPage() {
 
         <TabsContent value="rules" className="mt-4 space-y-3">
           {list.isLoading ? (
-            <p className="text-sm text-muted-foreground">Carregando…</p>
+            <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : !list.data?.length ? (
             <Card>
-              <CardContent className="p-10 text-center text-sm text-muted-foreground">
-                Nenhuma recorrência cadastrada.
-              </CardContent>
+              <CardContent className="p-10 text-center text-sm text-muted-foreground">Nenhuma recorrencia cadastrada.</CardContent>
             </Card>
           ) : (
-            list.data.map((r) => (
-              <Card key={r.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">{r.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {r.frequency} • {r.classification} •{" "}
-                        {r.targetType === "CARD_EXPENSE" ? "cartão" : r.transactionType}
-                      </div>
+            list.data.map((item) => (
+              <Card key={item.id}>
+                <CardContent className="flex items-center gap-3 p-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{item.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {item.frequency} - {item.classification} - {item.targetType === "CARD_EXPENSE" ? "cartao" : item.transactionType}
                     </div>
-                    <div className="text-sm font-semibold tabular-nums">{formatBRL(r.amount)}</div>
                   </div>
+                  <div className="text-sm font-semibold tabular-nums">{formatBRL(item.amount)}</div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                    <Pencil className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => {
+                      if (confirm(`Remover "${item.name}"?`)) remove.mutate(item.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
                 </CardContent>
               </Card>
             ))
@@ -143,4 +324,206 @@ function RecurrencesPage() {
       </Tabs>
     </div>
   );
+}
+
+function RecurrenceFields({
+  form,
+  targetType,
+  frequency,
+  activeAccounts,
+  activeCards,
+  categories,
+}: {
+  form: ReturnType<typeof useForm<Values>>;
+  targetType: Values["targetType"];
+  frequency: Values["frequency"];
+  activeAccounts: Array<{ id: number; name: string }>;
+  activeCards: Array<{ id: number; name: string }>;
+  categories: Array<{ id: number; name: string }>;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div className="col-span-2 space-y-1.5">
+        <Label>Nome</Label>
+        <Input {...form.register("name")} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Destino</Label>
+        <Select
+          value={form.watch("targetType")}
+          onValueChange={(value) => {
+            const target = value as Values["targetType"];
+            form.setValue("targetType", target, { shouldValidate: true });
+            if (target === "CARD_EXPENSE") {
+              form.setValue("transactionType", undefined);
+              form.setValue("accountId", undefined);
+            } else {
+              form.setValue("cardId", undefined);
+              form.setValue("transactionType", "EXPENSE");
+            }
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ACCOUNT_TRANSACTION">Conta</SelectItem>
+            <SelectItem value="CARD_EXPENSE">Cartao</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {targetType === "ACCOUNT_TRANSACTION" ? (
+        <div className="space-y-1.5">
+          <Label>Tipo</Label>
+          <Select
+            value={form.watch("transactionType") ?? undefined}
+            onValueChange={(value) => form.setValue("transactionType", value as Values["transactionType"], { shouldValidate: true })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="EXPENSE">Despesa</SelectItem>
+              <SelectItem value="INCOME">Receita</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label>Parcelas</Label>
+          <Input type="number" min={1} {...form.register("installmentCount")} />
+        </div>
+      )}
+      <div className="space-y-1.5">
+        <Label>Valor</Label>
+        <Input type="number" step="0.01" {...form.register("amount")} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Classificacao</Label>
+        <Select value={form.watch("classification")} onValueChange={(value) => form.setValue("classification", value as Values["classification"])}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="FIXED">Fixa</SelectItem>
+            <SelectItem value="VARIABLE">Variavel</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Frequencia</Label>
+        <Select value={form.watch("frequency")} onValueChange={(value) => form.setValue("frequency", value as Values["frequency"])}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="MONTHLY">Mensal</SelectItem>
+            <SelectItem value="ANNUAL">Anual</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label>Dia</Label>
+        <Input type="number" min={1} max={31} {...form.register("dayOfMonth")} />
+      </div>
+      {frequency === "ANNUAL" && (
+        <div className="space-y-1.5">
+          <Label>Mes</Label>
+          <Input type="number" min={1} max={12} {...form.register("monthOfYear")} />
+        </div>
+      )}
+      <div className="space-y-1.5">
+        <Label>Inicio</Label>
+        <Input type="date" {...form.register("startDate")} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>Fim</Label>
+        <Input type="date" {...form.register("endDate")} />
+      </div>
+      {targetType === "ACCOUNT_TRANSACTION" ? (
+        <div className="space-y-1.5">
+          <Label>Conta</Label>
+          <Select
+            value={form.watch("accountId") ? String(form.watch("accountId")) : undefined}
+            onValueChange={(value) => form.setValue("accountId", Number(value), { shouldValidate: true })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              {activeAccounts.map((account) => (
+                <SelectItem key={account.id} value={String(account.id)}>
+                  {account.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : (
+        <div className="space-y-1.5">
+          <Label>Cartao</Label>
+          <Select
+            value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
+            onValueChange={(value) => form.setValue("cardId", Number(value), { shouldValidate: true })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione" />
+            </SelectTrigger>
+            <SelectContent>
+              {activeCards.map((card) => (
+                <SelectItem key={card.id} value={String(card.id)}>
+                  {card.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <div className="space-y-1.5">
+        <Label>Categoria</Label>
+        <Select
+          value={form.watch("categoryId") ? String(form.watch("categoryId")) : "_none"}
+          onValueChange={(value) => form.setValue("categoryId", value === "_none" ? undefined : Number(value))}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_none">Sem categoria</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category.id} value={String(category.id)}>
+                {category.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="col-span-2 space-y-1.5">
+        <Label>Descricao</Label>
+        <Input {...form.register("description")} placeholder="opcional" />
+      </div>
+    </div>
+  );
+}
+
+function toPayload(values: Values) {
+  const accountTarget = values.targetType === "ACCOUNT_TRANSACTION";
+  const annual = values.frequency === "ANNUAL";
+  return {
+    name: values.name,
+    description: values.description || null,
+    targetType: values.targetType,
+    transactionType: accountTarget ? values.transactionType : null,
+    amount: values.amount,
+    frequency: values.frequency,
+    startDate: values.startDate,
+    endDate: values.endDate || null,
+    dayOfMonth: values.dayOfMonth,
+    monthOfYear: annual ? values.monthOfYear || null : null,
+    accountId: accountTarget ? values.accountId : null,
+    cardId: accountTarget ? null : values.cardId,
+    categoryId: values.categoryId || null,
+    installmentCount: accountTarget ? null : values.installmentCount || 1,
+    classification: values.classification,
+  };
 }

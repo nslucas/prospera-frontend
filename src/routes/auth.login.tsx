@@ -43,35 +43,42 @@ function LoginPage() {
   };
 
   return (
-    <div className="grid min-h-screen md:grid-cols-2">
-      <aside className="hidden md:flex flex-col justify-between bg-primary p-10 text-primary-foreground">
+    <div className="soft-grid grid min-h-screen md:grid-cols-[0.9fr_1.1fr]">
+      <aside className="hidden flex-col justify-between border-r border-border/70 bg-white p-10 text-foreground shadow-[18px_0_55px_rgba(21,84,61,0.06)] md:flex">
         <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary-foreground/15 font-display text-lg">
+          <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary font-display text-lg text-primary-foreground shadow-[0_12px_24px_rgba(37,142,94,0.2)]">
             F
           </div>
-          <span className="font-display text-2xl">Finanx</span>
+          <span className="text-2xl font-semibold tracking-tight">Finanx</span>
         </div>
         <div className="space-y-3">
-          <h2 className="font-display text-4xl leading-tight">
+          <h2 className="text-4xl font-semibold leading-tight tracking-tight">
             Suas finanças com a clareza que você merece.
           </h2>
-          <p className="text-sm text-primary-foreground/80">
+          <p className="max-w-md text-sm text-muted-foreground">
             Contas, cartões, orçamentos e previsões em um só lugar.
           </p>
+          <div className="grid max-w-md grid-cols-3 gap-3 pt-4">
+            {["Contas", "Cartões", "Metas"].map((item) => (
+              <div key={item} className="rounded-lg border border-border bg-muted/35 px-3 py-2 text-sm font-medium">
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
-        <p className="text-xs text-primary-foreground/60">© Finanx</p>
+        <p className="text-xs text-muted-foreground">© Finanx</p>
       </aside>
 
       <main className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm space-y-6">
+        <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(21,84,61,0.09)] md:p-8">
           <div className="md:hidden flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground font-display text-lg">
+            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-display text-lg">
               F
             </div>
-            <span className="font-display text-2xl">Finanx</span>
+            <span className="text-2xl font-semibold tracking-tight">Finanx</span>
           </div>
-          <div>
-            <h1 className="font-display text-3xl">Entrar</h1>
+          <div className="mt-6 md:mt-0">
+            <h1 className="text-3xl font-semibold tracking-tight">Entrar</h1>
             <p className="text-sm text-muted-foreground">Acesse sua conta para continuar.</p>
           </div>
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>

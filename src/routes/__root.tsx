@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "../lib/auth";
+import { registerPwaServiceWorker } from "../lib/pwa";
 import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
@@ -76,7 +77,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Finanx — Controle financeiro pessoal" },
       { name: "description", content: "Acompanhe contas, cartões, despesas e orçamentos em um só lugar." },
-      { name: "theme-color", content: "#4f46e5" },
+      { name: "theme-color", content: "#2f9b66" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "Finanx" },
@@ -117,6 +118,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  useEffect(() => {
+    registerPwaServiceWorker();
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>

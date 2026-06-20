@@ -1,9 +1,16 @@
 // Tiny fetch wrapper for the Finanx REST API.
 // JWT lives in localStorage; SSR is guarded.
 const STORAGE_KEY = "finanx.token";
+const DEFAULT_API_BASE_URL = "http://localhost:8080";
+const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 
-export const API_BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "http://localhost:8080";
+function resolveApiBaseUrl(): string {
+  if (!rawApiBaseUrl) return DEFAULT_API_BASE_URL;
+  if (import.meta.env.DEV && rawApiBaseUrl === "/api") return DEFAULT_API_BASE_URL;
+  return rawApiBaseUrl;
+}
+
+export const API_BASE_URL: string = resolveApiBaseUrl();
 
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -42,7 +49,9 @@ export interface RequestOptions {
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
-  const url = new URL(path.replace(/^\//, ""), API_BASE_URL.replace(/\/?$/, "/"));
+  const base = API_BASE_URL.replace(/\/?$/, "/");
+  const origin = typeof window !== "undefined" ? window.location.origin : "http://localhost";
+  const url = new URL(path.replace(/^\//, ""), base.startsWith("http") ? base : new URL(base, origin));
   if (query) {
     for (const [k, v] of Object.entries(query)) {
       if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
@@ -74,7 +83,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
     throw new ApiError(0, "Sem conexão com a API. Verifique VITE_API_BASE_URL.", String(e));
   }
 
-  if (res.status === 401 && path !== "/auth/login") {
+  if ((res.status === 401 || res.status === 403) && path !== "/auth/login") {
     setToken(null);
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
       window.location.href = "/auth/login";
@@ -97,6 +106,8 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
     let msg = res.statusText || "Erro inesperado";
     if (parsed && typeof parsed === "object" && typeof (parsed as ApiErrorBody).message === "string") {
       msg = (parsed as ApiErrorBody).message as string;
+    } else if (parsed && typeof parsed === "object" && typeof (parsed as ApiErrorBody).error === "string") {
+      msg = (parsed as ApiErrorBody).error as string;
     } else if (typeof parsed === "string" && parsed) {
       msg = parsed;
     }

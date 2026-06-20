@@ -1,15 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plus, Trash2, Wallet } from "lucide-react";
+import { ArrowLeftRight, Pencil, Plus, Trash2, Wallet } from "lucide-react";
 import { accountsQuery } from "@/lib/queries";
 import { api, ApiError } from "@/lib/api";
 import type { Account, AccountType } from "@/lib/types";
-import { formatBRL } from "@/lib/format";
+import { formatBRL, nowIsoDateTime } from "@/lib/format";
+import { invalidateFinanceQueries } from "@/lib/query-invalidation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,17 +50,56 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
+const transferSchema = z.object({
+  targetAccountId: z.coerce.number().int().positive("Selecione a conta de destino"),
+  amount: z.coerce.number().positive("Valor deve ser > 0"),
+  occurredAt: z.string().min(1, "Informe a data"),
+  description: z.string().optional(),
+});
+type TransferValues = z.infer<typeof transferSchema>;
+
 function AccountsPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery(accountsQuery());
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Account | null>(null);
+  const [transferSource, setTransferSource] = useState<Account | null>(null);
+  const form = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { type: "CHECKING", currency: "BRL", balance: 0 },
+  });
+  const transferForm = useForm<TransferValues>({
+    resolver: zodResolver(transferSchema),
+    defaultValues: { occurredAt: nowIsoDateTime() },
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    if (editing) {
+      form.reset({
+        name: editing.name,
+        type: editing.type,
+        balance: editing.balance,
+        currency: editing.currency || "BRL",
+      });
+    } else {
+      form.reset({ type: "CHECKING", currency: "BRL", balance: 0, name: "" });
+    }
+  }, [editing, form, open]);
 
   const create = useMutation({
-    mutationFn: (v: Values) => api<Account>("/accounts", { method: "POST", body: v }),
+    mutationFn: (v: Values) =>
+      editing
+        ? api<Account>(`/accounts/${editing.id}`, {
+            method: "PUT",
+            body: { name: v.name, type: v.type, currency: v.currency },
+          })
+        : api<Account>("/accounts", { method: "POST", body: v }),
     onSuccess: () => {
-      toast.success("Conta criada");
-      qc.invalidateQueries({ queryKey: ["accounts"] });
+      toast.success(editing ? "Conta atualizada" : "Conta criada");
+      invalidateFinanceQueries(qc);
       setOpen(false);
+      setEditing(null);
     },
     onError: (e: ApiError) => toast.error(e.message),
   });
@@ -68,24 +108,40 @@ function AccountsPage() {
     mutationFn: (id: number) => api(`/accounts/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Conta desativada");
-      qc.invalidateQueries({ queryKey: ["accounts"] });
+      invalidateFinanceQueries(qc);
     },
     onError: (e: ApiError) => toast.error(e.message),
   });
 
-  const form = useForm<Values>({
-    resolver: zodResolver(schema),
-    defaultValues: { type: "CHECKING", currency: "BRL", balance: 0 },
+  const transfer = useMutation({
+    mutationFn: ({ sourceId, values }: { sourceId: number; values: TransferValues }) =>
+      api(`/accounts/${sourceId}/transfers`, {
+        method: "POST",
+        body: { ...values, description: values.description || null },
+      }),
+    onSuccess: () => {
+      toast.success("Transferência registrada");
+      invalidateFinanceQueries(qc);
+      setTransferSource(null);
+      transferForm.reset({ occurredAt: nowIsoDateTime() });
+    },
+    onError: (e: ApiError) => toast.error(e.message),
   });
 
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl md:text-4xl">Contas</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Contas</h1>
           <p className="text-sm text-muted-foreground">Suas contas correntes, poupanças e mais.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+          open={open}
+          onOpenChange={(next) => {
+            setOpen(next);
+            if (!next) setEditing(null);
+          }}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4" /> Nova conta
@@ -93,7 +149,7 @@ function AccountsPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Nova conta</DialogTitle>
+              <DialogTitle>{editing ? "Editar conta" : "Nova conta"}</DialogTitle>
             </DialogHeader>
             <form
               className="space-y-4"
@@ -107,7 +163,7 @@ function AccountsPage() {
                 <div className="space-y-1.5">
                   <Label>Tipo</Label>
                   <Select
-                    defaultValue="CHECKING"
+                    value={form.watch("type")}
                     onValueChange={(v) => form.setValue("type", v as AccountType)}
                   >
                     <SelectTrigger>
@@ -129,7 +185,7 @@ function AccountsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Saldo inicial</Label>
-                <Input type="number" step="0.01" {...form.register("balance")} />
+                <Input type="number" step="0.01" disabled={!!editing} {...form.register("balance")} />
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={create.isPending}>
@@ -164,20 +220,93 @@ function AccountsPage() {
                     {formatBRL(a.balance, a.currency || "BRL")}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    if (confirm(`Desativar a conta "${a.name}"?`)) remove.mutate(a.id);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4 text-muted-foreground" />
-                </Button>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setEditing(a);
+                      setOpen(true);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      setTransferSource(a);
+                      transferForm.reset({ occurredAt: nowIsoDateTime() });
+                    }}
+                  >
+                    <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      if (confirm(`Desativar a conta "${a.name}"?`)) remove.mutate(a.id);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      <Dialog open={!!transferSource} onOpenChange={(next) => !next && setTransferSource(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transferir de {transferSource?.name}</DialogTitle>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={transferForm.handleSubmit((values) => {
+              if (transferSource) transfer.mutate({ sourceId: transferSource.id, values });
+            })}
+          >
+            <div className="space-y-1.5">
+              <Label>Conta de destino</Label>
+              <Select onValueChange={(v) => transferForm.setValue("targetAccountId", Number(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(data ?? [])
+                    .filter((a) => a.active && a.id !== transferSource?.id)
+                    .map((a) => (
+                      <SelectItem key={a.id} value={String(a.id)}>
+                        {a.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Valor</Label>
+                <Input type="number" step="0.01" {...transferForm.register("amount")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Quando</Label>
+                <Input type="datetime-local" {...transferForm.register("occurredAt")} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Descrição</Label>
+              <Input {...transferForm.register("description")} placeholder="opcional" />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={transfer.isPending}>
+                {transfer.isPending ? "Salvando…" : "Transferir"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

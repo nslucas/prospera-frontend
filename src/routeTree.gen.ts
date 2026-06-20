@@ -16,6 +16,7 @@ import { Route as AuthLoginRouteImport } from './routes/auth.login'
 import { Route as AppTransactionsRouteImport } from './routes/_app.transactions'
 import { Route as AppReportsRouteImport } from './routes/_app.reports'
 import { Route as AppRecurrencesRouteImport } from './routes/_app.recurrences'
+import { Route as AppHomeRouteImport } from './routes/_app.home'
 import { Route as AppCategoriesRouteImport } from './routes/_app.categories'
 import { Route as AppCardsRouteImport } from './routes/_app.cards'
 import { Route as AppBudgetsRouteImport } from './routes/_app.budgets'
@@ -56,6 +57,11 @@ const AppRecurrencesRoute = AppRecurrencesRouteImport.update({
   path: '/recurrences',
   getParentRoute: () => AppRoute,
 } as any)
+const AppHomeRoute = AppHomeRouteImport.update({
+  id: '/home',
+  path: '/home',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppCategoriesRoute = AppCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/budgets': typeof AppBudgetsRoute
   '/cards': typeof AppCardsRoute
   '/categories': typeof AppCategoriesRoute
+  '/home': typeof AppHomeRoute
   '/recurrences': typeof AppRecurrencesRoute
   '/reports': typeof AppReportsRoute
   '/transactions': typeof AppTransactionsRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/budgets': typeof AppBudgetsRoute
   '/cards': typeof AppCardsRoute
   '/categories': typeof AppCategoriesRoute
+  '/home': typeof AppHomeRoute
   '/recurrences': typeof AppRecurrencesRoute
   '/reports': typeof AppReportsRoute
   '/transactions': typeof AppTransactionsRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/_app/budgets': typeof AppBudgetsRoute
   '/_app/cards': typeof AppCardsRoute
   '/_app/categories': typeof AppCategoriesRoute
+  '/_app/home': typeof AppHomeRoute
   '/_app/recurrences': typeof AppRecurrencesRoute
   '/_app/reports': typeof AppReportsRoute
   '/_app/transactions': typeof AppTransactionsRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/budgets'
     | '/cards'
     | '/categories'
+    | '/home'
     | '/recurrences'
     | '/reports'
     | '/transactions'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
     | '/budgets'
     | '/cards'
     | '/categories'
+    | '/home'
     | '/recurrences'
     | '/reports'
     | '/transactions'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
     | '/_app/budgets'
     | '/_app/cards'
     | '/_app/categories'
+    | '/_app/home'
     | '/_app/recurrences'
     | '/_app/reports'
     | '/_app/transactions'
@@ -223,6 +235,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRecurrencesRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/home': {
+      id: '/_app/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof AppHomeRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/categories': {
       id: '/_app/categories'
       path: '/categories'
@@ -267,6 +286,7 @@ interface AppRouteChildren {
   AppBudgetsRoute: typeof AppBudgetsRoute
   AppCardsRoute: typeof AppCardsRoute
   AppCategoriesRoute: typeof AppCategoriesRoute
+  AppHomeRoute: typeof AppHomeRoute
   AppRecurrencesRoute: typeof AppRecurrencesRoute
   AppReportsRoute: typeof AppReportsRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
@@ -279,6 +299,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppBudgetsRoute: AppBudgetsRoute,
   AppCardsRoute: AppCardsRoute,
   AppCategoriesRoute: AppCategoriesRoute,
+  AppHomeRoute: AppHomeRoute,
   AppRecurrencesRoute: AppRecurrencesRoute,
   AppReportsRoute: AppReportsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
@@ -295,3 +316,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

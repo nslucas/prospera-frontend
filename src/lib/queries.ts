@@ -6,15 +6,21 @@ import type {
   Budget,
   BudgetProgress,
   Card,
+  CardMonthlySummary,
+  CardPayment,
   CardStatement,
+  CategorySummary,
   Category,
   Expense,
+  FixedVariableSummary,
   ForecastPoint,
   MonthlySummary,
   Recurrence,
   RecurrenceOccurrence,
   Transaction,
   TrendPoint,
+  UpcomingSummary,
+  YearlySummary,
 } from "./types";
 
 export const accountsQuery = () =>
@@ -50,6 +56,12 @@ export const currentStatementQuery = (cardId: number) =>
     queryFn: () => api<CardStatement>(`/cards/${cardId}/statements/current`),
   });
 
+export const cardPaymentsQuery = (cardId: number, month: number, year: number) =>
+  queryOptions({
+    queryKey: ["card-payments", cardId, month, year],
+    queryFn: () => api<CardPayment[]>(`/cards/${cardId}/payments`, { query: { month, year } }),
+  });
+
 export const budgetsQuery = (month: number, year: number) =>
   queryOptions({
     queryKey: ["budgets", month, year],
@@ -80,6 +92,12 @@ export const monthlySummaryQuery = (month: number, year: number) =>
     queryFn: () => api<MonthlySummary>("/summary/monthly", { query: { month, year } }),
   });
 
+export const categorySummaryQuery = (month: number, year: number) =>
+  queryOptions({
+    queryKey: ["summary-categories", month, year],
+    queryFn: () => api<CategorySummary[]>("/summary/categories", { query: { month, year } }),
+  });
+
 export const trendsQuery = (fromMonth: number, fromYear: number, toMonth: number, toYear: number) =>
   queryOptions({
     queryKey: ["summary-trends", fromMonth, fromYear, toMonth, toYear],
@@ -96,5 +114,23 @@ export const forecastQuery = (months: number) =>
 export const upcomingQuery = (from: string, to: string) =>
   queryOptions({
     queryKey: ["summary-upcoming", from, to],
-    queryFn: () => api<unknown>("/summary/upcoming", { query: { from, to } }),
+    queryFn: () => api<UpcomingSummary>("/summary/upcoming", { query: { from, to } }),
+  });
+
+export const yearlySummaryQuery = (year: number) =>
+  queryOptions({
+    queryKey: ["summary-yearly", year],
+    queryFn: () => api<YearlySummary>("/summary/yearly", { query: { year } }),
+  });
+
+export const cardSummaryQuery = (month: number, year: number) =>
+  queryOptions({
+    queryKey: ["summary-cards", month, year],
+    queryFn: () => api<CardMonthlySummary[]>("/summary/cards", { query: { month, year } }),
+  });
+
+export const fixedVariableSummaryQuery = (month: number, year: number) =>
+  queryOptions({
+    queryKey: ["summary-fixed-variable", month, year],
+    queryFn: () => api<FixedVariableSummary>("/summary/fixed-variable", { query: { month, year } }),
   });

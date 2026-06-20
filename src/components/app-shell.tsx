@@ -13,6 +13,7 @@ import {
   LogOut,
   Menu,
   X,
+  MoreHorizontal,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
@@ -25,15 +26,15 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: "/", label: "Início", icon: LayoutDashboard, bottom: true },
-  { to: "/transactions", label: "Transações", icon: ArrowLeftRight, bottom: true },
-  { to: "/cards", label: "Cartões", icon: CreditCard, bottom: true },
-  { to: "/budgets", label: "Orçamentos", icon: PiggyBank, bottom: true },
+  { to: "/home", label: "Inicio", icon: LayoutDashboard, bottom: true },
+  { to: "/transactions", label: "Mov.", icon: ArrowLeftRight, bottom: true },
+  { to: "/cards", label: "Cartoes", icon: CreditCard, bottom: true },
+  { to: "/reports", label: "Relatorios", icon: BarChart3, bottom: true },
   { to: "/accounts", label: "Contas", icon: Wallet },
+  { to: "/budgets", label: "Orcamentos", icon: PiggyBank },
   { to: "/categories", label: "Categorias", icon: Tag },
-  { to: "/recurrences", label: "Recorrências", icon: RotateCw },
+  { to: "/recurrences", label: "Recorrencias", icon: RotateCw },
   { to: "/alerts", label: "Alertas", icon: Bell },
-  { to: "/reports", label: "Relatórios", icon: BarChart3 },
 ];
 
 export function AppShell() {
@@ -58,21 +59,20 @@ export function AppShell() {
     );
   }
 
-  const isActive = (to: string) => (to === "/" ? pathname === "/" : pathname.startsWith(to));
-  const bottomItems = NAV.filter((n) => n.bottom);
-  const moreItems = NAV.filter((n) => !n.bottom);
+  const isActive = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
+  const bottomItems = NAV.filter((item) => item.bottom);
+  const moreItems = NAV.filter((item) => !item.bottom);
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-sidebar p-4 md:flex">
-        <Link to="/" className="mb-8 flex items-center gap-2 px-2">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground font-display text-lg">
+    <div className="soft-grid min-h-screen text-foreground">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-sidebar-border bg-sidebar/92 p-4 shadow-[18px_0_45px_rgba(21,84,61,0.05)] backdrop-blur md:flex">
+        <Link to="/transactions" className="mb-8 flex items-center gap-3 rounded-lg px-2 py-2">
+          <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground font-display text-lg shadow-[0_12px_24px_rgba(37,142,94,0.2)]">
             F
           </div>
           <div>
-            <div className="font-display text-xl leading-none">Finanx</div>
-            <div className="text-xs text-muted-foreground">Finanças pessoais</div>
+            <div className="text-lg font-semibold leading-none tracking-tight">Finanx</div>
+            <div className="text-xs text-muted-foreground">Financas pessoais</div>
           </div>
         </Link>
         <nav className="flex flex-1 flex-col gap-1">
@@ -81,18 +81,23 @@ export function AppShell() {
               key={item.to}
               to={item.to}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all",
                 isActive(item.to)
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground",
+                  ? "bg-white text-sidebar-accent-foreground font-medium shadow-sm shadow-emerald-950/[0.05] ring-1 ring-sidebar-border/70"
+                  : "text-muted-foreground hover:bg-white/70 hover:text-foreground",
               )}
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon
+                className={cn(
+                  "h-4 w-4 transition-colors",
+                  isActive(item.to) ? "text-primary" : "text-muted-foreground group-hover:text-primary",
+                )}
+              />
               {item.label}
             </Link>
           ))}
         </nav>
-        <div className="mt-4 rounded-xl border border-border p-3">
+        <div className="mt-4 rounded-lg border border-sidebar-border bg-white/72 p-3 shadow-sm">
           <div className="truncate text-xs text-muted-foreground">Conectado como</div>
           <div className="truncate text-sm font-medium">{user.email}</div>
           <button
@@ -104,30 +109,28 @@ export function AppShell() {
         </div>
       </aside>
 
-      {/* Mobile header */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur md:hidden">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground font-display">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/70 bg-white/88 px-4 py-3 backdrop-blur md:hidden">
+        <Link to="/transactions" className="flex items-center gap-2">
+          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground font-display shadow-sm">
             F
           </div>
-          <span className="font-display text-lg">Finanx</span>
+          <span className="text-lg font-semibold tracking-tight">Finanx</span>
         </Link>
         <button
           aria-label="Abrir menu"
-          onClick={() => setMobileMenu((s) => !s)}
-          className="grid h-9 w-9 place-items-center rounded-lg border border-border"
+          onClick={() => setMobileMenu((open) => !open)}
+          className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-white shadow-sm"
         >
           {mobileMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
         </button>
       </header>
 
-      {/* Mobile sheet */}
       {mobileMenu && (
         <div className="fixed inset-0 z-30 md:hidden" onClick={() => setMobileMenu(false)}>
-          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 bg-emerald-950/35 backdrop-blur-sm" />
           <div
             className="absolute right-0 top-0 h-full w-72 bg-sidebar p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 truncate text-xs text-muted-foreground">{user.email}</div>
             <nav className="flex flex-col gap-1">
@@ -138,8 +141,8 @@ export function AppShell() {
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
                     isActive(item.to)
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      : "text-muted-foreground hover:bg-sidebar-accent/60",
+                      ? "bg-white text-sidebar-accent-foreground font-medium shadow-sm"
+                      : "text-muted-foreground hover:bg-white/70",
                   )}
                 >
                   <item.icon className="h-4 w-4" />
@@ -157,41 +160,43 @@ export function AppShell() {
         </div>
       )}
 
-      {/* Main */}
-      <main className="md:ml-64 pb-24 md:pb-8">
-        <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-10">
+      <main className="pb-24 md:ml-72 md:pb-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-10">
           <Outlet />
         </div>
       </main>
 
-      {/* Bottom nav (mobile) */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-background/95 backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1.5 shadow-[0_-12px_30px_rgba(21,84,61,0.1)] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {bottomItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 py-2.5 text-[10px] transition-colors",
-                isActive(item.to) ? "text-primary" : "text-muted-foreground",
+                "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
+                isActive(item.to)
+                  ? "bg-accent text-primary shadow-sm"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
-              <item.icon className="h-5 w-5" />
-              {item.label}
+              <item.icon className={cn("h-[1.35rem] w-[1.35rem]", isActive(item.to) && "stroke-[2.4]")} />
+              <span className="max-w-full whitespace-nowrap">{item.label}</span>
             </Link>
           ))}
-          <Link
-            to="/alerts"
+          <button
+            type="button"
+            aria-label="Abrir mais opcoes"
+            onClick={() => setMobileMenu(true)}
             className={cn(
-              "flex flex-col items-center justify-center gap-1 py-2.5 text-[10px]",
-              isActive("/alerts") || moreItems.some((m) => isActive(m.to))
-                ? "text-primary"
-                : "text-muted-foreground",
+              "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
+              moreItems.some((item) => isActive(item.to))
+                ? "bg-accent text-primary shadow-sm"
+                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
             )}
           >
-            <Bell className="h-5 w-5" />
-            Mais
-          </Link>
+            <MoreHorizontal className="h-5 w-5" />
+            <span>Mais</span>
+          </button>
         </div>
       </nav>
     </div>

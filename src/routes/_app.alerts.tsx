@@ -16,7 +16,7 @@ function AlertsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl md:text-4xl">Alertas</h1>
+        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Alertas</h1>
         <p className="text-sm text-muted-foreground">
           Avisos sobre limites de cartão, orçamentos e faturas a vencer.
         </p>

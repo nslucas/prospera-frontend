@@ -1,5 +1,5 @@
 import * as React from "react";
-import { api, getToken, setToken } from "./api";
+import { ApiError, api, getToken, setToken } from "./api";
 import type { AuthResponse } from "./types";
 
 interface AuthUser {
@@ -41,9 +41,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const persist = React.useCallback((res: AuthResponse) => {
+    const id = res.userId ?? res.id;
+    if (id == null) throw new Error("Resposta de login sem identificador de usuario");
     setToken(res.token);
     setTokenState(res.token);
-    const u = { id: res.id, email: res.email };
+    const u = { id, email: res.email };
     setUser(u);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(USER_KEY, JSON.stringify(u));
@@ -52,15 +54,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = React.useCallback(
     async (email: string, password: string) => {
-      const res = await api<AuthResponse>("/auth/login", { method: "POST", body: { email, password } });
-      persist(res);
+      try {
+        const res = await api<AuthResponse>("/auth/login", { method: "POST", body: { email, password } });
+        persist(res);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 500 && error.message === "An error occurred") {
+          throw new Error("E-mail ou senha inválidos");
+        }
+        throw error;
+      }
     },
     [persist],
   );
 
   const register = React.useCallback(
     async (data: { firstName: string; lastName: string; email: string; password: string }) => {
-      await api("/auth/register", { method: "POST", body: { ...data, role: "USER" } });
+      await api("/auth/register", {
+        method: "POST",
+        body: {
+          name: data.firstName,
+          lastName: data.lastName,
+          monthLimit: 0,
+          email: data.email,
+          password: data.password,
+          role: "USER",
+        },
+      });
       await login(data.email, data.password);
     },
     [login],
