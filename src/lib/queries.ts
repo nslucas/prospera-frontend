@@ -23,6 +23,13 @@ import type {
   YearlySummary,
 } from "./types";
 
+type ApiEnvelope<T> = T | { data: T };
+
+function unwrapData<T>(value: ApiEnvelope<T>): T {
+  if (value && typeof value === "object" && "data" in value) return value.data;
+  return value;
+}
+
 export const accountsQuery = () =>
   queryOptions({ queryKey: ["accounts"], queryFn: () => api<Account[]>("/accounts") });
 
@@ -89,48 +96,49 @@ export const alertsQuery = (params: { month?: number; year?: number; from?: stri
 export const monthlySummaryQuery = (month: number, year: number) =>
   queryOptions({
     queryKey: ["summary-monthly", month, year],
-    queryFn: () => api<MonthlySummary>("/summary/monthly", { query: { month, year } }),
+    queryFn: () => api<ApiEnvelope<MonthlySummary>>("/summary/monthly", { query: { month, year } }).then(unwrapData),
   });
 
 export const categorySummaryQuery = (month: number, year: number) =>
   queryOptions({
     queryKey: ["summary-categories", month, year],
-    queryFn: () => api<CategorySummary[]>("/summary/categories", { query: { month, year } }),
+    queryFn: () => api<ApiEnvelope<CategorySummary[]>>("/summary/categories", { query: { month, year } }).then(unwrapData),
   });
 
 export const trendsQuery = (fromMonth: number, fromYear: number, toMonth: number, toYear: number) =>
   queryOptions({
     queryKey: ["summary-trends", fromMonth, fromYear, toMonth, toYear],
     queryFn: () =>
-      api<TrendPoint[]>("/summary/trends", { query: { fromMonth, fromYear, toMonth, toYear } }),
+      api<ApiEnvelope<TrendPoint[]>>("/summary/trends", { query: { fromMonth, fromYear, toMonth, toYear } }).then(unwrapData),
   });
 
 export const forecastQuery = (months: number) =>
   queryOptions({
     queryKey: ["summary-forecast", months],
-    queryFn: () => api<{ months: number; forecast: ForecastPoint[] }>("/summary/forecast", { query: { months } }),
+    queryFn: () =>
+      api<ApiEnvelope<{ months: number; forecast: ForecastPoint[] }>>("/summary/forecast", { query: { months } }).then(unwrapData),
   });
 
 export const upcomingQuery = (from: string, to: string) =>
   queryOptions({
     queryKey: ["summary-upcoming", from, to],
-    queryFn: () => api<UpcomingSummary>("/summary/upcoming", { query: { from, to } }),
+    queryFn: () => api<ApiEnvelope<UpcomingSummary>>("/summary/upcoming", { query: { from, to } }).then(unwrapData),
   });
 
 export const yearlySummaryQuery = (year: number) =>
   queryOptions({
     queryKey: ["summary-yearly", year],
-    queryFn: () => api<YearlySummary>("/summary/yearly", { query: { year } }),
+    queryFn: () => api<ApiEnvelope<YearlySummary>>("/summary/yearly", { query: { year } }).then(unwrapData),
   });
 
 export const cardSummaryQuery = (month: number, year: number) =>
   queryOptions({
     queryKey: ["summary-cards", month, year],
-    queryFn: () => api<CardMonthlySummary[]>("/summary/cards", { query: { month, year } }),
+    queryFn: () => api<ApiEnvelope<CardMonthlySummary[]>>("/summary/cards", { query: { month, year } }).then(unwrapData),
   });
 
 export const fixedVariableSummaryQuery = (month: number, year: number) =>
   queryOptions({
     queryKey: ["summary-fixed-variable", month, year],
-    queryFn: () => api<FixedVariableSummary>("/summary/fixed-variable", { query: { month, year } }),
+    queryFn: () => api<ApiEnvelope<FixedVariableSummary>>("/summary/fixed-variable", { query: { month, year } }).then(unwrapData),
   });

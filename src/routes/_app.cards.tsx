@@ -50,6 +50,80 @@ const paymentSchema = z.object({
 });
 type PaymentValues = z.infer<typeof paymentSchema>;
 
+const BANK_BRANDS = [
+  {
+    id: "nubank",
+    label: "Nubank",
+    logo: "/images/banks/nubank.svg",
+    match: ["nubank", "nu bank", "nu"],
+    className: "from-[#612f74] via-[#82429a] to-[#3f1d4c] text-white",
+    accentClassName: "bg-white/12 border-white/18",
+    logoClassName: "brightness-0 invert",
+  },
+  {
+    id: "banestes",
+    label: "Banestes",
+    logo: "/images/banks/banestes.png",
+    match: ["banestes", "banescard"],
+    className: "from-[#1017d8] via-[#1828f0] to-[#0a1178] text-white",
+    accentClassName: "bg-white/12 border-white/18",
+    logoClassName: "brightness-0 invert",
+  },
+  {
+    id: "itau",
+    label: "Itau",
+    logo: "/images/banks/itau.svg",
+    match: ["itau", "itau unibanco", "itaú"],
+    className: "from-[#ff6b00] via-[#f47c00] to-[#10307d] text-white",
+    accentClassName: "bg-white/16 border-white/20",
+  },
+  {
+    id: "banco-do-brasil",
+    label: "Banco do Brasil",
+    logo: "/images/banks/banco-do-brasil.svg",
+    match: ["banco do brasil", "bb"],
+    className: "from-[#f8df18] via-[#f5cf00] to-[#1f54a7] text-[#102b5c]",
+    accentClassName: "bg-white/28 border-white/35",
+  },
+  {
+    id: "bradesco",
+    label: "Bradesco",
+    logo: "/images/banks/bradesco.svg",
+    match: ["bradesco"],
+    className: "from-[#b5122a] via-[#e5173f] to-[#6e0718] text-white",
+    accentClassName: "bg-white/12 border-white/18",
+    logoClassName: "brightness-0 invert",
+  },
+  {
+    id: "santander",
+    label: "Santander",
+    logo: "/images/banks/santander.svg",
+    match: ["santander"],
+    className: "from-[#e50000] via-[#ec1c24] to-[#8f0000] text-white",
+    accentClassName: "bg-white/12 border-white/18",
+    logoClassName: "brightness-0 invert",
+  },
+  {
+    id: "picpay",
+    label: "PicPay",
+    logo: "/images/banks/picpay.svg",
+    match: ["picpay", "pic pay"],
+    className: "from-[#11c76f] via-[#21c25e] to-[#08783e] text-white",
+    accentClassName: "bg-white/12 border-white/18",
+    logoClassName: "brightness-0 invert",
+  },
+] as const;
+
+const DEFAULT_BANK_BRAND = {
+  id: "default",
+  label: "Cartao",
+  logo: "",
+  match: [],
+  className: "from-[#1f2937] via-[#3f4858] to-[#111827] text-white",
+  accentClassName: "bg-white/12 border-white/18",
+  logoClassName: "",
+};
+
 function CardsPage() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery(cardsQuery());
@@ -212,6 +286,7 @@ function CardItem({
   const [paymentOpen, setPaymentOpen] = useState(false);
   const stmt = useQuery(cardStatementQuery(card.id, period.month, period.year));
   const payments = useQuery(cardPaymentsQuery(card.id, period.month, period.year));
+  const brand = getBankBrand(card.bankName);
   const usedPct =
     stmt.data && card.creditLimit > 0
       ? Math.min(100, ((card.creditLimit - stmt.data.availableLimit) / card.creditLimit) * 100)
@@ -245,23 +320,31 @@ function CardItem({
   });
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden border-border/70 shadow-sm">
       <CardContent className="p-0">
-        <div className="relative overflow-hidden border-b border-border bg-gradient-to-br from-white via-[color-mix(in_oklab,var(--accent)_65%,white)] to-white p-5 text-foreground">
-          <div className="absolute right-5 top-5 h-16 w-24 rounded-lg border border-primary/15 bg-white/58 shadow-inner" />
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="text-xs font-medium text-primary">{card.bankName}</div>
-              <div className="text-2xl font-semibold tracking-tight">{card.name}</div>
+        <div className={`relative min-h-56 overflow-hidden bg-gradient-to-br p-5 ${brand.className}`}>
+          <div className={`absolute -right-8 -top-10 h-36 w-36 rounded-full border ${brand.accentClassName}`} />
+          <div className={`absolute right-8 top-20 h-16 w-24 rounded-lg border shadow-inner ${brand.accentClassName}`} />
+          <div className="relative flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex h-10 max-w-40 items-center">
+                {brand.logo ? (
+                  <img src={brand.logo} alt={`${brand.label} logo`} className={`max-h-8 max-w-36 object-contain ${brand.logoClassName}`} />
+                ) : (
+                  <div className="text-sm font-semibold uppercase tracking-wide">{card.bankName}</div>
+                )}
+              </div>
+              <div className="mt-4 truncate text-2xl font-semibold tracking-tight">{card.name}</div>
+              <div className="mt-1 text-xs font-medium opacity-75">{card.bankName}</div>
             </div>
             <div className="relative flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-white/70" onClick={onEdit}>
+              <Button variant="ghost" size="icon" className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100" onClick={onEdit}>
                 <Pencil className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-muted-foreground hover:bg-white/70"
+                className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
                 onClick={() => {
                   if (confirm(`Desativar o cartao "${card.name}"?`)) onDelete();
                 }}
@@ -270,11 +353,14 @@ function CardItem({
               </Button>
             </div>
           </div>
-          <div className="relative mt-8 flex items-end justify-between">
-            <div className="font-mono text-lg tracking-widest text-foreground/80">**** {card.lastFourDigits ?? "0000"}</div>
-            <div className="text-right text-xs text-muted-foreground">
-              <div>Fech. {card.closingDay}</div>
-              <div>Venc. {card.dueDay}</div>
+          <div className="relative mt-12 flex items-end justify-between gap-3">
+            <div>
+              <div className="text-xs font-medium uppercase opacity-60">Final</div>
+              <div className="font-mono text-xl tracking-widest opacity-90">**** {card.lastFourDigits ?? "0000"}</div>
+            </div>
+            <div className="text-right">
+              <div className="text-xs font-medium uppercase opacity-60">{card.network || "Cartao"}</div>
+              <div className="text-sm font-semibold tabular-nums">Limite {formatBRL(card.creditLimit)}</div>
             </div>
           </div>
         </div>
@@ -301,14 +387,14 @@ function CardItem({
             </Select>
             {stmt.data && <Badge variant={stmt.data.status === "PAID" ? "secondary" : "outline"}>{stmt.data.status.replaceAll("_", " ")}</Badge>}
           </div>
-          <div className="flex items-end justify-between">
-            <div>
-              <div className="text-xs text-muted-foreground">A pagar</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-md border border-border/70 bg-muted/20 p-3">
+              <div className="text-xs text-muted-foreground">A pagar na fatura</div>
               <div className="text-xl font-semibold tabular-nums">{formatBRL(stmt.data?.remainingAmount ?? 0)}</div>
             </div>
-            <div className="text-right">
+            <div className="rounded-md border border-border/70 bg-muted/20 p-3 sm:text-right">
               <div className="text-xs text-muted-foreground">Limite usado</div>
-              <div className="text-sm tabular-nums">
+              <div className="text-sm font-medium tabular-nums">
                 {formatBRL(card.creditLimit - (stmt.data?.availableLimit ?? card.creditLimit))} / {formatBRL(card.creditLimit)}
               </div>
             </div>
@@ -318,6 +404,7 @@ function CardItem({
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span>Fecha {formatDate(stmt.data.closingDate)}</span>
               <span>Vence {formatDate(stmt.data.dueDate)}</span>
+              <span>Dia cadastro: fecha {card.closingDay}, vence {card.dueDay}</span>
             </div>
           )}
 
@@ -469,4 +556,18 @@ function getMonthOptions() {
     out.push({ key: `${m}-${y}`, label: monthLabel(m, y) });
   }
   return out;
+}
+
+function getBankBrand(bankName: string) {
+  const normalized = normalizeBankName(bankName);
+  return BANK_BRANDS.find((brand) => brand.match.some((value) => normalized.includes(normalizeBankName(value)))) ?? DEFAULT_BANK_BRAND;
+}
+
+function normalizeBankName(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }

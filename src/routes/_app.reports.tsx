@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -28,6 +29,7 @@ import {
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export const Route = createFileRoute("/_app/reports")({
   component: ReportsPage,
@@ -42,8 +44,9 @@ const PALETTE = [
 ];
 
 function ReportsPage() {
-  const { month, year } = currentMonthYear();
+  const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const today = todayIsoDate();
+  const monthOptions = getMonthOptions();
   const summary = useQuery(monthlySummaryQuery(month, year));
   const categorySummary = useQuery(categorySummaryQuery(month, year));
   const cardSummary = useQuery(cardSummaryQuery(month, year));
@@ -88,9 +91,29 @@ function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
-        <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Relatorios</h1>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Relatorios</h1>
+        </div>
+        <Select
+          value={`${month}-${year}`}
+          onValueChange={(value) => {
+            const [selectedMonth, selectedYear] = value.split("-").map(Number);
+            setPeriod({ month: selectedMonth, year: selectedYear });
+          }}
+        >
+          <SelectTrigger className="w-full md:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {monthOptions.map((option) => (
+              <SelectItem key={option.key} value={option.key}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -273,4 +296,16 @@ function Breakdown({ label, value, total }: { label: string; value: number; tota
       <Progress value={percent} />
     </div>
   );
+}
+
+function getMonthOptions() {
+  const now = new Date();
+  const out: Array<{ key: string; label: string }> = [];
+  for (let i = 0; i < 18; i += 1) {
+    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const month = date.getMonth() + 1;
+    const year = date.getFullYear();
+    out.push({ key: `${month}-${year}`, label: monthLabel(month, year) });
+  }
+  return out;
 }

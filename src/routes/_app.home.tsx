@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   Area,
   AreaChart,
@@ -23,7 +23,7 @@ import {
   Receipt,
   Wallet,
 } from "lucide-react";
-import { accountsQuery, alertsQuery, cardsQuery, monthlySummaryQuery, trendsQuery } from "@/lib/queries";
+import { accountsQuery, alertsQuery, cardsQuery, cardStatementQuery, monthlySummaryQuery, trendsQuery } from "@/lib/queries";
 import { useAuth } from "@/lib/auth";
 import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,6 +41,12 @@ function HomePage() {
   const summary = useQuery(monthlySummaryQuery(month, year));
   const accounts = useQuery(accountsQuery());
   const cards = useQuery(cardsQuery());
+  const openStatementQueries = useQueries({
+    queries: (cards.data ?? []).map((card) => {
+      const period = currentOpenStatementPeriod(card);
+      return cardStatementQuery(card.id, period.month, period.year);
+    }),
+  });
   const alerts = useQuery(alertsQuery({ month, year }));
   const fromMonth = month - 5 <= 0 ? month - 5 + 12 : month - 5;
   const fromYear = month - 5 <= 0 ? year - 1 : year;
@@ -55,6 +61,10 @@ function HomePage() {
     })) ?? [];
   const overdueAlerts = alerts.data?.filter((alert) => alert.type === "CARD_BILL_OVERDUE") ?? [];
   const displayName = getDisplayName(user?.email);
+  const openCardBillsTotal = openStatementQueries.length
+    ? openStatementQueries.reduce((total, statement) => total + Number(statement.data?.totalAmount ?? 0), 0)
+    : (s?.cardBillsTotal ?? 0);
+  const cardBillsLoading = cards.isLoading || openStatementQueries.some((statement) => statement.isLoading);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -114,8 +124,8 @@ function HomePage() {
             onToggleValues={() => setValuesHidden((hidden) => !hidden)}
           />
           <CardsPanel
-            loading={summary.isLoading}
-            total={formatBRL(s?.cardBillsRemaining)}
+            loading={summary.isLoading || cardBillsLoading}
+            total={formatBRL(openCardBillsTotal)}
             cards={cards.data ?? []}
             valuesHidden={valuesHidden}
             onToggleValues={() => setValuesHidden((hidden) => !hidden)}
@@ -145,9 +155,9 @@ function HomePage() {
           />
           <Stat
             label="Faturas"
-            value={formatBRL(s?.cardBillsTotal)}
+            value={formatBRL(openCardBillsTotal)}
             icon={<Receipt className="h-4 w-4" />}
-            loading={summary.isLoading}
+            loading={summary.isLoading || cardBillsLoading}
           />
         </section>
 
@@ -464,4 +474,27 @@ function accountTypeLabel(type: Account["type"]): string {
     OTHER: "Conta manual",
   };
   return labels[type] ?? "Conta";
+}
+
+function currentOpenStatementPeriod(card: CreditCardModel): { month: number; year: number } {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const statementMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const closingDate = atConfiguredDay(statementMonth.getFullYear(), statementMonth.getMonth(), card.closingDay);
+
+  if (today > closingDate) {
+    statementMonth.setMonth(statementMonth.getMonth() + 1);
+  }
+
+  const dueMonth = new Date(statementMonth);
+  if (card.dueDay <= card.closingDay) {
+    dueMonth.setMonth(dueMonth.getMonth() + 1);
+  }
+
+  return { month: dueMonth.getMonth() + 1, year: dueMonth.getFullYear() };
+}
+
+function atConfiguredDay(year: number, zeroBasedMonth: number, day: number): Date {
+  const lastDay = new Date(year, zeroBasedMonth + 1, 0).getDate();
+  return new Date(year, zeroBasedMonth, Math.min(day, lastDay));
 }
