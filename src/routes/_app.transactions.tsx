@@ -1,16 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { ArrowDownRight, ArrowUpRight, CreditCard, Pencil, Plus, Trash2 } from "lucide-react";
-import { accountsQuery, cardsQuery, categoriesQuery, expensesQuery, transactionsQuery } from "@/lib/queries";
-import { api, ApiError } from "@/lib/api";
+import { fetchAccounts, fetchCards, fetchCategories, fetchExpenses, fetchTransactions } from "@/lib/queries";
+import { api } from "@/lib/api";
 import type { Expense, Transaction, TransactionType } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDateTime, monthLabel, nowIsoDateTime } from "@/lib/format";
-import { invalidateFinanceQueries } from "@/lib/query-invalidation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,9 +23,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const Route = createFileRoute("/_app/transactions")({
-  component: TransactionsPage,
-});
 
 type MovementKind = "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT";
 type MovementItem =
@@ -83,14 +78,13 @@ const schema = z
   });
 type Values = z.infer<typeof schema>;
 
-function TransactionsPage() {
-  const qc = useQueryClient();
+export default function TransactionsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
-  const tx = useQuery(transactionsQuery({ month, year }));
-  const expenses = useQuery(expensesQuery({ month, year }));
-  const accounts = useQuery(accountsQuery());
-  const cards = useQuery(cardsQuery());
-  const categories = useQuery(categoriesQuery());
+  const tx = useAsyncData(() => fetchTransactions({ month, year }), [month, year]);
+  const expenses = useAsyncData(() => fetchExpenses({ month, year }), [month, year]);
+  const accounts = useAsyncData(() => fetchAccounts(), []);
+  const cards = useAsyncData(() => fetchCards(), []);
+  const categories = useAsyncData(() => fetchCategories(), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
 
@@ -100,8 +94,16 @@ function TransactionsPage() {
   });
   const kind = form.watch("kind");
 
-  const save = useMutation({
-    mutationFn: (values: Values) => {
+  const reloadFinanceData = () => {
+    tx.reload();
+    expenses.reload();
+    accounts.reload();
+    cards.reload();
+    categories.reload();
+  };
+
+  const save = useAsyncMutation({
+    mutationFn: (values: Values): Promise<Expense | Transaction> => {
       if (values.kind === "CARD_EXPENSE") {
         return api<Expense>(editing?.kind === "card-expense" ? `/expenses/${editing.id}` : "/expenses", {
           method: editing?.kind === "card-expense" ? "PUT" : "POST",
@@ -131,30 +133,30 @@ function TransactionsPage() {
     },
     onSuccess: () => {
       toast.success(editing ? "Lancamento atualizado" : "Lancamento criado");
-      invalidateFinanceQueries(qc);
+      reloadFinanceData();
       setOpen(false);
       setEditing(null);
       form.reset({ kind: "EXPENSE", occurredAt: nowIsoDateTime(), installmentCount: 1 });
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const removeTransaction = useMutation({
+  const removeTransaction = useAsyncMutation({
     mutationFn: (id: number) => api(`/transactions/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Lancamento removido");
-      invalidateFinanceQueries(qc);
+      reloadFinanceData();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const removeExpense = useMutation({
+  const removeExpense = useAsyncMutation({
     mutationFn: (id: number) => api(`/expenses/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Compra removida");
-      invalidateFinanceQueries(qc);
+      reloadFinanceData();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const monthOptions = useMonthOptions();

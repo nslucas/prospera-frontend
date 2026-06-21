@@ -1,6 +1,6 @@
-// Tiny fetch wrapper for the Finanx REST API.
+// Tiny fetch wrapper for the Prospera REST API.
 // JWT lives in localStorage; SSR is guarded.
-const STORAGE_KEY = "finanx.token";
+const STORAGE_KEY = "prospera.token";
 const DEFAULT_API_BASE_URL = "http://localhost:8080";
 const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 

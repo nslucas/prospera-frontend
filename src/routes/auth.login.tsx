@@ -1,17 +1,15 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export const Route = createFileRoute("/auth/login")({
-  component: LoginPage,
-});
 
 const schema = z.object({
   email: z.string().email("E-mail inválido"),
@@ -19,7 +17,7 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-function LoginPage() {
+export default function LoginPage() {
   const { login, user } = useAuth();
   const navigate = useNavigate();
   const {
@@ -29,14 +27,14 @@ function LoginPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (user) navigate({ to: "/" });
+    if (user) navigate("/");
   }, [user, navigate]);
 
   const onSubmit = async (values: FormValues) => {
     try {
       await login(values.email, values.password);
       toast.success("Bem-vindo de volta!", { duration: 2000 });
-      navigate({ to: "/" });
+      navigate("/");
     } catch (e) {
       toast.error((e as Error).message || "Falha ao entrar");
     }
@@ -44,13 +42,8 @@ function LoginPage() {
 
   return (
     <div className="soft-grid grid min-h-screen md:grid-cols-[0.9fr_1.1fr]">
-      <aside className="hidden flex-col justify-between border-r border-border/70 bg-white p-10 text-foreground shadow-[18px_0_55px_rgba(21,84,61,0.06)] md:flex">
-        <div className="flex items-center gap-2">
-          <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary font-display text-lg text-primary-foreground shadow-[0_12px_24px_rgba(37,142,94,0.2)]">
-            F
-          </div>
-          <span className="text-2xl font-semibold tracking-tight">Finanx</span>
-        </div>
+      <aside className="hidden flex-col justify-between border-r border-border/70 bg-white p-10 text-foreground shadow-[18px_0_55px_rgba(16,27,21,0.025)] md:flex">
+        <BrandLogo textClassName="text-2xl" />
         <div className="space-y-3">
           <h2 className="text-4xl font-semibold leading-tight tracking-tight">
             Suas finanças com a clareza que você merece.
@@ -66,17 +59,12 @@ function LoginPage() {
             ))}
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">© Finanx</p>
+        <p className="text-xs text-muted-foreground">© Prospera</p>
       </aside>
 
       <main className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(21,84,61,0.09)] md:p-8">
-          <div className="md:hidden flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-display text-lg">
-              F
-            </div>
-            <span className="text-2xl font-semibold tracking-tight">Finanx</span>
-          </div>
+        <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(16,27,21,0.04)] md:p-8">
+          <BrandLogo className="md:hidden" markSize="sm" textClassName="text-2xl" />
           <div className="mt-6 md:mt-0">
             <h1 className="text-3xl font-semibold tracking-tight">Entrar</h1>
             <p className="text-sm text-muted-foreground">Acesse sua conta para continuar.</p>

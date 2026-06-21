@@ -10,7 +10,7 @@ export function registerPwaServiceWorker() {
     if ("caches" in window) {
       caches.keys().then((keys) => {
         keys
-          .filter((key) => key.startsWith("finanx-"))
+          .filter((key) => key.startsWith("prospera-"))
           .forEach((key) => caches.delete(key));
       });
     }

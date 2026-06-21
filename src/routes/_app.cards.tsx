@@ -1,16 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useAsyncData, useAsyncMutation, type AsyncDataState } from "@/hooks/use-async-data";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { CreditCard as CardIcon, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
-import { accountsQuery, cardPaymentsQuery, cardStatementQuery, cardsQuery, expensesQuery } from "@/lib/queries";
-import { api, ApiError } from "@/lib/api";
+import { fetchAccounts, fetchCardPayments, fetchCardStatement, fetchCards, fetchExpenses } from "@/lib/queries";
+import { api } from "@/lib/api";
 import type { Account, Card as CardType, CardPayment, CardStatement } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
-import { invalidateFinanceQueries } from "@/lib/query-invalidation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -27,9 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const Route = createFileRoute("/_app/cards")({
-  component: CardsPage,
-});
 
 const schema = z.object({
   bankName: z.string().min(1, "Informe o banco"),
@@ -50,7 +45,17 @@ const paymentSchema = z.object({
 });
 type PaymentValues = z.infer<typeof paymentSchema>;
 
-const BANK_BRANDS = [
+interface BankBrand {
+  id: string;
+  label: string;
+  logo: string;
+  match: readonly string[];
+  className: string;
+  accentClassName: string;
+  logoClassName?: string;
+}
+
+const BANK_BRANDS: readonly BankBrand[] = [
   {
     id: "nubank",
     label: "Nubank",
@@ -114,7 +119,7 @@ const BANK_BRANDS = [
   },
 ] as const;
 
-const DEFAULT_BANK_BRAND = {
+const DEFAULT_BANK_BRAND: BankBrand = {
   id: "default",
   label: "Cartao",
   logo: "",
@@ -124,10 +129,9 @@ const DEFAULT_BANK_BRAND = {
   logoClassName: "",
 };
 
-function CardsPage() {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery(cardsQuery());
-  const accounts = useQuery(accountsQuery());
+export default function CardsPage() {
+  const { data, isLoading, reload } = useAsyncData(() => fetchCards(), []);
+  const accounts = useAsyncData(() => fetchAccounts(), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CardType | null>(null);
 
@@ -153,7 +157,12 @@ function CardsPage() {
     }
   }, [editing, form, open]);
 
-  const save = useMutation({
+  const reloadCardsData = () => {
+    reload();
+    accounts.reload();
+  };
+
+  const save = useAsyncMutation({
     mutationFn: (v: Values) =>
       api<CardType>(editing ? `/cards/${editing.id}` : "/cards", {
         method: editing ? "PUT" : "POST",
@@ -161,20 +170,20 @@ function CardsPage() {
       }),
     onSuccess: () => {
       toast.success(editing ? "Cartao atualizado" : "Cartao criado");
-      invalidateFinanceQueries(qc);
+      reloadCardsData();
       setOpen(false);
       setEditing(null);
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const remove = useMutation({
+  const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/cards/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Cartao desativado");
-      invalidateFinanceQueries(qc);
+      reloadCardsData();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -262,6 +271,7 @@ function CardsPage() {
                 setOpen(true);
               }}
               onDelete={() => remove.mutate(card.id)}
+              onRefresh={reloadCardsData}
             />
           ))}
         </div>
@@ -275,18 +285,19 @@ function CardItem({
   accounts,
   onEdit,
   onDelete,
+  onRefresh,
 }: {
   card: CardType;
   accounts: Account[];
   onEdit: () => void;
   onDelete: () => void;
+  onRefresh: () => void;
 }) {
-  const qc = useQueryClient();
   const [period, setPeriod] = useState(currentMonthYear);
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const stmt = useQuery(cardStatementQuery(card.id, period.month, period.year));
-  const payments = useQuery(cardPaymentsQuery(card.id, period.month, period.year));
-  const cardExpenses = useQuery(expensesQuery({ cardId: card.id }));
+  const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year]);
+  const payments = useAsyncData(() => fetchCardPayments(card.id, period.month, period.year), [card.id, period.month, period.year]);
+  const cardExpenses = useAsyncData(() => fetchExpenses({ cardId: card.id }), [card.id]);
   const brand = getBankBrand(card.bankName);
   const usedLimit = (cardExpenses.data ?? []).reduce((sum, expense) => sum + Number(expense.amount), 0);
   const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
@@ -298,7 +309,7 @@ function CardItem({
     defaultValues: { paymentDate: todayIsoDate() },
   });
 
-  const payStatement = useMutation({
+  const payStatement = useAsyncMutation({
     mutationFn: (values: PaymentValues) =>
       api(`/cards/${card.id}/payments`, {
         method: "POST",
@@ -311,11 +322,14 @@ function CardItem({
       }),
     onSuccess: () => {
       toast.success("Pagamento registrado");
-      invalidateFinanceQueries(qc);
+      stmt.reload();
+      payments.reload();
+      cardExpenses.reload();
+      onRefresh();
       setPaymentOpen(false);
       paymentForm.reset({ paymentDate: todayIsoDate() });
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -482,8 +496,8 @@ function CardMovements({
   payments,
   accountName,
 }: {
-  stmt: UseQueryResult<CardStatement, Error>;
-  payments: UseQueryResult<CardPayment[], Error>;
+  stmt: AsyncDataState<CardStatement>;
+  payments: AsyncDataState<CardPayment[]>;
   accountName: (id: number) => string;
 }) {
   const statement = stmt.data;
@@ -557,7 +571,7 @@ function getMonthOptions() {
   return out;
 }
 
-function getBankBrand(bankName: string) {
+function getBankBrand(bankName: string): BankBrand {
   const normalized = normalizeBankName(bankName);
   return BANK_BRANDS.find((brand) => brand.match.some((value) => normalized.includes(normalizeBankName(value)))) ?? DEFAULT_BANK_BRAND;
 }

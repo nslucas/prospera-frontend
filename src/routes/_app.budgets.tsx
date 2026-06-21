@@ -1,13 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { budgetProgressQuery, categoriesQuery, expensesQuery, transactionsQuery } from "@/lib/queries";
-import { api, ApiError } from "@/lib/api";
+import { fetchBudgetProgress, fetchCategories, fetchExpenses, fetchTransactions } from "@/lib/queries";
+import { api } from "@/lib/api";
 import type { Budget, BudgetProgress, Expense, Transaction } from "@/lib/types";
 import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,9 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const Route = createFileRoute("/_app/budgets")({
-  component: BudgetsPage,
-});
 
 const schema = z.object({
   categoryId: z.coerce.number().int().positive("Selecione uma categoria"),
@@ -38,13 +34,12 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-function BudgetsPage() {
-  const qc = useQueryClient();
+export default function BudgetsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
-  const progress = useQuery(budgetProgressQuery(month, year));
-  const transactions = useQuery(transactionsQuery({ month, year }));
-  const expenses = useQuery(expensesQuery({ month, year }));
-  const categories = useQuery(categoriesQuery());
+  const progress = useAsyncData(() => fetchBudgetProgress(month, year), [month, year]);
+  const transactions = useAsyncData(() => fetchTransactions({ month, year }), [month, year]);
+  const expenses = useAsyncData(() => fetchExpenses({ month, year }), [month, year]);
+  const categories = useAsyncData(() => fetchCategories(), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Budget | null>(null);
 
@@ -53,7 +48,7 @@ function BudgetsPage() {
     defaultValues: { month, year, amount: 0 },
   });
 
-  const save = useMutation({
+  const save = useAsyncMutation({
     mutationFn: (values: Values) =>
       api<Budget>(editing ? `/budgets/${editing.id}` : "/budgets", {
         method: editing ? "PUT" : "POST",
@@ -61,33 +56,33 @@ function BudgetsPage() {
       }),
     onSuccess: () => {
       toast.success(editing ? "Orcamento atualizado" : "Orcamento criado");
-      qc.invalidateQueries({ queryKey: ["budget-progress"] });
-      qc.invalidateQueries({ queryKey: ["budgets"] });
-      qc.invalidateQueries({ queryKey: ["summary-monthly"] });
+      progress.reload();
+      transactions.reload();
+      expenses.reload();
       setOpen(false);
       setEditing(null);
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const remove = useMutation({
+  const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/budgets/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Orcamento removido");
-      qc.invalidateQueries({ queryKey: ["budget-progress"] });
-      qc.invalidateQueries({ queryKey: ["budgets"] });
-      qc.invalidateQueries({ queryKey: ["summary-monthly"] });
+      progress.reload();
+      transactions.reload();
+      expenses.reload();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const expenseCats = (categories.data ?? []).filter((c) => c.type === "EXPENSE" && c.active);
   const monthOptions = getMonthOptions();
   const progressItems = useMemo(() => {
     if (!progress.data) return [];
-    if (!transactions.isSuccess || !expenses.isSuccess) return progress.data;
+    if (!transactions.data || !expenses.data) return progress.data;
     return applyLocalSpending(progress.data, transactions.data ?? [], expenses.data ?? []);
-  }, [expenses.data, expenses.isSuccess, progress.data, transactions.data, transactions.isSuccess]);
+  }, [expenses.data, progress.data, transactions.data]);
 
   const openNew = () => {
     setEditing(null);

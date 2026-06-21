@@ -1,6 +1,6 @@
 import * as React from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useAsyncData } from "@/hooks/use-async-data";
 import {
   Area,
   AreaChart,
@@ -23,34 +23,35 @@ import {
   Receipt,
   Wallet,
 } from "lucide-react";
-import { accountsQuery, alertsQuery, cardsQuery, cardStatementQuery, monthlySummaryQuery, trendsQuery } from "@/lib/queries";
+import { fetchAccounts, fetchAlerts, fetchCards, fetchCardStatement, fetchMonthlySummary, fetchTrends } from "@/lib/queries";
 import { useAuth } from "@/lib/auth";
 import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Account, Card as CreditCardModel } from "@/lib/types";
 
-export const Route = createFileRoute("/_app/home")({
-  component: HomePage,
-});
 
-function HomePage() {
+export default function HomePage() {
   const { user } = useAuth();
   const [valuesHidden, setValuesHidden] = React.useState(false);
   const { month, year } = currentMonthYear();
-  const summary = useQuery(monthlySummaryQuery(month, year));
-  const accounts = useQuery(accountsQuery());
-  const cards = useQuery(cardsQuery());
-  const openStatementQueries = useQueries({
-    queries: (cards.data ?? []).map((card) => {
-      const period = currentOpenStatementPeriod(card);
-      return cardStatementQuery(card.id, period.month, period.year);
-    }),
-  });
-  const alerts = useQuery(alertsQuery({ month, year }));
+  const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year]);
+  const accounts = useAsyncData(() => fetchAccounts(), []);
+  const cards = useAsyncData(() => fetchCards(), []);
+  const openStatements = useAsyncData(
+    () =>
+      Promise.all(
+        (cards.data ?? []).map((card) => {
+          const period = currentOpenStatementPeriod(card);
+          return fetchCardStatement(card.id, period.month, period.year);
+        }),
+      ),
+    [cards.data],
+  );
+  const alerts = useAsyncData(() => fetchAlerts({ month, year }), [month, year]);
   const fromMonth = month - 5 <= 0 ? month - 5 + 12 : month - 5;
   const fromYear = month - 5 <= 0 ? year - 1 : year;
-  const trends = useQuery(trendsQuery(fromMonth, fromYear, month, year));
+  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year]);
 
   const s = summary.data;
   const trendData =
@@ -61,30 +62,30 @@ function HomePage() {
     })) ?? [];
   const overdueAlerts = alerts.data?.filter((alert) => alert.type === "CARD_BILL_OVERDUE") ?? [];
   const displayName = getDisplayName(user?.email);
-  const openCardBillsTotal = openStatementQueries.length
-    ? openStatementQueries.reduce((total, statement) => total + Number(statement.data?.totalAmount ?? 0), 0)
+  const openCardBillsTotal = openStatements.data?.length
+    ? openStatements.data.reduce((total, statement) => total + Number(statement.totalAmount ?? 0), 0)
     : (s?.cardBillsTotal ?? 0);
-  const cardBillsLoading = cards.isLoading || openStatementQueries.some((statement) => statement.isLoading);
+  const cardBillsLoading = cards.isLoading || openStatements.isLoading;
 
   return (
     <div className="space-y-4 md:space-y-6">
       <section className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)] md:items-stretch">
-        <header className="relative overflow-hidden bg-primary px-5 pb-6 pt-7 text-primary-foreground md:rounded-lg md:p-6 md:shadow-[0_18px_50px_rgba(21,84,61,0.12)]">
-          <div className="absolute right-10 top-10 hidden h-36 w-36 rounded-full bg-white/10 md:block" />
+        <header className="relative overflow-hidden border border-border/80 bg-white px-5 pb-6 pt-7 text-foreground shadow-[0_14px_36px_rgba(16,27,21,0.045)] md:rounded-lg md:p-6">
+          <div className="absolute right-10 top-10 hidden h-36 w-36 rounded-full bg-primary/6 md:block" />
           <div className="relative flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-white/90">{getGreeting()},</p>
+              <p className="text-sm font-medium text-muted-foreground">{getGreeting()},</p>
               <h1 className="mt-1 max-w-[13rem] break-words text-[2rem] font-bold leading-[1.05] tracking-tight md:max-w-none md:text-3xl">
                 {displayName}
               </h1>
-              <p className="mt-2 text-xs font-medium capitalize text-white/80 md:text-sm">
+              <p className="mt-2 text-xs font-medium capitalize text-muted-foreground md:text-sm">
                 {monthLabel(month, year)}
               </p>
             </div>
             <Link
               to="/accounts"
               aria-label="Gerenciar conexoes"
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-lg bg-emerald-900/28 text-white shadow-[0_16px_34px_rgba(5,72,44,0.18)] transition-colors hover:bg-emerald-900/38"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-border bg-white text-primary shadow-[0_10px_24px_rgba(16,27,21,0.05)] transition-colors hover:bg-accent"
             >
               <Link2 className="h-6 w-6" />
             </Link>
@@ -93,7 +94,7 @@ function HomePage() {
 
         <Link
           to="/alerts"
-          className="mx-4 flex items-center gap-3 rounded-lg bg-white p-4 shadow-[0_16px_38px_rgba(21,84,61,0.1)] ring-1 ring-border/70 transition-transform hover:-translate-y-0.5 md:mx-0 md:gap-4 md:p-5"
+          className="mx-4 flex items-center gap-3 rounded-lg bg-white p-4 shadow-[0_12px_30px_rgba(16,27,21,0.045)] ring-1 ring-border/70 transition-transform hover:-translate-y-0.5 md:mx-0 md:gap-4 md:p-5"
         >
           <span className="grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full bg-muted text-foreground md:h-14 md:w-14">
             <AlertTriangle className="h-6 w-6" />
@@ -165,7 +166,7 @@ function HomePage() {
           <CardContent className="p-4 md:p-6">
             <div className="mb-4 flex items-end justify-between">
               <div>
-                <div className="mb-2 grid h-9 w-9 place-items-center rounded-lg bg-accent text-primary">
+                <div className="mb-2 grid h-9 w-9 place-items-center rounded-lg bg-white text-primary ring-1 ring-border">
                   <BarChart3 className="h-5 w-5" />
                 </div>
                 <h2 className="text-xl font-semibold tracking-tight">Receitas vs. Despesas</h2>
@@ -293,7 +294,7 @@ function BalancePanel({
 
         <Link
           to="/accounts"
-          className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-lg border-2 border-primary/85 text-base font-bold text-primary transition-colors hover:bg-accent md:mt-7 md:text-base"
+          className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-lg border-2 border-primary text-base font-bold text-primary transition-colors hover:bg-accent md:mt-7 md:text-base"
         >
           Gerenciar contas
         </Link>
@@ -421,7 +422,7 @@ function Stat({
       <CardContent className="p-4">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{label}</span>
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-primary">{icon}</span>
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-primary ring-1 ring-border">{icon}</span>
         </div>
         <div className={`mt-2 truncate text-lg font-semibold tabular-nums md:text-xl ${tone === "success" ? "text-[var(--success)]" : ""}`}>
           {loading ? "..." : value}
@@ -439,8 +440,8 @@ function getGreeting(): string {
 }
 
 function getDisplayName(email?: string): string {
-  if (!email) return "Finanx";
-  const local = email.split("@")[0] || "Finanx";
+  if (!email) return "Prospera";
+  const local = email.split("@")[0] || "Prospera";
   const parts = local
     .split(/[._-]+/)
     .filter(Boolean)
@@ -459,7 +460,7 @@ function getDisplayName(email?: string): string {
 
 function getInitials(value: string): string {
   const parts = value.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "FX";
+  if (!parts.length) return "PR";
   return parts
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())

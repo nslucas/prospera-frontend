@@ -1,16 +1,14 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export const Route = createFileRoute("/auth/register")({
-  component: RegisterPage,
-});
 
 const schema = z.object({
   firstName: z.string().min(1, "Informe o nome"),
@@ -20,7 +18,7 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
-function RegisterPage() {
+export default function RegisterPage() {
   const { register: registerUser } = useAuth();
   const navigate = useNavigate();
   const {
@@ -33,7 +31,7 @@ function RegisterPage() {
     try {
       await registerUser(values);
       toast.success("Conta criada com sucesso!");
-      navigate({ to: "/" });
+      navigate("/");
     } catch (e) {
       toast.error((e as Error).message || "Falha ao cadastrar");
     }
@@ -41,12 +39,9 @@ function RegisterPage() {
 
   return (
     <main className="soft-grid flex min-h-screen items-center justify-center px-6 py-12">
-      <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(21,84,61,0.09)] md:p-8">
+      <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(16,27,21,0.04)] md:p-8">
         <Link to="/auth/login" className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground font-display text-lg shadow-sm">
-            F
-          </div>
-          <span className="text-2xl font-semibold tracking-tight">Finanx</span>
+          <BrandLogo markSize="sm" textClassName="text-2xl" />
         </Link>
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">Criar conta</h1>

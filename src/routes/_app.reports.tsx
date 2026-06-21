@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useAsyncData } from "@/hooks/use-async-data";
 import {
   Bar,
   BarChart,
@@ -17,23 +16,20 @@ import {
   YAxis,
 } from "recharts";
 import {
-  cardSummaryQuery,
-  categorySummaryQuery,
-  fixedVariableSummaryQuery,
-  forecastQuery,
-  monthlySummaryQuery,
-  trendsQuery,
-  upcomingQuery,
-  yearlySummaryQuery,
+  fetchCardSummary,
+  fetchCategorySummary,
+  fetchFixedVariableSummary,
+  fetchForecast,
+  fetchMonthlySummary,
+  fetchTrends,
+  fetchUpcoming,
+  fetchYearlySummary,
 } from "@/lib/queries";
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const Route = createFileRoute("/_app/reports")({
-  component: ReportsPage,
-});
 
 const PALETTE = [
   "var(--chart-1)",
@@ -43,20 +39,20 @@ const PALETTE = [
   "var(--chart-5)",
 ];
 
-function ReportsPage() {
+export default function ReportsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const today = todayIsoDate();
   const monthOptions = getMonthOptions();
-  const summary = useQuery(monthlySummaryQuery(month, year));
-  const categorySummary = useQuery(categorySummaryQuery(month, year));
-  const cardSummary = useQuery(cardSummaryQuery(month, year));
-  const fixedVariable = useQuery(fixedVariableSummaryQuery(month, year));
-  const upcoming = useQuery(upcomingQuery(today, addDaysIso(today, 30)));
-  const yearly = useQuery(yearlySummaryQuery(year));
+  const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year]);
+  const categorySummary = useAsyncData(() => fetchCategorySummary(month, year), [month, year]);
+  const cardSummary = useAsyncData(() => fetchCardSummary(month, year), [month, year]);
+  const fixedVariable = useAsyncData(() => fetchFixedVariableSummary(month, year), [month, year]);
+  const upcoming = useAsyncData(() => fetchUpcoming(today, addDaysIso(today, 30)), [today]);
+  const yearly = useAsyncData(() => fetchYearlySummary(year), [year]);
   const fromMonth = month - 11 <= 0 ? month - 11 + 12 : month - 11;
   const fromYear = month - 11 <= 0 ? year - 1 : year;
-  const trends = useQuery(trendsQuery(fromMonth, fromYear, month, year));
-  const forecast = useQuery(forecastQuery(6));
+  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year]);
+  const forecast = useAsyncData(() => fetchForecast(6), []);
 
   const trendData =
     trends.data?.map((item) => ({

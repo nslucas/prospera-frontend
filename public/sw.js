@@ -1,4 +1,4 @@
-const CACHE_NAME = "finanx-pwa-v1";
+const CACHE_NAME = "prospera-pwa-v1";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",

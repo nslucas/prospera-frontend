@@ -1,17 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useAsyncData } from "@/hooks/use-async-data";
 import { AlertTriangle, BellOff } from "lucide-react";
-import { alertsQuery } from "@/lib/queries";
+import { fetchAlerts } from "@/lib/queries";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatBRL, formatDate } from "@/lib/format";
 
-export const Route = createFileRoute("/_app/alerts")({
-  component: AlertsPage,
-});
 
-function AlertsPage() {
-  const { data, isLoading } = useQuery(alertsQuery());
+export default function AlertsPage() {
+  const { data, isLoading } = useAsyncData(() => fetchAlerts(), []);
 
   return (
     <div className="space-y-6">

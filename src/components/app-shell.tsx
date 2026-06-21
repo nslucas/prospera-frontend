@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Wallet,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { BrandLogo, BrandMark } from "@/components/brand-logo";
 
 interface NavItem {
   to: string;
@@ -40,11 +41,11 @@ const NAV: NavItem[] = [
 export function AppShell() {
   const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { pathname } = useLocation();
   const [mobileMenu, setMobileMenu] = React.useState(false);
 
   React.useEffect(() => {
-    if (!loading && !user) navigate({ to: "/auth/login" });
+    if (!loading && !user) navigate("/auth/login");
   }, [loading, user, navigate]);
 
   React.useEffect(() => {
@@ -65,13 +66,11 @@ export function AppShell() {
 
   return (
     <div className="soft-grid min-h-screen text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-sidebar-border bg-sidebar/92 p-4 shadow-[18px_0_45px_rgba(21,84,61,0.05)] backdrop-blur md:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-sidebar-border bg-white p-4 shadow-[18px_0_45px_rgba(16,27,21,0.025)] md:flex">
         <Link to="/transactions" className="mb-8 flex items-center gap-3 rounded-lg px-2 py-2">
-          <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary text-primary-foreground font-display text-lg shadow-[0_12px_24px_rgba(37,142,94,0.2)]">
-            F
-          </div>
+          <BrandMark />
           <div>
-            <div className="text-lg font-semibold leading-none tracking-tight">Finanx</div>
+            <div className="font-display text-lg font-bold leading-none tracking-tight">Prospera</div>
             <div className="text-xs text-muted-foreground">Financas pessoais</div>
           </div>
         </Link>
@@ -83,7 +82,7 @@ export function AppShell() {
               className={cn(
                 "group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all",
                 isActive(item.to)
-                  ? "bg-white text-sidebar-accent-foreground font-medium shadow-sm shadow-emerald-950/[0.05] ring-1 ring-sidebar-border/70"
+                  ? "bg-accent text-sidebar-accent-foreground font-medium shadow-sm shadow-[rgba(16,27,21,0.035)] ring-1 ring-sidebar-border/80"
                   : "text-muted-foreground hover:bg-white/70 hover:text-foreground",
               )}
             >
@@ -111,10 +110,7 @@ export function AppShell() {
 
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/70 bg-white/88 px-4 py-3 backdrop-blur md:hidden">
         <Link to="/transactions" className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground font-display shadow-sm">
-            F
-          </div>
-          <span className="text-lg font-semibold tracking-tight">Finanx</span>
+          <BrandLogo markSize="sm" textClassName="text-lg" />
         </Link>
         <button
           aria-label="Abrir menu"
@@ -127,9 +123,9 @@ export function AppShell() {
 
       {mobileMenu && (
         <div className="fixed inset-0 z-30 md:hidden" onClick={() => setMobileMenu(false)}>
-          <div className="absolute inset-0 bg-emerald-950/35 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" />
           <div
-            className="absolute right-0 top-0 h-full w-72 bg-sidebar p-4 shadow-xl"
+            className="absolute right-0 top-0 h-full w-72 bg-white p-4 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 truncate text-xs text-muted-foreground">{user.email}</div>
@@ -141,7 +137,7 @@ export function AppShell() {
                   className={cn(
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
                     isActive(item.to)
-                      ? "bg-white text-sidebar-accent-foreground font-medium shadow-sm"
+                      ? "bg-accent text-sidebar-accent-foreground font-medium shadow-sm"
                       : "text-muted-foreground hover:bg-white/70",
                   )}
                 >
@@ -166,7 +162,7 @@ export function AppShell() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1.5 shadow-[0_-12px_30px_rgba(21,84,61,0.1)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1.5 shadow-[0_-12px_30px_rgba(16,27,21,0.05)] backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {bottomItems.map((item) => (
             <Link

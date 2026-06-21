@@ -1,4 +1,4 @@
-// Domain types matching the Finanx REST API handoff.
+// Domain types matching the Prospera REST API handoff.
 export type AccountType = "CHECKING" | "SAVINGS" | "CASH" | "OTHER";
 export type TransactionType =
   | "INCOME"

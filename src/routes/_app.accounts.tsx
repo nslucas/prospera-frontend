@@ -1,16 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { ArrowLeftRight, Pencil, Plus, Trash2, Wallet } from "lucide-react";
-import { accountsQuery } from "@/lib/queries";
-import { api, ApiError } from "@/lib/api";
+import { fetchAccounts } from "@/lib/queries";
+import { api } from "@/lib/api";
 import type { Account, AccountType } from "@/lib/types";
 import { formatBRL, nowIsoDateTime } from "@/lib/format";
-import { invalidateFinanceQueries } from "@/lib/query-invalidation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,9 +29,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export const Route = createFileRoute("/_app/accounts")({
-  component: AccountsPage,
-});
 
 const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
   { value: "CHECKING", label: "Conta Corrente" },
@@ -58,9 +53,8 @@ const transferSchema = z.object({
 });
 type TransferValues = z.infer<typeof transferSchema>;
 
-function AccountsPage() {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery(accountsQuery());
+export default function AccountsPage() {
+  const { data, isLoading, reload } = useAsyncData(() => fetchAccounts(), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [transferSource, setTransferSource] = useState<Account | null>(null);
@@ -87,7 +81,7 @@ function AccountsPage() {
     }
   }, [editing, form, open]);
 
-  const create = useMutation({
+  const create = useAsyncMutation({
     mutationFn: (v: Values) =>
       editing
         ? api<Account>(`/accounts/${editing.id}`, {
@@ -97,23 +91,23 @@ function AccountsPage() {
         : api<Account>("/accounts", { method: "POST", body: v }),
     onSuccess: () => {
       toast.success(editing ? "Conta atualizada" : "Conta criada");
-      invalidateFinanceQueries(qc);
+      reload();
       setOpen(false);
       setEditing(null);
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const remove = useMutation({
+  const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/accounts/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Conta desativada");
-      invalidateFinanceQueries(qc);
+      reload();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const transfer = useMutation({
+  const transfer = useAsyncMutation({
     mutationFn: ({ sourceId, values }: { sourceId: number; values: TransferValues }) =>
       api(`/accounts/${sourceId}/transfers`, {
         method: "POST",
@@ -121,11 +115,11 @@ function AccountsPage() {
       }),
     onSuccess: () => {
       toast.success("Transferência registrada");
-      invalidateFinanceQueries(qc);
+      reload();
       setTransferSource(null);
       transferForm.reset({ occurredAt: nowIsoDateTime() });
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   return (

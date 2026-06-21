@@ -16,7 +16,7 @@ interface AuthContextValue {
   logout: () => void;
 }
 
-const USER_KEY = "finanx.user";
+const USER_KEY = "prospera.user";
 const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

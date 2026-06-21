@@ -1,16 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Calendar, Check, Pencil, Plus, Trash2, X } from "lucide-react";
-import { accountsQuery, cardsQuery, categoriesQuery, occurrencesQuery, recurrencesQuery } from "@/lib/queries";
-import { api, ApiError } from "@/lib/api";
+import { fetchAccounts, fetchCards, fetchCategories, fetchOccurrences, fetchRecurrences } from "@/lib/queries";
+import { api } from "@/lib/api";
 import type { Recurrence } from "@/lib/types";
 import { addDaysIso, formatBRL, formatDate, todayIsoDate } from "@/lib/format";
-import { invalidateFinanceQueries } from "@/lib/query-invalidation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +25,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export const Route = createFileRoute("/_app/recurrences")({
-  component: RecurrencesPage,
-});
 
 const schema = z
   .object({
@@ -63,15 +58,14 @@ const schema = z
   });
 type Values = z.infer<typeof schema>;
 
-function RecurrencesPage() {
-  const qc = useQueryClient();
+export default function RecurrencesPage() {
   const today = todayIsoDate();
   const to = addDaysIso(today, 60);
-  const list = useQuery(recurrencesQuery());
-  const occ = useQuery(occurrencesQuery(today, to));
-  const accounts = useQuery(accountsQuery());
-  const cards = useQuery(cardsQuery());
-  const categories = useQuery(categoriesQuery());
+  const list = useAsyncData(() => fetchRecurrences(), []);
+  const occ = useAsyncData(() => fetchOccurrences(today, to), [today, to]);
+  const accounts = useAsyncData(() => fetchAccounts(), []);
+  const cards = useAsyncData(() => fetchCards(), []);
+  const categories = useAsyncData(() => fetchCategories(), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Recurrence | null>(null);
 
@@ -91,7 +85,7 @@ function RecurrencesPage() {
   const frequency = form.watch("frequency");
   const transactionType = form.watch("transactionType");
 
-  const save = useMutation({
+  const save = useAsyncMutation({
     mutationFn: (values: Values) =>
       api<Recurrence>(editing ? `/recurrences/${editing.id}` : "/recurrences", {
         method: editing ? "PUT" : "POST",
@@ -99,40 +93,44 @@ function RecurrencesPage() {
       }),
     onSuccess: () => {
       toast.success(editing ? "Recorrencia atualizada" : "Recorrencia criada");
-      invalidateFinanceQueries(qc);
+      list.reload();
+      occ.reload();
       setOpen(false);
       setEditing(null);
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const remove = useMutation({
+  const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/recurrences/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Recorrencia removida");
-      invalidateFinanceQueries(qc);
+      list.reload();
+      occ.reload();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const materialize = useMutation({
+  const materialize = useAsyncMutation({
     mutationFn: ({ id, date }: { id: number; date: string }) =>
       api(`/recurrences/${id}/occurrences`, { method: "POST", body: { occurrenceDate: date } }),
     onSuccess: () => {
       toast.success("Lancado");
-      invalidateFinanceQueries(qc);
+      list.reload();
+      occ.reload();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const skip = useMutation({
+  const skip = useAsyncMutation({
     mutationFn: ({ id, date }: { id: number; date: string }) =>
       api(`/recurrences/${id}/occurrences/skip`, { method: "POST", body: { occurrenceDate: date } }),
     onSuccess: () => {
       toast.success("Ocorrencia pulada");
-      invalidateFinanceQueries(qc);
+      list.reload();
+      occ.reload();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const activeAccounts = (accounts.data ?? []).filter((account) => account.active);

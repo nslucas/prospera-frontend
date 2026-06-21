@@ -1,12 +1,12 @@
 {
-  "name": "Finanx",
-  "short_name": "Finanx",
+  "name": "Prospera",
+  "short_name": "Prospera",
   "description": "Controle financeiro pessoal",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#fbfdfb",
-  "theme_color": "#2f9b66",
+  "background_color": "#ffffff",
+  "theme_color": "#18c957",
   "orientation": "portrait",
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },

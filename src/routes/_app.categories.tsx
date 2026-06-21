@@ -1,13 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2, Tag as TagIcon } from "lucide-react";
-import { categoriesQuery } from "@/lib/queries";
-import { api, ApiError } from "@/lib/api";
+import { fetchCategories } from "@/lib/queries";
+import { api } from "@/lib/api";
 import type { Category, CategoryType } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,9 +29,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export const Route = createFileRoute("/_app/categories")({
-  component: CategoriesPage,
-});
 
 const schema = z.object({
   name: z.string().min(1, "Informe um nome"),
@@ -40,9 +36,8 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-function CategoriesPage() {
-  const qc = useQueryClient();
-  const { data, isLoading } = useQuery(categoriesQuery());
+export default function CategoriesPage() {
+  const { data, isLoading, reload } = useAsyncData(() => fetchCategories(), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
 
@@ -60,7 +55,7 @@ function CategoriesPage() {
     }
   }, [editing, form, open]);
 
-  const create = useMutation({
+  const create = useAsyncMutation({
     mutationFn: (v: Values) =>
       api<Category>(editing ? `/categories/${editing.id}` : "/categories", {
         method: editing ? "PUT" : "POST",
@@ -68,21 +63,21 @@ function CategoriesPage() {
       }),
     onSuccess: () => {
       toast.success(editing ? "Categoria atualizada" : "Categoria criada");
-      qc.invalidateQueries({ queryKey: ["categories"] });
+      reload();
       setOpen(false);
       setEditing(null);
       form.reset({ type: "EXPENSE", name: "" });
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
-  const remove = useMutation({
+  const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/categories/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Removida");
-      qc.invalidateQueries({ queryKey: ["categories"] });
+      reload();
     },
-    onError: (e: ApiError) => toast.error(e.message),
+    onError: (e) => toast.error(e.message),
   });
 
   const grouped = {
