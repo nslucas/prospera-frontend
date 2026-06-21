@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { CreditCard as CardIcon, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
-import { accountsQuery, cardPaymentsQuery, cardStatementQuery, cardsQuery } from "@/lib/queries";
+import { accountsQuery, cardPaymentsQuery, cardStatementQuery, cardsQuery, expensesQuery } from "@/lib/queries";
 import { api, ApiError } from "@/lib/api";
 import type { Account, Card as CardType, CardPayment, CardStatement } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
@@ -286,11 +286,10 @@ function CardItem({
   const [paymentOpen, setPaymentOpen] = useState(false);
   const stmt = useQuery(cardStatementQuery(card.id, period.month, period.year));
   const payments = useQuery(cardPaymentsQuery(card.id, period.month, period.year));
+  const cardExpenses = useQuery(expensesQuery({ cardId: card.id }));
   const brand = getBankBrand(card.bankName);
-  const usedPct =
-    stmt.data && card.creditLimit > 0
-      ? Math.min(100, ((card.creditLimit - stmt.data.availableLimit) / card.creditLimit) * 100)
-      : 0;
+  const usedLimit = (cardExpenses.data ?? []).reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
   const activeAccounts = accounts.filter((a) => a.active);
   const accountName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `Conta #${id}`;
 
@@ -395,7 +394,7 @@ function CardItem({
             <div className="rounded-md border border-border/70 bg-muted/20 p-3 sm:text-right">
               <div className="text-xs text-muted-foreground">Limite usado</div>
               <div className="text-sm font-medium tabular-nums">
-                {formatBRL(card.creditLimit - (stmt.data?.availableLimit ?? card.creditLimit))} / {formatBRL(card.creditLimit)}
+                {cardExpenses.isLoading ? "..." : `${formatBRL(usedLimit)} / ${formatBRL(card.creditLimit)}`}
               </div>
             </div>
           </div>

@@ -66,10 +66,12 @@ function ReportsPage() {
       Liquido: item.netTotal,
     })) ?? [];
 
-  const pieData = (categorySummary.data ?? summary.data?.categoryBreakdown ?? []).map((item) => ({
-    name: "amount" in item ? item.categoryName : item.categoryName,
-    value: "amount" in item ? item.amount : item.total,
-  }));
+  const pieData = (categorySummary.data ?? summary.data?.categoryBreakdown ?? [])
+    .filter((item) => !("categoryType" in item) || item.categoryType === "EXPENSE")
+    .map((item) => ({
+      name: "amount" in item ? item.categoryName : item.categoryName,
+      value: "amount" in item ? item.amount : item.total,
+    }));
 
   const forecastData =
     forecast.data?.forecast.map((item) => ({
@@ -88,6 +90,24 @@ function ReportsPage() {
     borderRadius: 12,
     fontSize: 12,
   };
+
+  const isLoading =
+    summary.isLoading ||
+    categorySummary.isLoading ||
+    cardSummary.isLoading ||
+    fixedVariable.isLoading ||
+    upcoming.isLoading ||
+    yearly.isLoading ||
+    trends.isLoading ||
+    forecast.isLoading;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-[450px] items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

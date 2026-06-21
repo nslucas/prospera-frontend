@@ -35,7 +35,7 @@ function LoginPage() {
   const onSubmit = async (values: FormValues) => {
     try {
       await login(values.email, values.password);
-      toast.success("Bem-vindo de volta!");
+      toast.success("Bem-vindo de volta!", { duration: 2000 });
       navigate({ to: "/" });
     } catch (e) {
       toast.error((e as Error).message || "Falha ao entrar");
