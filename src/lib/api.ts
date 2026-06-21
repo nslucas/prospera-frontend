@@ -6,7 +6,6 @@ const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?
 
 function resolveApiBaseUrl(): string {
   if (!rawApiBaseUrl) return DEFAULT_API_BASE_URL;
-  if (import.meta.env.DEV && rawApiBaseUrl === "/api") return DEFAULT_API_BASE_URL;
   return rawApiBaseUrl;
 }
 
