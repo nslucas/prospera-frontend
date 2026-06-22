@@ -1,13 +1,13 @@
-import { useAsyncData, useAsyncMutation, type AsyncDataState } from "@/hooks/use-async-data";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { CreditCard as CardIcon, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
-import { fetchAccounts, fetchCardPayments, fetchCardStatement, fetchCards, fetchExpenses } from "@/lib/queries";
+import { fetchAccounts, fetchCardStatement, fetchCards, fetchExpenses } from "@/lib/queries";
 import { api } from "@/lib/api";
-import type { Account, Card as CardType, CardPayment, CardStatement, Expense } from "@/lib/types";
+import type { Account, Card as CardType, Expense } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -315,12 +315,10 @@ function CardItem({
   const [period, setPeriod] = useState(currentMonthYear);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year]);
-  const payments = useAsyncData(() => fetchCardPayments(card.id, period.month, period.year), [card.id, period.month, period.year]);
   const brand = useMemo(() => getBankBrand(card.bankName), [card.bankName]);
   const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
   const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
-  const accountName = useCallback((id: number) => accounts.find((account) => account.id === id)?.name ?? `Conta #${id}`, [accounts]);
   const monthOptions = useMemo(getMonthOptions, []);
 
   const paymentForm = useForm<PaymentValues>({
@@ -342,7 +340,6 @@ function CardItem({
     onSuccess: () => {
       toast.success("Pagamento registrado");
       stmt.reload();
-      payments.reload();
       onRefresh();
       setPaymentOpen(false);
       paymentForm.reset({ paymentDate: todayIsoDate() });
@@ -439,8 +436,6 @@ function CardItem({
             </div>
           )}
 
-          <CardMovements stmt={stmt} payments={payments} accountName={accountName} />
-
           <div>
             <Dialog
               open={paymentOpen}
@@ -506,74 +501,6 @@ function CardItem({
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function CardMovements({
-  stmt,
-  payments,
-  accountName,
-}: {
-  stmt: AsyncDataState<CardStatement>;
-  payments: AsyncDataState<CardPayment[]>;
-  accountName: (id: number) => string;
-}) {
-  const statement = stmt.data;
-  return (
-    <>
-      <div className="rounded-md border border-border/70">
-        <div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
-          <div className="text-xs font-medium text-muted-foreground">Compras da fatura</div>
-          <div className="text-xs tabular-nums text-muted-foreground">{formatBRL(statement?.totalAmount ?? 0)}</div>
-        </div>
-        {stmt.isLoading ? (
-          <p className="px-3 py-3 text-xs text-muted-foreground">Carregando...</p>
-        ) : !statement?.installments.length ? (
-          <p className="px-3 py-3 text-xs text-muted-foreground">Nenhuma compra nesta fatura.</p>
-        ) : (
-          <ul className="divide-y divide-border/70">
-            {statement.installments.map((item) => (
-              <li key={`${item.expenseId}-${item.installmentNumber}`} className="flex items-center justify-between gap-3 px-3 py-2">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{item.expenseName}</div>
-                  <div className="text-xs text-muted-foreground">
-                    Parcela {item.installmentNumber}
-                    {item.totalInstallments ? `/${item.totalInstallments}` : ""}
-                    {item.dueDate ? ` - ${formatDate(item.dueDate)}` : ""}
-                  </div>
-                </div>
-                <div className="shrink-0 text-sm font-semibold tabular-nums">{formatBRL(item.amount)}</div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-      <div className="rounded-md border border-border/70">
-        <div className="flex items-center justify-between border-b border-border/70 px-3 py-2">
-          <div className="text-xs font-medium text-muted-foreground">Pagamentos</div>
-          <div className="text-xs tabular-nums text-muted-foreground">{formatBRL(statement?.paidAmount ?? 0)}</div>
-        </div>
-        {payments.isLoading ? (
-          <p className="px-3 py-3 text-xs text-muted-foreground">Carregando...</p>
-        ) : !payments.data?.length ? (
-          <p className="px-3 py-3 text-xs text-muted-foreground">Nenhum pagamento nesta fatura.</p>
-        ) : (
-          <ul className="divide-y divide-border/70">
-            {payments.data.map((payment) => (
-              <li key={payment.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-medium">{payment.description || "Pagamento de fatura"}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {formatDate(payment.paymentDate)} - {accountName(payment.accountId)}
-                  </div>
-                </div>
-                <div className="shrink-0 text-sm font-semibold tabular-nums text-[var(--success)]">{formatBRL(payment.amount)}</div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </>
   );
 }
 
