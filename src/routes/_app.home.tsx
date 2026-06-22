@@ -38,6 +38,7 @@ export default function HomePage() {
   const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year]);
   const accounts = useAsyncData(() => fetchAccounts(), []);
   const cards = useAsyncData(() => fetchCards(), []);
+  const cardsReady = !cards.isLoading && Boolean(cards.data);
   const openStatements = useAsyncData(
     () =>
       Promise.all(
@@ -47,6 +48,7 @@ export default function HomePage() {
         }),
       ),
     [cards.data],
+    { enabled: cardsReady, initialData: [] },
   );
   const alerts = useAsyncData(() => fetchAlerts({ month, year }), [month, year]);
   const fromMonth = month - 5 <= 0 ? month - 5 + 12 : month - 5;

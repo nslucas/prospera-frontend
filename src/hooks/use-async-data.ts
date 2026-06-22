@@ -7,12 +7,32 @@ export interface AsyncDataState<T> {
   reload: () => Promise<T | undefined>;
 }
 
-export function useAsyncData<T>(load: () => Promise<T>, deps: React.DependencyList): AsyncDataState<T> {
-  const [data, setData] = React.useState<T>();
+interface AsyncDataOptions<T> {
+  enabled?: boolean;
+  initialData?: T;
+}
+
+export function useAsyncData<T>(
+  load: () => Promise<T>,
+  deps: React.DependencyList,
+  options: AsyncDataOptions<T> = {},
+): AsyncDataState<T> {
+  const enabled = options.enabled ?? true;
+  const [data, setData] = React.useState<T | undefined>(() => options.initialData);
   const [error, setError] = React.useState<Error | null>(null);
-  const [isLoading, setIsLoading] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(enabled);
+  const dataRef = React.useRef<T | undefined>(data);
+
+  React.useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
 
   const reload = React.useCallback(async () => {
+    if (!enabled) {
+      setIsLoading(false);
+      return dataRef.current;
+    }
+
     setIsLoading(true);
     setError(null);
     try {
@@ -26,9 +46,14 @@ export function useAsyncData<T>(load: () => Promise<T>, deps: React.DependencyLi
     } finally {
       setIsLoading(false);
     }
-  }, deps);
+  }, [enabled, ...deps]);
 
   React.useEffect(() => {
+    if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
+
     let active = true;
     setIsLoading(true);
     setError(null);
@@ -48,7 +73,7 @@ export function useAsyncData<T>(load: () => Promise<T>, deps: React.DependencyLi
     return () => {
       active = false;
     };
-  }, deps);
+  }, [enabled, ...deps]);
 
   return { data, error, isLoading, reload };
 }

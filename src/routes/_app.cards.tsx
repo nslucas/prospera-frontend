@@ -1,5 +1,5 @@
 import { useAsyncData, useAsyncMutation, type AsyncDataState } from "@/hooks/use-async-data";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { CreditCard as CardIcon, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
 import { fetchAccounts, fetchCardPayments, fetchCardStatement, fetchCards, fetchExpenses } from "@/lib/queries";
 import { api } from "@/lib/api";
-import type { Account, Card as CardType, CardPayment, CardStatement } from "@/lib/types";
+import type { Account, Card as CardType, CardPayment, CardStatement, Expense } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,12 +128,24 @@ const DEFAULT_BANK_BRAND: BankBrand = {
   accentClassName: "bg-white/12 border-white/18",
   logoClassName: "",
 };
+const EMPTY_EXPENSES: Expense[] = [];
 
 export default function CardsPage() {
   const { data, isLoading, reload } = useAsyncData(() => fetchCards(), []);
   const accounts = useAsyncData(() => fetchAccounts(), []);
+  const allExpenses = useAsyncData(() => fetchExpenses({}), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CardType | null>(null);
+  const expensesByCard = useMemo(() => {
+    const grouped = new Map<number, Expense[]>();
+    for (const expense of allExpenses.data ?? []) {
+      if (!expense.cardId) continue;
+      const current = grouped.get(expense.cardId);
+      if (current) current.push(expense);
+      else grouped.set(expense.cardId, [expense]);
+    }
+    return grouped;
+  }, [allExpenses.data]);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -160,6 +172,7 @@ export default function CardsPage() {
   const reloadCardsData = () => {
     reload();
     accounts.reload();
+    allExpenses.reload();
   };
 
   const save = useAsyncMutation({
@@ -266,6 +279,8 @@ export default function CardsPage() {
               key={card.id}
               card={card}
               accounts={accounts.data ?? []}
+              cardExpenses={expensesByCard.get(card.id) ?? EMPTY_EXPENSES}
+              cardExpensesLoading={allExpenses.isLoading}
               onEdit={() => {
                 setEditing(card);
                 setOpen(true);
@@ -283,12 +298,16 @@ export default function CardsPage() {
 function CardItem({
   card,
   accounts,
+  cardExpenses,
+  cardExpensesLoading,
   onEdit,
   onDelete,
   onRefresh,
 }: {
   card: CardType;
   accounts: Account[];
+  cardExpenses: Expense[];
+  cardExpensesLoading: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onRefresh: () => void;
@@ -297,12 +316,12 @@ function CardItem({
   const [paymentOpen, setPaymentOpen] = useState(false);
   const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year]);
   const payments = useAsyncData(() => fetchCardPayments(card.id, period.month, period.year), [card.id, period.month, period.year]);
-  const cardExpenses = useAsyncData(() => fetchExpenses({ cardId: card.id }), [card.id]);
-  const brand = getBankBrand(card.bankName);
-  const usedLimit = (cardExpenses.data ?? []).reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const brand = useMemo(() => getBankBrand(card.bankName), [card.bankName]);
+  const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
   const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
-  const activeAccounts = accounts.filter((a) => a.active);
-  const accountName = (id: number) => accounts.find((a) => a.id === id)?.name ?? `Conta #${id}`;
+  const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
+  const accountName = useCallback((id: number) => accounts.find((account) => account.id === id)?.name ?? `Conta #${id}`, [accounts]);
+  const monthOptions = useMemo(getMonthOptions, []);
 
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
@@ -324,7 +343,6 @@ function CardItem({
       toast.success("Pagamento registrado");
       stmt.reload();
       payments.reload();
-      cardExpenses.reload();
       onRefresh();
       setPaymentOpen(false);
       paymentForm.reset({ paymentDate: todayIsoDate() });
@@ -391,7 +409,7 @@ function CardItem({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {getMonthOptions().map((option) => (
+                {monthOptions.map((option) => (
                   <SelectItem key={option.key} value={option.key}>
                     {option.label}
                   </SelectItem>
@@ -408,7 +426,7 @@ function CardItem({
             <div className="rounded-md border border-border/70 bg-muted/20 p-3 sm:text-right">
               <div className="text-xs text-muted-foreground">Limite usado</div>
               <div className="text-sm font-medium tabular-nums">
-                {cardExpenses.isLoading ? "..." : `${formatBRL(usedLimit)} / ${formatBRL(card.creditLimit)}`}
+                {cardExpensesLoading ? "..." : `${formatBRL(usedLimit)} / ${formatBRL(card.creditLimit)}`}
               </div>
             </div>
           </div>
