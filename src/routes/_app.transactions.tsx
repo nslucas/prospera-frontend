@@ -5,9 +5,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, CreditCard, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
-import { fetchAccounts, fetchCards, fetchCardStatement, fetchCategories, fetchExpenses, fetchTransactions } from "@/lib/queries";
+import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchExpenses, fetchTransactions } from "@/lib/queries";
 import { api } from "@/lib/api";
-import type { CardStatement, Expense, Transaction, TransactionType } from "@/lib/types";
+import type { CardPayment, CardStatement, Expense, Transaction, TransactionType } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, formatDateTime, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,18 @@ type MovementItem =
       dueDate?: string | null;
       statementMonth: number;
       statementYear: number;
+    }
+  | {
+      kind: "card-payment";
+      id: number;
+      title: string;
+      amount: number;
+      occurredAt: string;
+      cardId: number;
+      accountId: number;
+      paymentMonth: number;
+      paymentYear: number;
+      transactionId?: number | null;
     };
 
 const schema = z
@@ -120,6 +132,11 @@ type Values = z.infer<typeof schema>;
 export default function TransactionsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const cardStatementPeriod = nextMonthPeriod(month, year);
+  const cardPaymentPeriods = uniquePeriods([
+    { month, year },
+    cardStatementPeriod,
+  ]);
+  const cardPaymentPeriodKey = cardPaymentPeriods.map((period) => `${period.month}-${period.year}`).join("|");
   const tx = useAsyncData(() => fetchTransactions({ month, year }), [month, year]);
   const accounts = useAsyncData(() => fetchAccounts(), []);
   const cards = useAsyncData(() => fetchCards(), []);
@@ -134,6 +151,19 @@ export default function TransactionsPage() {
           )
         : Promise.resolve([]),
     [cards.data, cardStatementPeriod.month, cardStatementPeriod.year],
+  );
+  const cardPayments = useAsyncData(
+    () =>
+      activeCards.length
+        ? Promise.all(
+            activeCards.flatMap((card) =>
+              cardPaymentPeriods.map((period) =>
+                fetchCardPayments(card.id, period.month, period.year).catch(() => [] as CardPayment[]),
+              ),
+            ),
+          ).then((paymentGroups) => paymentGroups.flat())
+        : Promise.resolve([]),
+    [cards.data, cardPaymentPeriodKey],
   );
   const expenses = useAsyncData(() => fetchExpenses({}), []);
   const categories = useAsyncData(() => fetchCategories(), []);
@@ -150,6 +180,7 @@ export default function TransactionsPage() {
   const reloadFinanceData = () => {
     tx.reload();
     cardStatements.reload();
+    cardPayments.reload();
     expenses.reload();
     accounts.reload();
     cards.reload();
@@ -186,8 +217,11 @@ export default function TransactionsPage() {
       }
 
       if (values.kind === "CARD_PAYMENT") {
-        return api(`/cards/${values.cardId}/payments`, {
-          method: "POST",
+        const paymentId = editing?.kind === "card-payment" ? editing.id : null;
+        const cardId = editing?.kind === "card-payment" ? editing.cardId : values.cardId;
+
+        return api(`/cards/${cardId}/payments${paymentId ? `/${paymentId}` : ""}`, {
+          method: paymentId ? "PUT" : "POST",
           body: {
             accountId: values.accountId,
             month: values.paymentMonth,
@@ -239,6 +273,16 @@ export default function TransactionsPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  const removeCardPayment = useAsyncMutation({
+    mutationFn: ({ cardId, paymentId }: { cardId: number; paymentId: number }) =>
+      api(`/cards/${cardId}/payments/${paymentId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      toast.success("Pagamento removido");
+      reloadFinanceData();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const monthOptions = useMonthOptions();
   const activeAccounts = (accounts.data ?? []).filter((account) => account.active);
   const showsCategory = kind === "INCOME" || kind === "EXPENSE" || kind === "CARD_EXPENSE";
@@ -250,7 +294,7 @@ export default function TransactionsPage() {
   const accountName = (id: number) => accounts.data?.find((account) => account.id === id)?.name ?? `Conta #${id}`;
   const cardName = (id?: number | null) => cards.data?.find((card) => card.id === id)?.name ?? `Cartao #${id ?? ""}`;
   const expensesById = new Map((expenses.data ?? []).map((expense) => [expense.id, expense]));
-  const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById);
+  const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
 
   const openNew = () => {
     setEditing(null);
@@ -259,6 +303,21 @@ export default function TransactionsPage() {
   };
 
   const openEdit = (item: MovementItem) => {
+    if (item.kind === "card-payment") {
+      setEditing(item);
+      form.reset({
+        ...movementDefaults("CARD_PAYMENT", month, year),
+        title: item.title,
+        amount: item.amount,
+        occurredAt: item.occurredAt.slice(0, 10),
+        accountId: item.accountId,
+        cardId: item.cardId,
+        paymentMonth: item.paymentMonth,
+        paymentYear: item.paymentYear,
+      });
+      setOpen(true);
+      return;
+    }
     if (item.kind !== "card-expense") {
       toast.info("Este tipo de lancamento nao tem endpoint de edicao na API.");
       return;
@@ -376,6 +435,7 @@ export default function TransactionsPage() {
                         <Label>Cartao</Label>
                         <Select
                           value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
+                          disabled={editing?.kind === "card-payment"}
                           onValueChange={(value) => form.setValue("cardId", Number(value), { shouldDirty: true, shouldValidate: true })}
                         >
                           <SelectTrigger>
@@ -532,7 +592,7 @@ export default function TransactionsPage() {
 
       <Card>
         <CardContent className="p-0">
-          {tx.isLoading || cardStatements.isLoading || expenses.isLoading ? (
+          {tx.isLoading || cardStatements.isLoading || expenses.isLoading || cardPayments.isLoading ? (
             <p className="p-6 text-sm text-muted-foreground">Carregando...</p>
           ) : !items.length ? (
             <p className="p-6 text-sm text-muted-foreground">Nenhum lancamento nesse mes.</p>
@@ -553,7 +613,7 @@ export default function TransactionsPage() {
                     {movementAmountPrefix(item)}
                     {formatBRL(Math.abs(item.amount))}
                   </div>
-                  {item.kind === "card-expense" && (
+                  {(item.kind === "card-expense" || item.kind === "card-payment") && (
                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
@@ -567,6 +627,11 @@ export default function TransactionsPage() {
                         if (item.kind === "card-expense") {
                           if (!confirm("A compra inteira sera removida, incluindo as demais parcelas. Continuar?")) return;
                           removeExpense.mutate(item.id);
+                          return;
+                        }
+                        if (item.kind === "card-payment") {
+                          if (!confirm("Remover este pagamento de fatura?")) return;
+                          removeCardPayment.mutate({ cardId: item.cardId, paymentId: item.id });
                           return;
                         }
                         if (!confirm("Remover este lancamento?")) return;
@@ -624,18 +689,29 @@ function mergeMovements(
   transactions: Transaction[],
   statements: Array<CardStatement | null>,
   expensesById: Map<number, Expense>,
+  cardPayments: CardPayment[],
 ): MovementItem[] {
+  const transactionsById = new Map(transactions.map((transaction) => [transaction.id, transaction]));
+  const uniqueCardPayments = Array.from(new Map(cardPayments.map((payment) => [`${payment.cardId}-${payment.id}`, payment])).values());
+  const resolvedPaymentTransactionIds = new Set(
+    uniqueCardPayments
+      .map((payment) => payment.transactionId)
+      .filter((transactionId): transactionId is number => typeof transactionId === "number"),
+  );
+
   return [
-    ...transactions.map((transaction): MovementItem => ({
-      kind: "transaction",
-      id: transaction.id,
-      title: transaction.description || labelType(transaction.type),
-      amount: transaction.amount,
-      occurredAt: transaction.occurredAt,
-      type: transaction.type,
-      accountId: transaction.accountId,
-      categoryId: transaction.categoryId,
-    })),
+    ...transactions
+      .filter((transaction) => transaction.type !== "CARD_PAYMENT" || !resolvedPaymentTransactionIds.has(transaction.id))
+      .map((transaction): MovementItem => ({
+        kind: "transaction",
+        id: transaction.id,
+        title: transaction.description || labelType(transaction.type),
+        amount: transaction.amount,
+        occurredAt: transaction.occurredAt,
+        type: transaction.type,
+        accountId: transaction.accountId,
+        categoryId: transaction.categoryId,
+      })),
     ...statements.flatMap((statement) => {
       if (!statement) return [];
       return statement.installments.map((installment): MovementItem => {
@@ -658,6 +734,21 @@ function mergeMovements(
         };
       });
     }),
+    ...uniqueCardPayments.map((payment): MovementItem => {
+      const paymentTransaction = payment.transactionId ? transactionsById.get(payment.transactionId) : undefined;
+      return {
+        kind: "card-payment",
+        id: payment.id,
+        title: payment.description || "Pagamento de fatura",
+        amount: payment.amount,
+        occurredAt: paymentTransaction?.occurredAt ?? payment.paymentDate,
+        cardId: payment.cardId,
+        accountId: payment.accountId,
+        paymentMonth: payment.month,
+        paymentYear: payment.year,
+        transactionId: payment.transactionId,
+      };
+    }),
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 }
 
@@ -678,7 +769,9 @@ function normalizeDateTime(value: string) {
 }
 
 function canDeleteMovement(item: MovementItem) {
-  return item.kind === "card-expense" || item.type !== "CARD_PAYMENT";
+  if (item.kind === "card-expense") return true;
+  if (item.kind === "card-payment") return true;
+  return item.type !== "CARD_PAYMENT";
 }
 
 function movementKey(item: MovementItem) {
@@ -686,6 +779,7 @@ function movementKey(item: MovementItem) {
 }
 
 function movementDate(item: MovementItem) {
+  if (item.kind === "card-payment") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
   return item.kind === "card-expense" ? formatDate(item.dueDate) : formatDateTime(item.occurredAt);
 }
 
@@ -694,7 +788,7 @@ function isInflow(type: TransactionType) {
 }
 
 function isPositiveMovement(item: MovementItem) {
-  if (item.kind === "card-expense") return false;
+  if (item.kind === "card-expense" || item.kind === "card-payment") return false;
   return isInflow(item.type) || (item.type === "ADJUSTMENT" && item.amount > 0);
 }
 
@@ -712,6 +806,7 @@ function movementIconBackground(item: MovementItem) {
 
 function movementIcon(item: MovementItem) {
   if (item.kind === "card-expense") return <CreditCard className="h-4 w-4 text-primary" />;
+  if (item.kind === "card-payment") return <WalletCards className="h-4 w-4 text-primary" />;
   if (item.type === "CARD_PAYMENT") return <WalletCards className="h-4 w-4 text-primary" />;
   if (item.type === "TRANSFER_IN" || item.type === "TRANSFER_OUT") return <ArrowLeftRight className="h-4 w-4 text-primary" />;
   if (isPositiveMovement(item)) return <ArrowDownRight className="h-4 w-4 text-[var(--success)]" />;
@@ -722,6 +817,7 @@ function movementMeta(item: MovementItem, accountName: (id: number) => string, c
   if (item.kind === "card-expense") {
     return `${cardName(item.cardId)} - parcela ${item.installmentNumber}/${item.installmentCount} - fatura ${monthLabel(item.statementMonth, item.statementYear)}`;
   }
+  if (item.kind === "card-payment") return `Pagamento de fatura - ${accountName(item.accountId)}`;
   if (item.type === "CARD_PAYMENT") return `Pagamento de fatura - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_IN") return `Transferencia recebida - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_OUT") return `Transferencia enviada - ${accountName(item.accountId)}`;
@@ -731,6 +827,10 @@ function movementMeta(item: MovementItem, accountName: (id: number) => string, c
 function nextMonthPeriod(month: number, year: number) {
   if (month === 12) return { month: 1, year: year + 1 };
   return { month: month + 1, year };
+}
+
+function uniquePeriods(periods: Array<{ month: number; year: number }>) {
+  return Array.from(new Map(periods.map((period) => [`${period.month}-${period.year}`, period])).values());
 }
 
 function labelType(type: TransactionType): string {

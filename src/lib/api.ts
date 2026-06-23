@@ -82,7 +82,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
     throw new ApiError(0, "Sem conexão com a API. Verifique VITE_API_BASE_URL.", String(e));
   }
 
-  if ((res.status === 401 || res.status === 403) && path !== "/auth/login") {
+  if (res.status === 401 && path !== "/auth/login") {
     setToken(null);
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
       window.location.href = "/auth/login";
