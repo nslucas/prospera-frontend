@@ -10,12 +10,16 @@ import type {
   CardStatement,
   CategorySummary,
   Category,
+  Connection,
+  ConnectionRequest,
   Expense,
   FixedVariableSummary,
   ForecastPoint,
   MonthlySummary,
   Recurrence,
   RecurrenceOccurrence,
+  Settlement,
+  SettlementItem,
   Transaction,
   TrendPoint,
   UpcomingSummary,
@@ -40,6 +44,18 @@ export const fetchTransactions = (params: { month?: number; year?: number; accou
 
 export const fetchExpenses = (params: { month?: number; year?: number; cardId?: number }) =>
   api<Expense[]>("/expenses", { query: params });
+
+export const fetchConnectionCode = () => api<{ code: string }>("/connections/code");
+
+export const fetchPendingConnectionRequests = () =>
+  api<ConnectionRequest[]>("/connections/requests/pending");
+
+export const fetchConnections = () => api<Connection[]>("/connections");
+
+export const fetchSettlements = () => api<Settlement[]>("/settlements");
+
+export const fetchSettlementItems = (params: { counterpartyUserId?: number } = {}) =>
+  api<SettlementItem[]>("/settlements/items", { query: params });
 
 export const fetchCardStatement = (cardId: number, month: number, year: number) =>
   api<CardStatement>(`/cards/${cardId}/statements`, { query: { month, year } });

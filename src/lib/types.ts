@@ -14,6 +14,9 @@ export type RecurringTargetType = "ACCOUNT_TRANSACTION" | "CARD_EXPENSE";
 export type RecurringFrequency = "MONTHLY" | "ANNUAL";
 export type RecurringClassification = "FIXED" | "VARIABLE";
 export type RecurringOccurrenceStatus = "PENDING" | "MATERIALIZED" | "SKIPPED";
+export type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED";
+export type ExpenseShareStatus = "OPEN" | "SETTLED";
+export type SettlementDirection = "YOU_OWE" | "OWES_YOU";
 export type AlertType =
   | "CARD_LIMIT_NEAR"
   | "BUDGET_NEAR_LIMIT"
@@ -99,6 +102,42 @@ export interface Expense {
   description?: string | null;
   cardId?: number | null;
   categoryId?: number | null;
+}
+
+export interface ConnectionRequest {
+  id: number;
+  requesterUserId: number;
+  requesterName: string;
+  targetUserId: number;
+  targetName: string;
+  status: ConnectionStatus;
+  requestedAt: string;
+  respondedAt?: string | null;
+}
+
+export type Connection = ConnectionRequest;
+
+export interface Settlement {
+  counterpartyUserId: number;
+  counterpartyName: string;
+  amount: number;
+  direction: SettlementDirection;
+}
+
+export interface SettlementItem {
+  shareId: number;
+  expenseId: number;
+  expenseName: string;
+  expenseAmount: number;
+  creatorUserId: number;
+  creatorName: string;
+  participantUserId: number;
+  participantName: string;
+  participantAmount: number;
+  direction: SettlementDirection;
+  status: ExpenseShareStatus;
+  createdAt: string;
+  settledAt?: string | null;
 }
 
 export interface Category {

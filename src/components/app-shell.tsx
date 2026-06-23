@@ -10,16 +10,18 @@ import {
   BarChart3,
   Tag,
   RotateCw,
+  HandCoins,
   LogOut,
   Menu,
   X,
   MoreHorizontal,
-  ChevronLeft,
-  ChevronRight,
+  UsersRound,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { BrandLogo, BrandMark } from "@/components/brand-logo";
+import { useAsyncData } from "@/hooks/use-async-data";
+import { fetchPendingConnectionRequests } from "@/lib/queries";
 
 interface NavItem {
   to: string;
@@ -29,14 +31,16 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: "/home", label: "Inicio", icon: LayoutDashboard, bottom: true },
+  { to: "/home", label: "Início", icon: LayoutDashboard, bottom: true },
   { to: "/transactions", label: "Mov.", icon: ArrowLeftRight, bottom: true },
-  { to: "/cards", label: "Cartoes", icon: CreditCard, bottom: true },
-  { to: "/reports", label: "Relatorios", icon: BarChart3, bottom: true },
+  { to: "/cards", label: "Cartões", icon: CreditCard, bottom: true },
+  { to: "/reports", label: "Relatórios", icon: BarChart3, bottom: true },
   { to: "/accounts", label: "Contas", icon: Wallet },
-  { to: "/budgets", label: "Orcamentos", icon: PiggyBank },
+  { to: "/budgets", label: "Orçamentos", icon: PiggyBank },
   { to: "/categories", label: "Categorias", icon: Tag },
-  { to: "/recurrences", label: "Recorrencias", icon: RotateCw },
+  { to: "/connections", label: "Conexões", icon: UsersRound },
+  { to: "/settlements", label: "Acertos", icon: HandCoins },
+  { to: "/recurrences", label: "Recorrências", icon: RotateCw },
   { to: "/alerts", label: "Alertas", icon: Bell },
 ];
 
@@ -51,6 +55,11 @@ export function AppShell() {
     }
     return false;
   });
+  const pendingRequests = useAsyncData(() => fetchPendingConnectionRequests(), [], {
+    enabled: !loading && !!user,
+    initialData: [],
+  });
+  const pendingConnectionCount = pendingRequests.data?.length ?? 0;
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => {
@@ -67,6 +76,14 @@ export function AppShell() {
   React.useEffect(() => {
     setMobileMenu(false);
   }, [pathname]);
+
+  React.useEffect(() => {
+    const reloadPendingRequests = () => {
+      pendingRequests.reload();
+    };
+    window.addEventListener("prospera:connections-updated", reloadPendingRequests);
+    return () => window.removeEventListener("prospera:connections-updated", reloadPendingRequests);
+  }, [pendingRequests.reload]);
 
   if (loading || !user) {
     return (
@@ -114,7 +131,7 @@ export function AppShell() {
                   <div className="font-display text-lg font-bold leading-none tracking-tight">
                     Prospera
                   </div>
-                  <div className="text-xs text-muted-foreground">Financas pessoais</div>
+                  <div className="text-xs text-muted-foreground">Finanças pessoais</div>
                 </div>
               </Link>
               <button
@@ -135,7 +152,7 @@ export function AppShell() {
               to={item.to}
               title={isCollapsed ? item.label : undefined}
               className={cn(
-                "group flex items-center rounded-lg py-2.5 text-sm transition-all duration-300 ease-in-out",
+                "group relative flex items-center rounded-lg py-2.5 text-sm transition-all duration-300 ease-in-out",
                 isCollapsed ? "px-2 justify-center" : "px-3 gap-3",
                 isActive(item.to)
                   ? "bg-accent text-sidebar-accent-foreground font-medium shadow-sm shadow-[rgba(16,27,21,0.035)] ring-1 ring-sidebar-border/80"
@@ -151,6 +168,16 @@ export function AppShell() {
                 )}
               />
               {!isCollapsed && <span className="truncate">{item.label}</span>}
+              {item.to === "/connections" && pendingConnectionCount > 0 && (
+                <span
+                  className={cn(
+                    "ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground",
+                    isCollapsed && "absolute right-1 top-1 h-2 min-w-2 p-0 text-[0px]",
+                  )}
+                >
+                  {pendingConnectionCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -212,8 +239,13 @@ export function AppShell() {
                       : "text-muted-foreground hover:bg-white/70",
                   )}
                 >
-                  <item.icon className="h-4 w-4" />
+                    <item.icon className="h-4 w-4" />
                   {item.label}
+                  {item.to === "/connections" && pendingConnectionCount > 0 && (
+                    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                      {pendingConnectionCount}
+                    </span>
+                  )}
                 </Link>
               ))}
               <button
@@ -259,7 +291,7 @@ export function AppShell() {
           ))}
           <button
             type="button"
-            aria-label="Abrir mais opcoes"
+            aria-label="Abrir mais opções"
             onClick={() => setMobileMenu(true)}
             className={cn(
               "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[11px] font-medium leading-none transition-all",

@@ -136,13 +136,13 @@ export default function ReportsPage() {
       <div className="grid gap-3 md:grid-cols-4">
         <Metric title="Receitas" value={formatBRL(summary.data?.incomeTotal)} />
         <Metric title="Despesas em conta" value={formatBRL(summary.data?.accountExpenseTotal)} />
-        <Metric title="Faturas do mes" value={formatBRL(summary.data?.cardBillsTotal)} />
+        <Metric title="Faturas do mês" value={formatBRL(summary.data?.cardBillsTotal)} />
         <Metric title="Saldo liquido" value={formatBRL(summary.data?.netCashFlow)} />
       </div>
 
       <Card>
         <CardContent className="p-4 md:p-6">
-          <h2 className="text-xl font-semibold tracking-tight">Tendencias (12 meses)</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Tendências (12 meses)</h2>
           <div className="mt-4 h-64">
             <ResponsiveContainer>
               <BarChart data={trendData} margin={{ left: -20, right: 8 }}>
@@ -188,7 +188,7 @@ export default function ReportsPage() {
 
         <Card>
           <CardContent className="p-4 md:p-6">
-            <h2 className="text-xl font-semibold tracking-tight">Projecao de saldo (6 meses)</h2>
+            <h2 className="text-xl font-semibold tracking-tight">Projeção de saldo (6 meses)</h2>
             <div className="mt-4 h-64">
               <ResponsiveContainer>
                 <LineChart data={forecastData} margin={{ left: -20, right: 8 }}>
@@ -210,7 +210,7 @@ export default function ReportsPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>
           <CardContent className="p-4 md:p-6">
-            <h2 className="text-xl font-semibold tracking-tight">Cartoes no mes</h2>
+            <h2 className="text-xl font-semibold tracking-tight">Cartões no mês</h2>
             <div className="mt-4 space-y-3">
               {!cardSummary.data?.length ? (
                 <p className="text-sm text-muted-foreground">Sem faturas no periodo.</p>
@@ -282,7 +282,7 @@ export default function ReportsPage() {
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <Metric title="Receitas" value={formatBRL(yearly.data?.incomeTotal)} />
             <Metric title="Despesas em conta" value={formatBRL(yearly.data?.accountExpenseTotal)} />
-            <Metric title="Despesas em cartao" value={formatBRL(yearly.data?.cardStatementExpenseTotal)} />
+            <Metric title="Despesas em cartão" value={formatBRL(yearly.data?.cardStatementExpenseTotal)} />
             <Metric title="Liquido" value={formatBRL(yearly.data?.netTotal)} />
           </div>
         </CardContent>

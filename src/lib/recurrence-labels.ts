@@ -24,7 +24,7 @@ const FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
 
 const TARGET_LABELS: Record<RecurringTargetType, string> = {
   ACCOUNT_TRANSACTION: "Conta",
-  CARD_EXPENSE: "Cartao",
+  CARD_EXPENSE: "Cartão",
 };
 
 const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {

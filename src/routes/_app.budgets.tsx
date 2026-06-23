@@ -57,7 +57,7 @@ export default function BudgetsPage() {
         body: values,
       }),
     onSuccess: () => {
-      toast.success(editing ? "Orcamento atualizado" : "Orcamento criado");
+      toast.success(editing ? "Orçamento atualizado" : "Orçamento criado");
       progress.reload();
       transactions.reload();
       expenses.reload();
@@ -70,7 +70,7 @@ export default function BudgetsPage() {
   const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/budgets/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Orcamento removido");
+      toast.success("Orçamento removido");
       progress.reload();
       transactions.reload();
       expenses.reload();
@@ -108,7 +108,7 @@ export default function BudgetsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Orcamentos</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Orçamentos</h1>
         </div>
         <div className="flex items-center gap-2">
           <Select
@@ -143,7 +143,7 @@ export default function BudgetsPage() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editing ? "Editar orcamento" : "Novo orcamento"}</DialogTitle>
+                <DialogTitle>{editing ? "Editar orçamento" : "Novo orçamento"}</DialogTitle>
               </DialogHeader>
               <form className="space-y-4" onSubmit={form.handleSubmit((values) => save.mutate(values))}>
                 <div className="space-y-1.5">
@@ -196,7 +196,7 @@ export default function BudgetsPage() {
         <p className="text-sm text-muted-foreground">Carregando...</p>
       ) : !progressItems.length ? (
         <Card>
-          <CardContent className="p-10 text-center text-sm text-muted-foreground">Nenhum orcamento no mes.</CardContent>
+          <CardContent className="p-10 text-center text-sm text-muted-foreground">Nenhum orçamento no mês.</CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
@@ -240,8 +240,8 @@ export default function BudgetsPage() {
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
                     <ConfirmAction
-                      title="Remover orcamento?"
-                      description={`O orcamento de ${item.categoryName} sera removido.`}
+                      title="Remover orçamento?"
+                      description={`O orçamento de ${item.categoryName} será removido.`}
                       confirmLabel="Remover"
                       destructive
                       onConfirm={() => remove.mutate(item.budgetId)}

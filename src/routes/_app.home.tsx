@@ -107,10 +107,10 @@ export default function HomePage() {
               {alerts.isLoading
                 ? "Verificando pendencias"
                 : overdueAlerts.length
-                  ? `Voce tem ${overdueAlerts.length} lancamento${overdueAlerts.length > 1 ? "s" : ""} atrasado${
+                  ? `Você tem ${overdueAlerts.length} lançamento${overdueAlerts.length > 1 ? "s" : ""} atrasado${
                       overdueAlerts.length > 1 ? "s" : ""
                     }`
-                  : "Nenhum lancamento atrasado"}
+                  : "Nenhum lançamento atrasado"}
             </span>
           </span>
           <ChevronRight className="h-7 w-7 shrink-0 text-primary" />
@@ -172,7 +172,7 @@ export default function HomePage() {
                   <BarChart3 className="h-5 w-5" />
                 </div>
                 <h2 className="text-xl font-semibold tracking-tight">Receitas vs. Despesas</h2>
-                <p className="text-xs text-muted-foreground">Ultimos 6 meses</p>
+                <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
               </div>
               <Link to="/reports" className="text-xs font-medium text-primary hover:underline">
                 Ver relatorios
@@ -216,7 +216,7 @@ export default function HomePage() {
 
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xl font-semibold tracking-tight">Alertas do mes</h2>
+            <h2 className="text-xl font-semibold tracking-tight">Alertas do mês</h2>
             <Link to="/alerts" className="text-xs font-medium text-primary hover:underline">
               Ver todos
             </Link>
@@ -351,12 +351,12 @@ function CardsPanel({
           {cards.slice(0, 3).map((card) => (
             <CardRow key={card.id} card={card} />
           ))}
-          {!cards.length && <p className="text-sm text-muted-foreground">Nenhum cartao cadastrado.</p>}
+          {!cards.length && <p className="text-sm text-muted-foreground">Nenhum cartão cadastrado.</p>}
         </div>
 
         <Link
           to="/cards"
-          aria-label="Adicionar cartao"
+          aria-label="Adicionar cartão"
           className="absolute bottom-5 right-5 grid h-14 w-14 place-items-center rounded-full bg-destructive text-destructive-foreground shadow-[0_18px_34px_rgba(220,38,38,0.25)] transition-transform hover:-translate-y-0.5 md:hidden"
         >
           <Plus className="h-8 w-8" />

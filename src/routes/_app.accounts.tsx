@@ -243,7 +243,7 @@ export default function AccountsPage() {
                   </Button>
                   <ConfirmAction
                     title="Desativar conta?"
-                    description={`A conta "${a.name}" sera desativada.`}
+                    description={`A conta "${a.name}" será desativada.`}
                     confirmLabel="Desativar"
                     destructive
                     onConfirm={() => remove.mutate(a.id)}

@@ -176,7 +176,7 @@ export default function CategoriesPage() {
                           </Button>
                           <ConfirmAction
                             title="Desativar categoria?"
-                            description={`A categoria "${c.name}" sera desativada.`}
+                            description={`A categoria "${c.name}" será desativada.`}
                             confirmLabel="Desativar"
                             destructive
                             onConfirm={() => remove.mutate(c.id)}

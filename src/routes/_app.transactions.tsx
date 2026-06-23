@@ -1,13 +1,14 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, CreditCard, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
-import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchExpenses, fetchTransactions } from "@/lib/queries";
+import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, CreditCard, Pencil, Plus, Trash2, UsersRound, WalletCards } from "lucide-react";
+import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchConnections, fetchExpenses, fetchSettlementItems, fetchTransactions } from "@/lib/queries";
 import { api } from "@/lib/api";
-import type { CardPayment, CardStatement, Expense, Transaction, TransactionType } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
+import type { CardPayment, CardStatement, Connection, Expense, SettlementItem, Transaction, TransactionType } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, formatDateTime, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CurrencyAmountInput } from "@/components/currency-amount-input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type MovementKind = "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT" | "TRANSFER" | "CARD_PAYMENT";
 type MovementItem =
@@ -76,6 +78,9 @@ const schema = z
     cardId: z.coerce.number().int().optional(),
     categoryId: z.coerce.number().int().optional(),
     installmentCount: z.coerce.number().int().positive("Parcelas deve ser > 0").optional(),
+    shareEnabled: z.boolean().optional(),
+    participantUserId: z.coerce.number().int().optional(),
+    participantAmount: z.coerce.number().optional(),
     paymentMonth: z.coerce.number().int().min(1).max(12).optional(),
     paymentYear: z.coerce.number().int().min(2000).optional(),
   })
@@ -84,20 +89,36 @@ const schema = z
     const requiresTitle = values.kind === "INCOME" || values.kind === "EXPENSE" || values.kind === "CARD_EXPENSE" || values.kind === "ADJUSTMENT";
 
     if (requiresTitle && !title) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["title"], message: "Informe uma descricao" });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["title"], message: "Informe uma descrição" });
     }
     if (values.kind === "ADJUSTMENT" && values.amount === 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amount"], message: "Ajuste nao pode ser zero" });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amount"], message: "Ajuste não pode ser zero" });
     }
     if (values.kind !== "ADJUSTMENT" && values.amount <= 0) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amount"], message: "Valor deve ser > 0" });
     }
     if (values.kind === "CARD_EXPENSE") {
       if (!values.cardId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartao" });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartão" });
       }
       if (!values.installmentCount) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["installmentCount"], message: "Informe as parcelas" });
+      }
+      if (values.shareEnabled) {
+        if (!values.participantUserId) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantUserId"], message: "Selecione uma conexão" });
+        }
+        if (!values.participantAmount || values.participantAmount <= 0) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "Valor da outra pessoa deve ser maior que zero" });
+        }
+        if (values.participantAmount && values.participantAmount > values.amount) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "Valor da outra pessoa não pode passar do total" });
+        }
+        const creatorAmount = roundMoney(values.amount - Number(values.participantAmount ?? 0));
+        const participantAmount = roundMoney(Number(values.participantAmount ?? 0));
+        if (roundMoney(creatorAmount + participantAmount) !== roundMoney(values.amount)) {
+          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "A divisão precisa fechar com o valor total" });
+        }
       }
       return;
     }
@@ -115,7 +136,7 @@ const schema = z
     }
     if (values.kind === "CARD_PAYMENT") {
       if (!values.cardId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartao" });
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartão" });
       }
       if (!values.accountId) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione uma conta" });
@@ -132,6 +153,7 @@ const schema = z
 type Values = z.infer<typeof schema>;
 
 export default function TransactionsPage() {
+  const { user } = useAuth();
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const cardStatementPeriod = nextMonthPeriod(month, year);
   const cardPaymentPeriods = uniquePeriods([
@@ -169,6 +191,8 @@ export default function TransactionsPage() {
   );
   const expenses = useAsyncData(() => fetchExpenses({}), []);
   const categories = useAsyncData(() => fetchCategories(), []);
+  const connections = useAsyncData(() => fetchConnections(), []);
+  const settlementItems = useAsyncData(() => fetchSettlementItems(), []);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
 
@@ -177,6 +201,9 @@ export default function TransactionsPage() {
     defaultValues: movementDefaults("EXPENSE", month, year),
   });
   const kind = form.watch("kind");
+  const shareEnabled = form.watch("shareEnabled");
+  const participantAmount = Number(form.watch("participantAmount") ?? 0);
+  const creatorShareAmount = roundMoney(Number(form.watch("amount") ?? 0) - participantAmount);
   const errors = form.formState.errors;
 
   const reloadFinanceData = () => {
@@ -187,11 +214,14 @@ export default function TransactionsPage() {
     accounts.reload();
     cards.reload();
     categories.reload();
+    settlementItems.reload();
   };
 
   const save = useAsyncMutation({
     mutationFn: (values: Values): Promise<unknown> => {
       if (values.kind === "CARD_EXPENSE") {
+        const participantAmount = roundMoney(Number(values.participantAmount ?? 0));
+        const creatorAmount = roundMoney(values.amount - participantAmount);
         return api<Expense>(editing?.kind === "card-expense" ? `/expenses/${editing.id}` : "/expenses", {
           method: editing?.kind === "card-expense" ? "PUT" : "POST",
           body: {
@@ -202,6 +232,13 @@ export default function TransactionsPage() {
             description: null,
             cardId: values.cardId,
             categoryId: values.categoryId || null,
+            share: values.shareEnabled
+              ? {
+                  participantUserId: values.participantUserId,
+                  creatorAmount,
+                  participantAmount,
+                }
+              : undefined,
           },
         });
       }
@@ -248,7 +285,7 @@ export default function TransactionsPage() {
       });
     },
     onSuccess: () => {
-      toast.success(editing ? "Lancamento atualizado" : "Lancamento criado");
+      toast.success(editing ? "Lançamento atualizado" : "Lançamento criado");
       reloadFinanceData();
       setOpen(false);
       setEditing(null);
@@ -260,7 +297,7 @@ export default function TransactionsPage() {
   const removeTransaction = useAsyncMutation({
     mutationFn: (id: number) => api(`/transactions/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Lancamento removido");
+      toast.success("Lançamento removido");
       reloadFinanceData();
     },
     onError: (e) => toast.error(e.message),
@@ -287,6 +324,7 @@ export default function TransactionsPage() {
 
   const monthOptions = useMonthOptions();
   const activeAccounts = (accounts.data ?? []).filter((account) => account.active);
+  const activeConnections = connections.data ?? [];
   const showsCategory = kind === "INCOME" || kind === "EXPENSE" || kind === "CARD_EXPENSE";
   const filteredCategories = (categories.data ?? []).filter((category) => {
     if (!category.active || !showsCategory) return false;
@@ -294,10 +332,21 @@ export default function TransactionsPage() {
     return category.type === "EXPENSE";
   });
   const accountName = (id: number) => accounts.data?.find((account) => account.id === id)?.name ?? `Conta #${id}`;
-  const cardName = (id?: number | null) => cards.data?.find((card) => card.id === id)?.name ?? `Cartao #${id ?? ""}`;
+  const cardName = (id?: number | null) => cards.data?.find((card) => card.id === id)?.name ?? `Cartão #${id ?? ""}`;
   const expensesById = new Map((expenses.data ?? []).map((expense) => [expense.id, expense]));
+  const settlementItemByExpenseId = useMemo(() => {
+    const map = new Map<number, SettlementItem>();
+    for (const item of settlementItems.data ?? []) {
+      map.set(item.expenseId, item);
+    }
+    return map;
+  }, [settlementItems.data]);
   const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
   const deleteMovement = (item: MovementItem) => {
+    if (item.kind === "card-expense" && settlementItemByExpenseId.get(item.id)?.status === "SETTLED") {
+      toast.error("Compras compartilhadas já quitadas não podem ser removidas.");
+      return;
+    }
     if (item.kind === "card-expense") {
       removeExpense.mutate(item.id);
       return;
@@ -311,12 +360,12 @@ export default function TransactionsPage() {
   const deleteMovementTitle = (item: MovementItem) => {
     if (item.kind === "card-expense") return "Remover compra?";
     if (item.kind === "card-payment") return "Remover pagamento?";
-    return "Remover lancamento?";
+    return "Remover lançamento?";
   };
   const deleteMovementDescription = (item: MovementItem) => {
-    if (item.kind === "card-expense") return "A compra inteira sera removida, incluindo as demais parcelas.";
-    if (item.kind === "card-payment") return "Este pagamento de fatura sera removido.";
-    return "Este lancamento sera removido.";
+    if (item.kind === "card-expense") return "A compra inteira será removida, incluindo as demais parcelas.";
+    if (item.kind === "card-payment") return "Este pagamento de fatura será removido.";
+    return "Este lançamento será removido.";
   };
 
   const openNew = () => {
@@ -342,7 +391,12 @@ export default function TransactionsPage() {
       return;
     }
     if (item.kind !== "card-expense") {
-      toast.info("Este tipo de lancamento nao tem endpoint de edicao na API.");
+      toast.info("Este tipo de lançamento não tem endpoint de edição na API.");
+      return;
+    }
+    const sharedItem = settlementItemByExpenseId.get(item.id);
+    if (sharedItem?.status === "SETTLED") {
+      toast.error("Compras compartilhadas já quitadas não podem ser editadas.");
       return;
     }
     const expense = expensesById.get(item.id);
@@ -359,6 +413,9 @@ export default function TransactionsPage() {
       cardId: expense.cardId ?? undefined,
       categoryId: expense.categoryId ?? undefined,
       installmentCount: expense.installmentCount,
+      shareEnabled: !!sharedItem,
+      participantUserId: sharedItem?.participantUserId,
+      participantAmount: sharedItem?.participantAmount,
     });
     setOpen(true);
   };
@@ -368,7 +425,7 @@ export default function TransactionsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Movimentacoes</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Movimentações</h1>
         </div>
         <div className="flex items-center gap-2">
           <Select
@@ -403,13 +460,13 @@ export default function TransactionsPage() {
             </DialogTrigger>
             <DialogContent className="sm:max-w-xl">
               <DialogHeader>
-                <DialogTitle>{editing ? "Editar lancamento" : "Novo lancamento"}</DialogTitle>
+                <DialogTitle>{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
               </DialogHeader>
               <form
                 className="space-y-4"
                 onSubmit={form.handleSubmit(
                   (values) => save.mutate(values),
-                  () => toast.error("Confira os campos obrigatorios antes de salvar."),
+                  () => toast.error("Confira os campos obrigatórios antes de salvar."),
                 )}
               >
                 <div className="grid grid-cols-2 gap-3">
@@ -428,10 +485,10 @@ export default function TransactionsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="EXPENSE">Despesa em conta</SelectItem>
-                        <SelectItem value="CARD_EXPENSE">Compra no cartao</SelectItem>
+                        <SelectItem value="CARD_EXPENSE">Compra no cartão</SelectItem>
                         <SelectItem value="INCOME">Receita</SelectItem>
                         <SelectItem value="ADJUSTMENT">Ajuste</SelectItem>
-                        <SelectItem value="TRANSFER">Transferencia</SelectItem>
+                        <SelectItem value="TRANSFER">Transferência</SelectItem>
                         <SelectItem value="CARD_PAYMENT">Pagamento de fatura</SelectItem>
                       </SelectContent>
                     </Select>
@@ -458,7 +515,7 @@ export default function TransactionsPage() {
                   {kind === "CARD_EXPENSE" && (
                     <>
                       <div className="space-y-1.5">
-                        <Label>Cartao</Label>
+                        <Label>Cartão</Label>
                         <Select
                           value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
                           disabled={editing?.kind === "card-payment"}
@@ -476,12 +533,76 @@ export default function TransactionsPage() {
                           </SelectContent>
                         </Select>
                         <FieldError message={errors.cardId?.message} />
-                        {!activeCards.length && <ResourceHint>Nenhum cartao ativo disponivel.</ResourceHint>}
+                        {!activeCards.length && <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>}
                       </div>
                       <div className="space-y-1.5">
                         <Label>Parcelas</Label>
                         <Input type="number" min={1} {...form.register("installmentCount")} />
                         <FieldError message={errors.installmentCount?.message} />
+                      </div>
+                      <div className="col-span-2 rounded-lg border bg-muted/20 p-3">
+                        <label className="flex cursor-pointer items-start gap-3">
+                          <Checkbox
+                            checked={!!shareEnabled}
+                            onCheckedChange={(checked) => {
+                              const enabled = checked === true;
+                              form.setValue("shareEnabled", enabled, { shouldDirty: true, shouldValidate: true });
+                              if (!enabled) {
+                                form.setValue("participantUserId", undefined, { shouldDirty: true, shouldValidate: true });
+                                form.setValue("participantAmount", undefined, { shouldDirty: true, shouldValidate: true });
+                              }
+                            }}
+                          />
+                          <span>
+                            <span className="block text-sm font-medium">Dividir compra</span>
+                            <span className="block text-xs text-muted-foreground">
+                              A compra fica no seu cartão e a outra pessoa aparece em Acertos.
+                            </span>
+                          </span>
+                        </label>
+
+                        {shareEnabled && (
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1.5">
+                              <Label>Conexão</Label>
+                              <Select
+                                value={form.watch("participantUserId") ? String(form.watch("participantUserId")) : undefined}
+                                onValueChange={(value) =>
+                                  form.setValue("participantUserId", Number(value), { shouldDirty: true, shouldValidate: true })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activeConnections.map((connection) => {
+                                    const person = getConnectionPerson(connection, user?.id);
+                                    return (
+                                      <SelectItem key={connection.id} value={String(person.id)}>
+                                        {person.name}
+                                      </SelectItem>
+                                    );
+                                  })}
+                                </SelectContent>
+                              </Select>
+                              <FieldError message={errors.participantUserId?.message} />
+                              {!activeConnections.length && <ResourceHint>Nenhuma conexão aceita disponível.</ResourceHint>}
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Valor da outra pessoa</Label>
+                              <CurrencyAmountInput
+                                value={form.watch("participantAmount")}
+                                onChange={(value) =>
+                                  form.setValue("participantAmount", value, { shouldDirty: true, shouldValidate: true })
+                                }
+                              />
+                              <FieldError message={errors.participantAmount?.message} />
+                              <p className="text-xs text-muted-foreground">
+                                Sua parte: {formatBRL(Math.max(0, creatorShareAmount))}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -496,7 +617,7 @@ export default function TransactionsPage() {
                           onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
                         />
                         <FieldError message={errors.accountId?.message} />
-                        {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponivel.</ResourceHint>}
+                        {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
                       </div>
                       <div className="space-y-1.5">
                         <Label>Conta de destino</Label>
@@ -513,7 +634,7 @@ export default function TransactionsPage() {
                   {kind === "CARD_PAYMENT" && (
                     <>
                       <div className="space-y-1.5">
-                        <Label>Cartao</Label>
+                        <Label>Cartão</Label>
                         <Select
                           value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
                           onValueChange={(value) => form.setValue("cardId", Number(value), { shouldDirty: true, shouldValidate: true })}
@@ -530,7 +651,7 @@ export default function TransactionsPage() {
                           </SelectContent>
                         </Select>
                         <FieldError message={errors.cardId?.message} />
-                        {!activeCards.length && <ResourceHint>Nenhum cartao ativo disponivel.</ResourceHint>}
+                        {!activeCards.length && <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>}
                       </div>
                       <div className="space-y-1.5">
                         <Label>Conta de pagamento</Label>
@@ -540,7 +661,7 @@ export default function TransactionsPage() {
                           onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
                         />
                         <FieldError message={errors.accountId?.message} />
-                        {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponivel.</ResourceHint>}
+                        {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
                       </div>
                       <div className="col-span-2 space-y-1.5">
                         <Label>Fatura</Label>
@@ -577,7 +698,7 @@ export default function TransactionsPage() {
                         onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
                       />
                       <FieldError message={errors.accountId?.message} />
-                      {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponivel.</ResourceHint>}
+                      {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
                     </div>
                   )}
 
@@ -621,44 +742,56 @@ export default function TransactionsPage() {
           {tx.isLoading || cardStatements.isLoading || expenses.isLoading || cardPayments.isLoading ? (
             <p className="p-6 text-sm text-muted-foreground">Carregando...</p>
           ) : !items.length ? (
-            <p className="p-6 text-sm text-muted-foreground">Nenhum lancamento nesse mes.</p>
+            <p className="p-6 text-sm text-muted-foreground">Nenhum lançamento nesse mês.</p>
           ) : (
             <ul className="divide-y divide-border">
-              {items.map((item) => (
-                <li key={movementKey(item)} className="flex items-center gap-3 p-4">
-                  <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${movementIconBackground(item)}`}>
-                    {movementIcon(item)}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">{item.title}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {movementDate(item)} - {movementMeta(item, accountName, cardName)}
+              {items.map((item) => {
+                const sharedItem = item.kind === "card-expense" ? settlementItemByExpenseId.get(item.id) : undefined;
+                const isSettledSharedExpense = sharedItem?.status === "SETTLED";
+                return (
+                  <li key={movementKey(item)} className="flex items-center gap-3 p-4">
+                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${movementIconBackground(item)}`}>
+                      {movementIcon(item)}
                     </div>
-                  </div>
-                  <div className={`text-sm font-semibold tabular-nums ${movementAmountClass(item)}`}>
-                    {movementAmountPrefix(item)}
-                    {formatBRL(Math.abs(item.amount))}
-                  </div>
-                  {(item.kind === "card-expense" || item.kind === "card-payment") && (
-                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                      <Pencil className="h-4 w-4 text-muted-foreground" />
-                    </Button>
-                  )}
-                  {canDeleteMovement(item) && (
-                    <ConfirmAction
-                      title={deleteMovementTitle(item)}
-                      description={deleteMovementDescription(item)}
-                      confirmLabel="Remover"
-                      destructive
-                      onConfirm={() => deleteMovement(item)}
-                    >
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="truncate text-sm font-medium">{item.title}</div>
+                        {sharedItem && (
+                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            <UsersRound className="h-3 w-3" />
+                            {isSettledSharedExpense ? "Quitada" : "Dividida"}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {movementDate(item)} - {movementMeta(item, accountName, cardName)}
+                      </div>
+                    </div>
+                    <div className={`text-sm font-semibold tabular-nums ${movementAmountClass(item)}`}>
+                      {movementAmountPrefix(item)}
+                      {formatBRL(Math.abs(item.amount))}
+                    </div>
+                    {(item.kind === "card-expense" || item.kind === "card-payment") && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                        <Pencil className="h-4 w-4 text-muted-foreground" />
                       </Button>
-                    </ConfirmAction>
-                  )}
-                </li>
-              ))}
+                    )}
+                    {canDeleteMovement(item, sharedItem) && (
+                      <ConfirmAction
+                        title={deleteMovementTitle(item)}
+                        description={deleteMovementDescription(item)}
+                        confirmLabel="Remover"
+                        destructive
+                        onConfirm={() => deleteMovement(item)}
+                      >
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Trash2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
+                      </ConfirmAction>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </CardContent>
@@ -775,19 +908,32 @@ function movementDefaults(kind: MovementKind, month: number, year: number): Valu
     amount: 0,
     occurredAt: kind === "CARD_PAYMENT" ? todayIsoDate() : nowIsoDateTime(),
     installmentCount: 1,
+    shareEnabled: false,
     paymentMonth: month,
     paymentYear: year,
   };
+}
+
+function roundMoney(value: number) {
+  return Math.round(Number(value) * 100) / 100;
 }
 
 function normalizeDateTime(value: string) {
   return value.includes("T") ? value : `${value}T00:00`;
 }
 
-function canDeleteMovement(item: MovementItem) {
+function canDeleteMovement(item: MovementItem, sharedItem?: SettlementItem) {
+  if (sharedItem?.status === "SETTLED") return false;
   if (item.kind === "card-expense") return true;
   if (item.kind === "card-payment") return true;
   return item.type !== "CARD_PAYMENT";
+}
+
+function getConnectionPerson(connection: Connection, currentUserId?: number) {
+  if (connection.requesterUserId === currentUserId) {
+    return { id: connection.targetUserId, name: connection.targetName };
+  }
+  return { id: connection.requesterUserId, name: connection.requesterName };
 }
 
 function movementKey(item: MovementItem) {
@@ -835,8 +981,8 @@ function movementMeta(item: MovementItem, accountName: (id: number) => string, c
   }
   if (item.kind === "card-payment") return `Pagamento de fatura - ${accountName(item.accountId)}`;
   if (item.type === "CARD_PAYMENT") return `Pagamento de fatura - ${accountName(item.accountId)}`;
-  if (item.type === "TRANSFER_IN") return `Transferencia recebida - ${accountName(item.accountId)}`;
-  if (item.type === "TRANSFER_OUT") return `Transferencia enviada - ${accountName(item.accountId)}`;
+  if (item.type === "TRANSFER_IN") return `Transferência recebida - ${accountName(item.accountId)}`;
+  if (item.type === "TRANSFER_OUT") return `Transferência enviada - ${accountName(item.accountId)}`;
   return accountName(item.accountId);
 }
 
@@ -853,8 +999,8 @@ function labelType(type: TransactionType): string {
   const map: Record<TransactionType, string> = {
     INCOME: "Receita",
     EXPENSE: "Despesa",
-    TRANSFER_IN: "Transferencia recebida",
-    TRANSFER_OUT: "Transferencia enviada",
+    TRANSFER_IN: "Transferência recebida",
+    TRANSFER_OUT: "Transferência enviada",
     CARD_PAYMENT: "Pagamento de fatura",
     ADJUSTMENT: "Ajuste",
   };

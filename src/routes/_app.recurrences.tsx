@@ -59,10 +59,10 @@ const schema = z
       if (!values.transactionType) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["transactionType"], message: "Selecione o tipo" });
     }
     if (values.targetType === "CARD_EXPENSE" && !values.cardId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione o cartao" });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione o cartão" });
     }
     if (values.frequency === "ANNUAL" && !values.monthOfYear) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["monthOfYear"], message: "Informe o mes" });
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["monthOfYear"], message: "Informe o mês" });
     }
   });
 type Values = z.infer<typeof schema>;
@@ -101,7 +101,7 @@ export default function RecurrencesPage() {
         body: toPayload(values),
       }),
     onSuccess: () => {
-      toast.success(editing ? "Recorrencia atualizada" : "Recorrencia criada");
+      toast.success(editing ? "Recorrência atualizada" : "Recorrência criada");
       list.reload();
       occ.reload();
       setOpen(false);
@@ -113,7 +113,7 @@ export default function RecurrencesPage() {
   const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/recurrences/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Recorrencia removida");
+      toast.success("Recorrência removida");
       list.reload();
       occ.reload();
     },
@@ -209,8 +209,8 @@ export default function RecurrencesPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Recorrencias</h1>
-          <p className="text-sm text-muted-foreground">Crie regras, visualize proximas ocorrencias e lance quando quiser.</p>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Recorrências</h1>
+          <p className="text-sm text-muted-foreground">Crie regras, visualize próximas ocorrências e lance quando quiser.</p>
         </div>
         <Dialog
           open={open}
@@ -226,7 +226,7 @@ export default function RecurrencesPage() {
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editing ? "Editar recorrencia" : "Nova recorrencia"}</DialogTitle>
+              <DialogTitle>{editing ? "Editar recorrência" : "Nova recorrência"}</DialogTitle>
             </DialogHeader>
             <form className="space-y-4" onSubmit={form.handleSubmit((values) => save.mutate(values))}>
               <RecurrenceFields
@@ -249,7 +249,7 @@ export default function RecurrencesPage() {
 
       <Tabs defaultValue="upcoming">
         <TabsList>
-          <TabsTrigger value="upcoming">Proximas</TabsTrigger>
+          <TabsTrigger value="upcoming">Próximas</TabsTrigger>
           <TabsTrigger value="rules">Regras</TabsTrigger>
         </TabsList>
 
@@ -303,12 +303,12 @@ export default function RecurrencesPage() {
                   )}
                   {item.status === "MATERIALIZED" && (
                     <ConfirmAction
-                      title="Desfazer lancamento?"
+                      title="Desfazer lançamento?"
                       description={`A ocorrencia "${item.recurrenceName}" de ${formatDate(item.occurrenceDate)} voltara para pendente.`}
                       confirmLabel="Desfazer"
                       onConfirm={() => revert.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
                     >
-                      <Button size="icon" variant="ghost" className="h-8 w-8" disabled={revert.isPending} title="Desfazer lancamento">
+                      <Button size="icon" variant="ghost" className="h-8 w-8" disabled={revert.isPending} title="Desfazer lançamento">
                         <RotateCcw className="h-4 w-4" />
                       </Button>
                     </ConfirmAction>
@@ -324,7 +324,7 @@ export default function RecurrencesPage() {
             <p className="text-sm text-muted-foreground">Carregando...</p>
           ) : !list.data?.length ? (
             <Card>
-              <CardContent className="p-10 text-center text-sm text-muted-foreground">Nenhuma recorrencia cadastrada.</CardContent>
+              <CardContent className="p-10 text-center text-sm text-muted-foreground">Nenhuma recorrência cadastrada.</CardContent>
             </Card>
           ) : (
             list.data.map((item) => (
@@ -341,8 +341,8 @@ export default function RecurrencesPage() {
                     <Pencil className="h-4 w-4 text-muted-foreground" />
                   </Button>
                   <ConfirmAction
-                    title="Remover recorrencia?"
-                    description={`A recorrencia "${item.name}" sera desativada.`}
+                    title="Remover recorrência?"
+                    description={`A recorrência "${item.name}" será desativada.`}
                     confirmLabel="Remover"
                     destructive
                     onConfirm={() => remove.mutate(item.id)}
@@ -403,7 +403,7 @@ function RecurrenceFields({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ACCOUNT_TRANSACTION">Conta</SelectItem>
-            <SelectItem value="CARD_EXPENSE">Cartao</SelectItem>
+            <SelectItem value="CARD_EXPENSE">Cartão</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -499,7 +499,7 @@ function RecurrenceFields({
         </div>
       ) : (
         <div className="space-y-1.5">
-          <Label>Cartao</Label>
+          <Label>Cartão</Label>
           <Select
             value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
             onValueChange={(value) => form.setValue("cardId", Number(value), { shouldValidate: true })}

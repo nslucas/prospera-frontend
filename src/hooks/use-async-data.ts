@@ -99,7 +99,7 @@ export function useAsyncMutation<TInput, TOutput = unknown>({
         await onSuccess?.(result, input);
         return result;
       } catch (caught) {
-        const normalized = caught instanceof Error ? caught : new Error("Operacao nao concluida");
+        const normalized = caught instanceof Error ? caught : new Error("Operação não concluída");
         onError?.(normalized, input);
         return undefined;
       } finally {

@@ -12,9 +12,11 @@ import AlertsPage from "@/routes/_app.alerts";
 import BudgetsPage from "@/routes/_app.budgets";
 import CardsPage from "@/routes/_app.cards";
 import CategoriesPage from "@/routes/_app.categories";
+import ConnectionsPage from "@/routes/_app.connections";
 import HomePage from "@/routes/_app.home";
 import RecurrencesPage from "@/routes/_app.recurrences";
 import ReportsPage from "@/routes/_app.reports";
+import SettlementsPage from "@/routes/_app.settlements";
 import TransactionsPage from "@/routes/_app.transactions";
 
 export function App() {
@@ -52,6 +54,8 @@ function AppRoutes() {
         <Route path="/accounts" element={<AccountsPage />} />
         <Route path="/budgets" element={<BudgetsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/connections" element={<ConnectionsPage />} />
+        <Route path="/settlements" element={<SettlementsPage />} />
         <Route path="/recurrences" element={<RecurrencesPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
       </Route>
@@ -89,16 +93,16 @@ function NotFoundPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-display text-7xl text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold">Pagina nao encontrada</h2>
+        <h2 className="mt-4 text-xl font-semibold">Página não encontrada</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          O endereco que voce acessou nao existe.
+          O endereço que você acessou não existe.
         </p>
         <div className="mt-6">
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Ir para o inicio
+            Ir para o início
           </a>
         </div>
       </div>

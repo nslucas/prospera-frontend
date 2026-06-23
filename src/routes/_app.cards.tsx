@@ -123,7 +123,7 @@ const BANK_BRANDS: readonly BankBrand[] = [
 
 const DEFAULT_BANK_BRAND: BankBrand = {
   id: "default",
-  label: "Cartao",
+  label: "Cartão",
   logo: "",
   match: [],
   className: "from-[#1f2937] via-[#3f4858] to-[#111827] text-white",
@@ -184,7 +184,7 @@ export default function CardsPage() {
         body: { ...v, network: v.network || null, lastFourDigits: v.lastFourDigits || null },
       }),
     onSuccess: () => {
-      toast.success(editing ? "Cartao atualizado" : "Cartao criado");
+      toast.success(editing ? "Cartão atualizado" : "Cartão criado");
       reloadCardsData();
       setOpen(false);
       setEditing(null);
@@ -195,7 +195,7 @@ export default function CardsPage() {
   const remove = useAsyncMutation({
     mutationFn: (id: number) => api(`/cards/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      toast.success("Cartao desativado");
+      toast.success("Cartão desativado");
       reloadCardsData();
     },
     onError: (e) => toast.error(e.message),
@@ -206,7 +206,7 @@ export default function CardsPage() {
       <div className="flex items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Cartoes</h1>
-          <p className="text-sm text-muted-foreground">Acompanhe limite, fatura e vencimento de cada cartao.</p>
+          <p className="text-sm text-muted-foreground">Acompanhe limite, fatura e vencimento de cada cartão.</p>
         </div>
         <Dialog
           open={open}
@@ -217,12 +217,12 @@ export default function CardsPage() {
         >
           <DialogTrigger asChild>
             <Button>
-              <Plus className="h-4 w-4" /> Novo cartao
+              <Plus className="h-4 w-4" /> Novo cartão
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editing ? "Editar cartao" : "Novo cartao"}</DialogTitle>
+              <DialogTitle>{editing ? "Editar cartão" : "Novo cartão"}</DialogTitle>
             </DialogHeader>
             <form className="space-y-4" onSubmit={form.handleSubmit((v) => save.mutate(v))}>
               <div className="grid grid-cols-2 gap-3">
@@ -274,7 +274,7 @@ export default function CardsPage() {
         <Card>
           <CardContent className="p-10 text-center">
             <CardIcon className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Cadastre seu primeiro cartao.</p>
+            <p className="text-sm text-muted-foreground">Cadastre seu primeiro cartão.</p>
           </CardContent>
         </Card>
       ) : (
@@ -375,8 +375,8 @@ function CardItem({
                 <Pencil className="h-4 w-4" />
               </Button>
               <ConfirmAction
-                title="Desativar cartao?"
-                description={`O cartao "${card.name}" sera desativado.`}
+                title="Desativar cartão?"
+                description={`O cartão "${card.name}" será desativado.`}
                 confirmLabel="Desativar"
                 destructive
                 onConfirm={onDelete}
@@ -393,7 +393,7 @@ function CardItem({
               <div className="font-mono text-xl tracking-widest opacity-90">**** {card.lastFourDigits ?? "0000"}</div>
             </div>
             <div className="text-right">
-              <div className="text-xs font-medium uppercase opacity-60">{card.network || "Cartao"}</div>
+              <div className="text-xs font-medium uppercase opacity-60">{card.network || "Cartão"}</div>
               <div className="text-sm font-semibold tabular-nums">Limite {formatBRL(card.creditLimit)}</div>
             </div>
           </div>
