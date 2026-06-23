@@ -56,7 +56,7 @@ const transferSchema = z.object({
 type TransferValues = z.infer<typeof transferSchema>;
 
 export default function AccountsPage() {
-  const { data, isLoading, reload } = useAsyncData(() => fetchAccounts(), []);
+  const { data, isLoading, reload } = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [transferSource, setTransferSource] = useState<Account | null>(null);

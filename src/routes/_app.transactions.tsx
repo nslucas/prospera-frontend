@@ -161,10 +161,14 @@ export default function TransactionsPage() {
     cardStatementPeriod,
   ]);
   const cardPaymentPeriodKey = cardPaymentPeriods.map((period) => `${period.month}-${period.year}`).join("|");
-  const tx = useAsyncData(() => fetchTransactions({ month, year }), [month, year]);
-  const accounts = useAsyncData(() => fetchAccounts(), []);
-  const cards = useAsyncData(() => fetchCards(), []);
+  const tx = useAsyncData(() => fetchTransactions({ month, year }), [month, year], {
+    cacheKey: `transactions:${month}:${year}`,
+  });
+  const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
+  const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
   const activeCards = (cards.data ?? []).filter((card) => card.active);
+  const activeCardsKey = activeCards.map((card) => card.id).join("|");
+  const cardsReady = !cards.isLoading && Boolean(cards.data);
   const cardStatements = useAsyncData(
     () =>
       activeCards.length
@@ -174,7 +178,12 @@ export default function TransactionsPage() {
             ),
           )
         : Promise.resolve([]),
-    [cards.data, cardStatementPeriod.month, cardStatementPeriod.year],
+    [activeCardsKey, cardStatementPeriod.month, cardStatementPeriod.year],
+    {
+      enabled: cardsReady,
+      initialData: [],
+      cacheKey: `transaction-card-statements:${activeCardsKey}:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
+    },
   );
   const cardPayments = useAsyncData(
     () =>
@@ -187,12 +196,17 @@ export default function TransactionsPage() {
             ),
           ).then((paymentGroups) => paymentGroups.flat())
         : Promise.resolve([]),
-    [cards.data, cardPaymentPeriodKey],
+    [activeCardsKey, cardPaymentPeriodKey],
+    {
+      enabled: cardsReady,
+      initialData: [],
+      cacheKey: `transaction-card-payments:${activeCardsKey}:${cardPaymentPeriodKey}`,
+    },
   );
-  const expenses = useAsyncData(() => fetchExpenses({}), []);
-  const categories = useAsyncData(() => fetchCategories(), []);
-  const connections = useAsyncData(() => fetchConnections(), []);
-  const settlementItems = useAsyncData(() => fetchSettlementItems(), []);
+  const expenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
+  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
+  const connections = useAsyncData(() => fetchConnections(), [], { cacheKey: "connections", staleMs: 60_000 });
+  const settlementItems = useAsyncData(() => fetchSettlementItems(), [], { cacheKey: "settlement-items", staleMs: 30_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
 
@@ -342,6 +356,8 @@ export default function TransactionsPage() {
     return map;
   }, [settlementItems.data]);
   const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
+  const movementsLoading = tx.isLoading || cards.isLoading;
+  const supplementalLoading = cardStatements.isLoading || cardPayments.isLoading || expenses.isLoading;
   const deleteMovement = (item: MovementItem) => {
     if (item.kind === "card-expense" && settlementItemByExpenseId.get(item.id)?.status === "SETTLED") {
       toast.error("Compras compartilhadas já quitadas não podem ser removidas.");
@@ -739,12 +755,20 @@ export default function TransactionsPage() {
 
       <Card>
         <CardContent className="p-0">
-          {tx.isLoading || cardStatements.isLoading || expenses.isLoading || cardPayments.isLoading ? (
+          {movementsLoading ? (
             <p className="p-6 text-sm text-muted-foreground">Carregando...</p>
           ) : !items.length ? (
-            <p className="p-6 text-sm text-muted-foreground">Nenhum lançamento nesse mês.</p>
+            <p className="p-6 text-sm text-muted-foreground">
+              {supplementalLoading ? "Carregando faturas e pagamentos..." : "Nenhum lançamento nesse mês."}
+            </p>
           ) : (
-            <ul className="divide-y divide-border">
+            <>
+              {supplementalLoading && (
+                <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                  Atualizando faturas e pagamentos...
+                </div>
+              )}
+              <ul className="divide-y divide-border">
               {items.map((item) => {
                 const sharedItem = item.kind === "card-expense" ? settlementItemByExpenseId.get(item.id) : undefined;
                 const isSettledSharedExpense = sharedItem?.status === "SETTLED";
@@ -792,7 +816,8 @@ export default function TransactionsPage() {
                   </li>
                 );
               })}
-            </ul>
+              </ul>
+            </>
           )}
         </CardContent>
       </Card>

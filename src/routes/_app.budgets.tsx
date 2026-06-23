@@ -38,10 +38,16 @@ type Values = z.infer<typeof schema>;
 
 export default function BudgetsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
-  const progress = useAsyncData(() => fetchBudgetProgress(month, year), [month, year]);
-  const transactions = useAsyncData(() => fetchTransactions({ month, year }), [month, year]);
-  const expenses = useAsyncData(() => fetchExpenses({ month, year }), [month, year]);
-  const categories = useAsyncData(() => fetchCategories(), []);
+  const progress = useAsyncData(() => fetchBudgetProgress(month, year), [month, year], {
+    cacheKey: `budget-progress:${month}:${year}`,
+  });
+  const transactions = useAsyncData(() => fetchTransactions({ month, year }), [month, year], {
+    cacheKey: `transactions:${month}:${year}`,
+  });
+  const expenses = useAsyncData(() => fetchExpenses({ month, year }), [month, year], {
+    cacheKey: `expenses:${month}:${year}`,
+  });
+  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Budget | null>(null);
 
@@ -192,14 +198,19 @@ export default function BudgetsPage() {
         </div>
       </div>
 
-      {progress.isLoading || transactions.isLoading || expenses.isLoading ? (
+      {progress.isLoading ? (
         <p className="text-sm text-muted-foreground">Carregando...</p>
       ) : !progressItems.length ? (
         <Card>
-          <CardContent className="p-10 text-center text-sm text-muted-foreground">Nenhum orçamento no mês.</CardContent>
+          <CardContent className="p-10 text-center text-sm text-muted-foreground">
+            {transactions.isLoading || expenses.isLoading ? "Atualizando gastos do mês..." : "Nenhum orçamento no mês."}
+          </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
+          {(transactions.isLoading || expenses.isLoading) && (
+            <p className="text-xs text-muted-foreground">Atualizando gastos do mês...</p>
+          )}
           {progressItems.map((item) => (
             <Card key={item.budgetId}>
               <CardContent className="p-4">

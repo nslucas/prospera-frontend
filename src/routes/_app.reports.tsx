@@ -44,16 +44,30 @@ export default function ReportsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const today = todayIsoDate();
   const monthOptions = getMonthOptions();
-  const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year]);
-  const categorySummary = useAsyncData(() => fetchCategorySummary(month, year), [month, year]);
-  const cardSummary = useAsyncData(() => fetchCardSummary(month, year), [month, year]);
-  const fixedVariable = useAsyncData(() => fetchFixedVariableSummary(month, year), [month, year]);
-  const upcoming = useAsyncData(() => fetchUpcoming(today, addDaysIso(today, 30)), [today]);
-  const yearly = useAsyncData(() => fetchYearlySummary(year), [year]);
+  const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year], {
+    cacheKey: `summary-monthly:${month}:${year}`,
+  });
+  const categorySummary = useAsyncData(() => fetchCategorySummary(month, year), [month, year], {
+    cacheKey: `summary-categories:${month}:${year}`,
+  });
+  const cardSummary = useAsyncData(() => fetchCardSummary(month, year), [month, year], {
+    cacheKey: `summary-cards:${month}:${year}`,
+  });
+  const fixedVariable = useAsyncData(() => fetchFixedVariableSummary(month, year), [month, year], {
+    cacheKey: `summary-fixed-variable:${month}:${year}`,
+  });
+  const upcoming = useAsyncData(() => fetchUpcoming(today, addDaysIso(today, 30)), [today], {
+    cacheKey: `summary-upcoming:${today}`,
+  });
+  const yearly = useAsyncData(() => fetchYearlySummary(year), [year], {
+    cacheKey: `summary-yearly:${year}`,
+  });
   const fromMonth = month - 11 <= 0 ? month - 11 + 12 : month - 11;
   const fromYear = month - 11 <= 0 ? year - 1 : year;
-  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year]);
-  const forecast = useAsyncData(() => fetchForecast(6), []);
+  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year], {
+    cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
+  });
+  const forecast = useAsyncData(() => fetchForecast(6), [], { cacheKey: "summary-forecast:6" });
 
   const trendData =
     trends.data?.map((item) => ({
@@ -88,17 +102,7 @@ export default function ReportsPage() {
     fontSize: 12,
   };
 
-  const isLoading =
-    summary.isLoading ||
-    categorySummary.isLoading ||
-    cardSummary.isLoading ||
-    fixedVariable.isLoading ||
-    upcoming.isLoading ||
-    yearly.isLoading ||
-    trends.isLoading ||
-    forecast.isLoading;
-
-  if (isLoading) {
+  if (summary.isLoading && !summary.data) {
     return (
       <div className="flex h-[450px] items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />

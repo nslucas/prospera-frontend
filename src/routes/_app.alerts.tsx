@@ -7,7 +7,7 @@ import { formatBRL, formatDate } from "@/lib/format";
 
 
 export default function AlertsPage() {
-  const { data, isLoading } = useAsyncData(() => fetchAlerts(), []);
+  const { data, isLoading } = useAsyncData(() => fetchAlerts(), [], { cacheKey: "alerts" });
 
   return (
     <div className="space-y-6">

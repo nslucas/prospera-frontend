@@ -35,10 +35,22 @@ export default function HomePage() {
   const { user } = useAuth();
   const [valuesHidden, setValuesHidden] = React.useState(false);
   const { month, year } = currentMonthYear();
-  const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year]);
-  const accounts = useAsyncData(() => fetchAccounts(), []);
-  const cards = useAsyncData(() => fetchCards(), []);
+  const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year], {
+    cacheKey: `summary-monthly:${month}:${year}`,
+  });
+  const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
+  const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
   const cardsReady = !cards.isLoading && Boolean(cards.data);
+  const openStatementsCacheKey = React.useMemo(
+    () =>
+      `home-open-statements:${(cards.data ?? [])
+        .map((card) => {
+          const period = currentOpenStatementPeriod(card);
+          return `${card.id}-${period.month}-${period.year}`;
+        })
+        .join("|")}`,
+    [cards.data],
+  );
   const openStatements = useAsyncData(
     () =>
       Promise.all(
@@ -48,12 +60,20 @@ export default function HomePage() {
         }),
       ),
     [cards.data],
-    { enabled: cardsReady, initialData: [] },
+    {
+      enabled: cardsReady,
+      initialData: [],
+      cacheKey: openStatementsCacheKey,
+    },
   );
-  const alerts = useAsyncData(() => fetchAlerts({ month, year }), [month, year]);
+  const alerts = useAsyncData(() => fetchAlerts({ month, year }), [month, year], {
+    cacheKey: `alerts:${month}:${year}`,
+  });
   const fromMonth = month - 5 <= 0 ? month - 5 + 12 : month - 5;
   const fromYear = month - 5 <= 0 ? year - 1 : year;
-  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year]);
+  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year], {
+    cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
+  });
 
   const s = summary.data;
   const trendData =

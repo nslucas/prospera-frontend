@@ -38,7 +38,7 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 export default function CategoriesPage() {
-  const { data, isLoading, reload } = useAsyncData(() => fetchCategories(), []);
+  const { data, isLoading, reload } = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
 

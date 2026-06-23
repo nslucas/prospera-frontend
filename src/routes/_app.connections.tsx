@@ -23,9 +23,9 @@ type RequestValues = z.infer<typeof requestSchema>;
 
 export default function ConnectionsPage() {
   const { user } = useAuth();
-  const code = useAsyncData(() => fetchConnectionCode(), []);
-  const pending = useAsyncData(() => fetchPendingConnectionRequests(), []);
-  const connections = useAsyncData(() => fetchConnections(), []);
+  const code = useAsyncData(() => fetchConnectionCode(), [], { cacheKey: "connection-code", staleMs: 60_000 });
+  const pending = useAsyncData(() => fetchPendingConnectionRequests(), [], { cacheKey: "connection-requests-pending" });
+  const connections = useAsyncData(() => fetchConnections(), [], { cacheKey: "connections", staleMs: 60_000 });
   const form = useForm<RequestValues>({
     resolver: zodResolver(requestSchema),
     defaultValues: { targetCode: "" },

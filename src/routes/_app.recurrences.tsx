@@ -70,11 +70,13 @@ type Values = z.infer<typeof schema>;
 export default function RecurrencesPage() {
   const today = todayIsoDate();
   const to = addDaysIso(today, 60);
-  const list = useAsyncData(() => fetchRecurrences(), []);
-  const occ = useAsyncData(() => fetchOccurrences(today, to), [today, to]);
-  const accounts = useAsyncData(() => fetchAccounts(), []);
-  const cards = useAsyncData(() => fetchCards(), []);
-  const categories = useAsyncData(() => fetchCategories(), []);
+  const list = useAsyncData(() => fetchRecurrences(), [], { cacheKey: "recurrences" });
+  const occ = useAsyncData(() => fetchOccurrences(today, to), [today, to], {
+    cacheKey: `recurrence-occurrences:${today}:${to}`,
+  });
+  const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
+  const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
+  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Recurrence | null>(null);
 

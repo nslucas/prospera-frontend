@@ -133,9 +133,9 @@ const DEFAULT_BANK_BRAND: BankBrand = {
 const EMPTY_EXPENSES: Expense[] = [];
 
 export default function CardsPage() {
-  const { data, isLoading, reload } = useAsyncData(() => fetchCards(), []);
-  const accounts = useAsyncData(() => fetchAccounts(), []);
-  const allExpenses = useAsyncData(() => fetchExpenses({}), []);
+  const { data, isLoading, reload } = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
+  const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
+  const allExpenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CardType | null>(null);
   const expensesByCard = useMemo(() => {
@@ -319,7 +319,9 @@ function CardItem({
 }) {
   const [period, setPeriod] = useState(currentMonthYear);
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year]);
+  const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year], {
+    cacheKey: `card-statement:${card.id}:${period.month}:${period.year}`,
+  });
   const brand = useMemo(() => getBankBrand(card.bankName), [card.bankName]);
   const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
   const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;

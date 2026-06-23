@@ -19,10 +19,11 @@ const ALL_COUNTERPARTIES = "_all";
 export default function SettlementsPage() {
   const [counterparty, setCounterparty] = useState<string>(ALL_COUNTERPARTIES);
   const counterpartyUserId = counterparty === ALL_COUNTERPARTIES ? undefined : Number(counterparty);
-  const settlements = useAsyncData(() => fetchSettlements(), []);
+  const settlements = useAsyncData(() => fetchSettlements(), [], { cacheKey: "settlements" });
   const items = useAsyncData(
     () => fetchSettlementItems({ counterpartyUserId }),
     [counterpartyUserId],
+    { cacheKey: `settlement-items:${counterpartyUserId ?? "all"}` },
   );
 
   const settleItem = useAsyncMutation({

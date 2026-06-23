@@ -10,6 +10,23 @@ export interface AsyncDataState<T> {
 interface AsyncDataOptions<T> {
   enabled?: boolean;
   initialData?: T;
+  cacheKey?: string;
+  staleMs?: number;
+}
+
+const cache = new Map<string, { data: unknown; updatedAt: number }>();
+const DEFAULT_STALE_MS = 30_000;
+
+function readFreshCache<T>(key: string | undefined, staleMs: number): T | undefined {
+  if (!key) return undefined;
+  const entry = cache.get(key);
+  if (!entry || Date.now() - entry.updatedAt > staleMs) return undefined;
+  return entry.data as T;
+}
+
+function writeCache<T>(key: string | undefined, data: T) {
+  if (!key) return;
+  cache.set(key, { data, updatedAt: Date.now() });
 }
 
 export function useAsyncData<T>(
@@ -18,9 +35,10 @@ export function useAsyncData<T>(
   options: AsyncDataOptions<T> = {},
 ): AsyncDataState<T> {
   const enabled = options.enabled ?? true;
-  const [data, setData] = React.useState<T | undefined>(() => options.initialData);
+  const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
+  const [data, setData] = React.useState<T | undefined>(() => readFreshCache<T>(options.cacheKey, staleMs) ?? options.initialData);
   const [error, setError] = React.useState<Error | null>(null);
-  const [isLoading, setIsLoading] = React.useState(enabled);
+  const [isLoading, setIsLoading] = React.useState(enabled && data === undefined);
   const dataRef = React.useRef<T | undefined>(data);
 
   React.useEffect(() => {
@@ -38,6 +56,7 @@ export function useAsyncData<T>(
     try {
       const value = await load();
       setData(value);
+      writeCache(options.cacheKey, value);
       return value;
     } catch (caught) {
       const normalized = caught instanceof Error ? caught : new Error("Falha ao carregar dados");
@@ -46,10 +65,18 @@ export function useAsyncData<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, ...deps]);
+  }, [enabled, options.cacheKey, ...deps]);
 
   React.useEffect(() => {
     if (!enabled) {
+      setIsLoading(false);
+      return;
+    }
+
+    const cached = readFreshCache<T>(options.cacheKey, staleMs);
+    if (cached !== undefined) {
+      setData(cached);
+      setError(null);
       setIsLoading(false);
       return;
     }
@@ -60,7 +87,9 @@ export function useAsyncData<T>(
 
     load()
       .then((value) => {
-        if (active) setData(value);
+        if (!active) return;
+        setData(value);
+        writeCache(options.cacheKey, value);
       })
       .catch((caught) => {
         if (!active) return;
@@ -73,7 +102,7 @@ export function useAsyncData<T>(
     return () => {
       active = false;
     };
-  }, [enabled, ...deps]);
+  }, [enabled, options.cacheKey, staleMs, ...deps]);
 
   return { data, error, isLoading, reload };
 }
@@ -96,6 +125,7 @@ export function useAsyncMutation<TInput, TOutput = unknown>({
       setIsPending(true);
       try {
         const result = await mutationFn(input);
+        cache.clear();
         await onSuccess?.(result, input);
         return result;
       } catch (caught) {

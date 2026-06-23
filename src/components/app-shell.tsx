@@ -58,6 +58,7 @@ export function AppShell() {
   const pendingRequests = useAsyncData(() => fetchPendingConnectionRequests(), [], {
     enabled: !loading && !!user,
     initialData: [],
+    cacheKey: "connection-requests-pending",
   });
   const pendingConnectionCount = pendingRequests.data?.length ?? 0;
 
