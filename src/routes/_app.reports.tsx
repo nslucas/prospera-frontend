@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAsyncData } from "@/hooks/use-async-data";
 import {
   Bar,
@@ -17,16 +17,20 @@ import {
 } from "recharts";
 import {
   fetchCardSummary,
+  fetchCategories,
   fetchCategorySummary,
+  fetchExpenses,
   fetchFixedVariableSummary,
   fetchForecast,
   fetchMonthlySummary,
   fetchTrends,
+  fetchTransactions,
   fetchUpcoming,
   fetchYearlySummary,
 } from "@/lib/queries";
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { recurrenceStatusLabel } from "@/lib/recurrence-labels";
+import type { CardStatementStatus, Category, CategorySummary, Expense, Transaction } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,18 +44,31 @@ const PALETTE = [
   "var(--chart-5)",
 ];
 
+const CARD_STATUS_LABELS: Record<CardStatementStatus, string> = {
+  OPEN: "Aberta",
+  PARTIALLY_PAID: "Parcialmente paga",
+  PAID: "Paga",
+  OVERPAID: "Paga acima do total",
+};
+
 export default function ReportsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const today = todayIsoDate();
   const monthOptions = getMonthOptions();
+  const cardStatementPeriod = nextMonthPeriod(month, year);
   const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year], {
     cacheKey: `summary-monthly:${month}:${year}`,
   });
   const categorySummary = useAsyncData(() => fetchCategorySummary(month, year), [month, year], {
     cacheKey: `summary-categories:${month}:${year}`,
   });
-  const cardSummary = useAsyncData(() => fetchCardSummary(month, year), [month, year], {
-    cacheKey: `summary-cards:${month}:${year}`,
+  const transactions = useAsyncData(() => fetchTransactions({ month, year }), [month, year], {
+    cacheKey: `transactions:${month}:${year}`,
+  });
+  const expenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
+  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
+  const cardSummary = useAsyncData(() => fetchCardSummary(cardStatementPeriod.month, cardStatementPeriod.year), [cardStatementPeriod.month, cardStatementPeriod.year], {
+    cacheKey: `summary-cards:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
   });
   const fixedVariable = useAsyncData(() => fetchFixedVariableSummary(month, year), [month, year], {
     cacheKey: `summary-fixed-variable:${month}:${year}`,
@@ -77,12 +94,19 @@ export default function ReportsPage() {
       Liquido: item.netTotal,
     })) ?? [];
 
-  const pieData = (categorySummary.data ?? summary.data?.categoryBreakdown ?? [])
-    .filter((item) => !("categoryType" in item) || item.categoryType === "EXPENSE")
+  const localCategoryBreakdown = useMemo(() => {
+    if (!transactions.data || !expenses.data || !categories.data) return null;
+    return buildCategoryBreakdown(transactions.data, expenses.data, categories.data, month, year);
+  }, [categories.data, expenses.data, month, transactions.data, year]);
+
+  const categoryBreakdown = localCategoryBreakdown ?? categorySummary.data ?? summary.data?.categoryBreakdown ?? [];
+  const pieData = categoryBreakdown
+    .filter((item) => !item.categoryType || item.categoryType === "EXPENSE")
     .map((item) => ({
-      name: "amount" in item ? item.categoryName : item.categoryName,
-      value: "amount" in item ? item.amount : item.total,
-    }));
+      name: item.categoryName,
+      value: getCategoryAmount(item),
+    }))
+    .filter((item) => item.value > 0);
 
   const forecastData =
     forecast.data?.forecast.map((item) => ({
@@ -94,6 +118,7 @@ export default function ReportsPage() {
     (fixedVariable.data?.fixedAmount ?? 0) +
     (fixedVariable.data?.variableAmount ?? 0) +
     (fixedVariable.data?.unclassifiedAmount ?? 0);
+  const cardBillsTotal = cardSummary.data?.reduce((total, card) => total + Number(card.totalAmount ?? 0), 0) ?? summary.data?.cardBillsTotal;
 
   const tooltipStyle = {
     background: "var(--popover)",
@@ -140,7 +165,7 @@ export default function ReportsPage() {
       <div className="grid gap-3 md:grid-cols-4">
         <Metric title="Receitas" value={formatBRL(summary.data?.incomeTotal)} />
         <Metric title="Despesas em conta" value={formatBRL(summary.data?.accountExpenseTotal)} />
-        <Metric title="Faturas do mês" value={formatBRL(summary.data?.cardBillsTotal)} />
+        <Metric title="Faturas do cartão" value={formatBRL(cardBillsTotal)} />
         <Metric title="Saldo liquido" value={formatBRL(summary.data?.netCashFlow)} />
       </div>
 
@@ -215,6 +240,9 @@ export default function ReportsPage() {
         <Card>
           <CardContent className="p-4 md:p-6">
             <h2 className="text-xl font-semibold tracking-tight">Cartões no mês</h2>
+            <p className="mt-1 text-xs text-muted-foreground capitalize">
+              Fatura {monthLabel(cardStatementPeriod.month, cardStatementPeriod.year)}
+            </p>
             <div className="mt-4 space-y-3">
               {!cardSummary.data?.length ? (
                 <p className="text-sm text-muted-foreground">Sem faturas no periodo.</p>
@@ -223,11 +251,11 @@ export default function ReportsPage() {
                   <div key={card.cardId} className="space-y-1">
                     <div className="flex items-center justify-between gap-3 text-sm">
                       <span className="truncate font-medium">{card.cardName}</span>
-                      <span className="tabular-nums">{formatBRL(card.remainingAmount)}</span>
+                      <span className="tabular-nums">{formatBRL(card.totalAmount)}</span>
                     </div>
                     <Progress value={card.totalAmount ? Math.min(100, (card.paidAmount / card.totalAmount) * 100) : 0} />
                     <div className="text-xs text-muted-foreground">
-                      Pago {formatBRL(card.paidAmount)} de {formatBRL(card.totalAmount)} - {card.status}
+                      Restante {formatBRL(card.remainingAmount)} - pago {formatBRL(card.paidAmount)} - {CARD_STATUS_LABELS[card.status]}
                     </div>
                   </div>
                 ))
@@ -317,6 +345,73 @@ function Breakdown({ label, value, total }: { label: string; value: number; tota
       <Progress value={percent} />
     </div>
   );
+}
+
+function getCategoryAmount(item: CategorySummary): number {
+  const value = item.amount ?? item.total ?? 0;
+  const amount = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function buildCategoryBreakdown(
+  transactions: Transaction[],
+  expenses: Expense[],
+  categories: Category[],
+  month: number,
+  year: number,
+): CategorySummary[] {
+  const categoriesById = new Map(categories.map((category) => [category.id, category]));
+  const totalsByCategory = new Map<string, CategorySummary>();
+
+  const addAmount = (categoryId: number | null | undefined, amount: number) => {
+    const normalizedAmount = Math.abs(Number(amount));
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return;
+
+    const category = categoryId ? categoriesById.get(categoryId) : undefined;
+    const key = category ? String(category.id) : "uncategorized";
+    const current =
+      totalsByCategory.get(key) ??
+      ({
+        categoryId: category?.id ?? null,
+        categoryName: category?.name ?? "Sem categoria",
+        categoryType: "EXPENSE",
+        amount: 0,
+      } satisfies CategorySummary);
+
+    current.amount = roundMoney((current.amount ?? 0) + normalizedAmount);
+    totalsByCategory.set(key, current);
+  };
+
+  for (const transaction of transactions) {
+    if (transaction.type !== "EXPENSE") continue;
+    addAmount(transaction.categoryId, transaction.amount);
+  }
+
+  for (const expense of expenses) {
+    if (!isInMonth(expense.purchaseDate, month, year)) continue;
+    addAmount(expense.categoryId, expense.amount);
+  }
+
+  return Array.from(totalsByCategory.values()).sort((a, b) => {
+    if (!a.categoryId && b.categoryId) return 1;
+    if (a.categoryId && !b.categoryId) return -1;
+    return a.categoryName.localeCompare(b.categoryName, "pt-BR");
+  });
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function isInMonth(iso: string, month: number, year: number): boolean {
+  const match = /^(\d{4})-(\d{2})/.exec(iso);
+  if (!match) return false;
+  return Number(match[1]) === year && Number(match[2]) === month;
+}
+
+function nextMonthPeriod(month: number, year: number): { month: number; year: number } {
+  if (month === 12) return { month: 1, year: year + 1 };
+  return { month: month + 1, year };
 }
 
 function getMonthOptions() {

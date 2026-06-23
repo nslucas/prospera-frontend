@@ -231,15 +231,16 @@ export interface MonthlySummary {
   totalAccountBalance: number;
   cardBillsTotal: number;
   cardBillsRemaining: number;
-  categoryBreakdown: Array<{ categoryId: number; categoryName: string; total: number }>;
+  categoryBreakdown: CategorySummary[];
   budgetProgress: BudgetProgress[];
 }
 
 export interface CategorySummary {
   categoryId?: number | null;
   categoryName: string;
-  categoryType: CategoryType;
-  amount: number;
+  categoryType?: CategoryType;
+  amount?: number;
+  total?: number;
 }
 
 export interface TrendPoint {

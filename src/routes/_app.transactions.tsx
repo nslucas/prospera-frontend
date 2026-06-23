@@ -898,7 +898,7 @@ function mergeMovements(
           id: installment.expenseId,
           title: installment.expenseName,
           amount: installment.amount,
-          occurredAt: installment.dueDate ?? statement.dueDate,
+          occurredAt: expense?.purchaseDate ?? installment.dueDate ?? statement.dueDate,
           cardId: installment.cardId ?? statement.cardId,
           categoryId: expense?.categoryId,
           installmentCount: totalInstallments,
@@ -968,7 +968,8 @@ function movementKey(item: MovementItem) {
 
 function movementDate(item: MovementItem) {
   if (item.kind === "card-payment") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
-  return item.kind === "card-expense" ? formatDate(item.dueDate) : formatDateTime(item.occurredAt);
+  if (item.kind === "card-expense") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
+  return formatDateTime(item.occurredAt);
 }
 
 function isInflow(type: TransactionType) {
