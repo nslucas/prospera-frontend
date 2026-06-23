@@ -1,6 +1,7 @@
 import { useAsyncData } from "@/hooks/use-async-data";
 import { AlertTriangle, BellOff } from "lucide-react";
 import { fetchAlerts } from "@/lib/queries";
+import { alertMessage, alertSeverityLabel, alertTypeLabel } from "@/lib/alert-labels";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatBRL, formatDate } from "@/lib/format";
@@ -40,13 +41,13 @@ export default function AlertsPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <Badge variant={a.severity === "CRITICAL" ? "destructive" : "secondary"}>
-                      {a.severity}
+                      {alertSeverityLabel(a.severity)}
                     </Badge>
                     <Badge variant="outline" className="text-[10px]">
-                      {a.type.replaceAll("_", " ")}
+                      {alertTypeLabel(a.type)}
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm">{a.message}</p>
+                  <p className="mt-2 text-sm">{alertMessage(a)}</p>
                   <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                     {a.amount != null && <span>Valor: {formatBRL(a.amount)}</span>}
                     {a.percentageUsed != null && <span>Uso: {a.percentageUsed.toFixed(0)}%</span>}

@@ -9,6 +9,7 @@ import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetch
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import type { CardPayment, CardStatement, Connection, Expense, SettlementItem, Transaction, TransactionType } from "@/lib/types";
+import { cardPaymentTitle, transactionTitle } from "@/lib/movement-labels";
 import { currentMonthYear, formatBRL, formatDate, formatDateTime, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
@@ -879,7 +880,7 @@ function mergeMovements(
       .map((transaction): MovementItem => ({
         kind: "transaction",
         id: transaction.id,
-        title: transaction.description || labelType(transaction.type),
+        title: transactionTitle(transaction),
         amount: transaction.amount,
         occurredAt: transaction.occurredAt,
         type: transaction.type,
@@ -913,7 +914,7 @@ function mergeMovements(
       return {
         kind: "card-payment",
         id: payment.id,
-        title: payment.description || "Pagamento de fatura",
+        title: cardPaymentTitle(payment.description),
         amount: payment.amount,
         occurredAt: paymentTransaction?.occurredAt ?? payment.paymentDate,
         cardId: payment.cardId,
@@ -1018,18 +1019,6 @@ function nextMonthPeriod(month: number, year: number) {
 
 function uniquePeriods(periods: Array<{ month: number; year: number }>) {
   return Array.from(new Map(periods.map((period) => [`${period.month}-${period.year}`, period])).values());
-}
-
-function labelType(type: TransactionType): string {
-  const map: Record<TransactionType, string> = {
-    INCOME: "Receita",
-    EXPENSE: "Despesa",
-    TRANSFER_IN: "Transferência recebida",
-    TRANSFER_OUT: "Transferência enviada",
-    CARD_PAYMENT: "Pagamento de fatura",
-    ADJUSTMENT: "Ajuste",
-  };
-  return map[type];
 }
 
 function useMonthOptions() {

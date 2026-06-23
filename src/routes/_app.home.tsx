@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { fetchAccounts, fetchAlerts, fetchCards, fetchCardStatement, fetchMonthlySummary, fetchTrends } from "@/lib/queries";
 import { useAuth } from "@/lib/auth";
+import { alertMessage, alertTypeLabel } from "@/lib/alert-labels";
 import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -195,7 +196,7 @@ export default function HomePage() {
                 <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
               </div>
               <Link to="/reports" className="text-xs font-medium text-primary hover:underline">
-                Ver relatorios
+                Ver relatórios
               </Link>
             </div>
             <div className="h-56">
@@ -250,9 +251,9 @@ export default function HomePage() {
                   }`}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="text-sm">{alert.message}</p>
+                  <p className="text-sm">{alertMessage(alert)}</p>
                   <Badge variant="secondary" className="mt-1 text-[10px]">
-                    {alert.type.replaceAll("_", " ")}
+                    {alertTypeLabel(alert.type)}
                   </Badge>
                 </div>
               </div>
@@ -361,7 +362,7 @@ function CardsPanel({
         <div className="my-5 h-px bg-border/70 md:my-7" />
 
         <div className="mb-4 flex items-center justify-between md:mb-5">
-          <h2 className="text-xl font-bold tracking-tight md:text-xl">Meus cartoes</h2>
+          <h2 className="text-xl font-bold tracking-tight md:text-xl">Meus cartões</h2>
           <Link to="/cards" className="text-xs font-medium text-primary hover:underline">
             Ver todos
           </Link>

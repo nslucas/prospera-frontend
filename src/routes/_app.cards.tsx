@@ -205,7 +205,7 @@ export default function CardsPage() {
     <div className="space-y-6">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Cartoes</h1>
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Cartões</h1>
           <p className="text-sm text-muted-foreground">Acompanhe limite, fatura e vencimento de cada cartão.</p>
         </div>
         <Dialog
