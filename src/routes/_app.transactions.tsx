@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencyAmountInput } from "@/components/currency-amount-input";
 
 type MovementKind = "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT" | "TRANSFER" | "CARD_PAYMENT";
 type MovementItem =
@@ -415,7 +416,10 @@ export default function TransactionsPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Valor</Label>
-                    <Input type="number" step="0.01" {...form.register("amount")} />
+                    <CurrencyAmountInput
+                      value={form.watch("amount")}
+                      onChange={(value) => form.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+                    />
                     <FieldError message={errors.amount?.message} />
                   </div>
                   <div className="col-span-2 space-y-1.5">

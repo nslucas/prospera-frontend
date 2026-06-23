@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencyAmountInput } from "@/components/currency-amount-input";
 
 
 const schema = z.object({
@@ -173,7 +174,10 @@ export default function BudgetsPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Valor</Label>
-                    <Input type="number" step="0.01" {...form.register("amount")} />
+                    <CurrencyAmountInput
+                      value={form.watch("amount")}
+                      onChange={(value) => form.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+                    />
                   </div>
                 </div>
                 <DialogFooter>

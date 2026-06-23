@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Calendar, Check, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Calendar, Check, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { fetchAccounts, fetchCards, fetchCategories, fetchOccurrences, fetchRecurrences } from "@/lib/queries";
 import { api } from "@/lib/api";
 import type { Recurrence } from "@/lib/types";
@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencyAmountInput } from "@/components/currency-amount-input";
 
 
 const schema = z
@@ -127,6 +128,17 @@ export default function RecurrencesPage() {
       api(`/recurrences/${id}/occurrences/skip`, { method: "POST", body: { occurrenceDate: date } }),
     onSuccess: () => {
       toast.success("Ocorrencia pulada");
+      list.reload();
+      occ.reload();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const revert = useAsyncMutation({
+    mutationFn: ({ id, date }: { id: number; date: string }) =>
+      api(`/recurrences/${id}/occurrences/revert`, { method: "POST", body: { occurrenceDate: date } }),
+    onSuccess: () => {
+      toast.success("Ocorrencia revertida");
       list.reload();
       occ.reload();
     },
@@ -263,6 +275,7 @@ export default function RecurrencesPage() {
                         size="icon"
                         variant="outline"
                         className="h-8 w-8"
+                        disabled={materialize.isPending}
                         onClick={() => materialize.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
                       >
                         <Check className="h-4 w-4" />
@@ -271,11 +284,28 @@ export default function RecurrencesPage() {
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8"
+                        disabled={skip.isPending}
                         onClick={() => skip.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
                       >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
+                  )}
+                  {item.status === "MATERIALIZED" && (
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      disabled={revert.isPending}
+                      title="Desfazer lancamento"
+                      onClick={() => {
+                        if (confirm(`Desfazer o lancamento de "${item.recurrenceName}" em ${formatDate(item.occurrenceDate)}?`)) {
+                          revert.mutate({ id: item.recurrenceId, date: item.occurrenceDate });
+                        }
+                      }}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
                   )}
                 </CardContent>
               </Card>
@@ -394,7 +424,10 @@ function RecurrenceFields({
       )}
       <div className="space-y-1.5">
         <Label>Valor</Label>
-        <Input type="number" step="0.01" {...form.register("amount")} />
+        <CurrencyAmountInput
+          value={form.watch("amount")}
+          onChange={(value) => form.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+        />
       </div>
       <div className="space-y-1.5">
         <Label>Classificacao</Label>

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencyAmountInput } from "@/components/currency-amount-input";
 import {
   Select,
   SelectContent,
@@ -179,7 +180,11 @@ export default function AccountsPage() {
               </div>
               <div className="space-y-1.5">
                 <Label>Saldo inicial</Label>
-                <Input type="number" step="0.01" disabled={!!editing} {...form.register("balance")} />
+                <CurrencyAmountInput
+                  value={form.watch("balance")}
+                  disabled={!!editing}
+                  onChange={(value) => form.setValue("balance", value, { shouldDirty: true, shouldValidate: true })}
+                />
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={create.isPending}>
@@ -282,7 +287,10 @@ export default function AccountsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Valor</Label>
-                <Input type="number" step="0.01" {...transferForm.register("amount")} />
+                <CurrencyAmountInput
+                  value={transferForm.watch("amount")}
+                  onChange={(value) => transferForm.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Quando</Label>

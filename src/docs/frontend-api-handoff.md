@@ -463,8 +463,9 @@ Endpoints:
 - `GET /recurrences/occurrences?from=&to=`
 - `POST /recurrences/{recurrenceId}/occurrences`
 - `POST /recurrences/{recurrenceId}/occurrences/skip`
+- `POST /recurrences/{recurrenceId}/occurrences/revert`
 
-Occurrence materialize/skip request:
+Occurrence materialize/skip/revert request:
 
 ```json
 {
@@ -502,7 +503,10 @@ Particularities:
 - Monthly recurrences use `dayOfMonth`; annual recurrences use `monthOfYear` plus `dayOfMonth`.
 - Invalid month days are clamped to the last valid day.
 - Duplicate materialization for the same recurrence/date is rejected.
+- Materialized occurrences can be reverted with `/revert`; the generated `transaction` or `expense` is removed, `transactionId` and `expenseId` become `null`, and the occurrence returns to `PENDING`.
+- Reverted occurrences can be materialized again for the same recurrence/date.
 - Skipped occurrences cannot be materialized later in the current API.
+- Revert returns `400` when the occurrence is missing, is `PENDING`/`SKIPPED`, or the date is outside the recurrence schedule.
 - `DELETE` soft-deactivates the recurrence.
 
 ## Alerts

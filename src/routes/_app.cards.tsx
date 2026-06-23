@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CurrencyAmountInput } from "@/components/currency-amount-input";
 
 
 const schema = z.object({
@@ -242,7 +243,10 @@ export default function CardsPage() {
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label>Limite</Label>
-                  <Input type="number" step="0.01" {...form.register("creditLimit")} />
+                  <CurrencyAmountInput
+                    value={form.watch("creditLimit")}
+                    onChange={(value) => form.setValue("creditLimit", value, { shouldDirty: true, shouldValidate: true })}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Fechamento</Label>
@@ -478,7 +482,10 @@ function CardItem({
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>Valor</Label>
-                      <Input type="number" step="0.01" {...paymentForm.register("amount")} />
+                      <CurrencyAmountInput
+                        value={paymentForm.watch("amount")}
+                        onChange={(value) => paymentForm.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Data</Label>
