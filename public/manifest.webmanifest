@@ -2,7 +2,7 @@
   "name": "Prospera",
   "short_name": "Prospera",
   "description": "Controle financeiro pessoal",
-  "start_url": "/",
+  "start_url": "/transactions",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",

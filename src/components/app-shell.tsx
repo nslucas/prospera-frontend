@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { BrandLogo, BrandMark } from "@/components/brand-logo";
+import { ThemeSelector } from "@/components/theme-selector";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { fetchPendingConnectionRequests } from "@/lib/queries";
 
@@ -102,7 +103,7 @@ export function AppShell() {
     <div className="soft-grid min-h-screen text-foreground">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-white p-4 shadow-[18px_0_45px_rgba(16,27,21,0.025)] md:flex transition-all duration-300 ease-in-out",
+          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar p-4 shadow-[18px_0_45px_rgba(16,27,21,0.025)] md:flex transition-all duration-300 ease-in-out",
           isCollapsed ? "w-[72px] px-2.5" : "w-72",
         )}
       >
@@ -114,14 +115,17 @@ export function AppShell() {
         >
           {isCollapsed ? (
             <>
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-300"
-                title="Expandir menu"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-300"
+                  title="Expandir menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+                <ThemeSelector className="border-transparent shadow-none" />
+              </div>
               <BrandMark />
             </>
           ) : (
@@ -135,14 +139,17 @@ export function AppShell() {
                   <div className="text-xs text-muted-foreground">Finanças pessoais</div>
                 </div>
               </Link>
-              <button
-                type="button"
-                onClick={toggleSidebar}
-                className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-300"
-                title="Recolher menu"
-              >
-                <Menu className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <ThemeSelector />
+                <button
+                  type="button"
+                  onClick={toggleSidebar}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-300"
+                  title="Recolher menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -157,7 +164,7 @@ export function AppShell() {
                 isCollapsed ? "px-2 justify-center" : "px-3 gap-3",
                 isActive(item.to)
                   ? "bg-accent text-sidebar-accent-foreground font-medium shadow-sm shadow-[rgba(16,27,21,0.035)] ring-1 ring-sidebar-border/80"
-                  : "text-muted-foreground hover:bg-white/70 hover:text-foreground",
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
               )}
             >
               <item.icon
@@ -194,7 +201,7 @@ export function AppShell() {
             </button>
           </div>
         ) : (
-          <div className="mt-4 rounded-lg border border-sidebar-border bg-white/72 p-3 shadow-sm transition-all duration-300">
+          <div className="mt-4 rounded-lg border border-sidebar-border bg-card/72 p-3 shadow-sm transition-all duration-300">
             <div className="truncate text-xs text-muted-foreground">Conectado como</div>
             <div className="truncate text-sm font-medium">{user.email}</div>
             <button
@@ -207,24 +214,27 @@ export function AppShell() {
         )}
       </aside>
 
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/70 bg-white/88 px-4 py-3 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/70 bg-background/88 px-4 py-3 backdrop-blur md:hidden">
         <Link to="/transactions" className="flex items-center gap-2">
           <BrandLogo markSize="sm" textClassName="text-lg" />
         </Link>
-        <button
-          aria-label="Abrir menu"
-          onClick={() => setMobileMenu((open) => !open)}
-          className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-white shadow-sm"
-        >
-          {mobileMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeSelector />
+          <button
+            aria-label="Abrir menu"
+            onClick={() => setMobileMenu((open) => !open)}
+            className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card shadow-sm"
+          >
+            {mobileMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
+        </div>
       </header>
 
       {mobileMenu && (
         <div className="fixed inset-0 z-30 md:hidden" onClick={() => setMobileMenu(false)}>
           <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" />
           <div
-            className="absolute right-0 top-0 h-full w-72 bg-white p-4 shadow-xl"
+            className="absolute right-0 top-0 h-full w-72 bg-card p-4 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 truncate text-xs text-muted-foreground">{user.email}</div>
@@ -237,7 +247,7 @@ export function AppShell() {
                     "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
                     isActive(item.to)
                       ? "bg-accent text-sidebar-accent-foreground font-medium shadow-sm"
-                      : "text-muted-foreground hover:bg-white/70",
+                      : "text-muted-foreground hover:bg-muted/70",
                   )}
                 >
                     <item.icon className="h-4 w-4" />
@@ -271,38 +281,39 @@ export function AppShell() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.25rem)] pt-1.5 shadow-[0_-12px_30px_rgba(16,27,21,0.05)] backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-background/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2 shadow-[0_-12px_30px_rgba(16,27,21,0.05)] backdrop-blur md:hidden">
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {bottomItems.map((item) => (
             <Link
               key={item.to}
               to={item.to}
+              aria-label={item.label}
+              title={item.label}
               className={cn(
-                "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
+                "flex min-h-[3.75rem] items-center justify-center rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
                 isActive(item.to)
                   ? "bg-accent text-primary shadow-sm"
                   : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
               )}
             >
               <item.icon
-                className={cn("h-[1.35rem] w-[1.35rem]", isActive(item.to) && "stroke-[2.4]")}
+                className={cn("h-6 w-6", isActive(item.to) && "stroke-[2.4]")}
               />
-              <span className="max-w-full whitespace-nowrap">{item.label}</span>
             </Link>
           ))}
           <button
             type="button"
             aria-label="Abrir mais opções"
+            title="Mais"
             onClick={() => setMobileMenu(true)}
             className={cn(
-              "flex min-h-[3.25rem] flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
+              "flex min-h-[3.75rem] items-center justify-center rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
               moreItems.some((item) => isActive(item.to))
                 ? "bg-accent text-primary shadow-sm"
                 : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
             )}
           >
-            <MoreHorizontal className="h-5 w-5" />
-            <span>Mais</span>
+            <MoreHorizontal className="h-6 w-6" />
           </button>
         </div>
       </nav>

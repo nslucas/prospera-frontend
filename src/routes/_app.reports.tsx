@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useAsyncData } from "@/hooks/use-async-data";
 import {
   Bar,
@@ -49,6 +50,18 @@ const CARD_STATUS_LABELS: Record<CardStatementStatus, string> = {
   PARTIALLY_PAID: "Parcialmente paga",
   PAID: "Paga",
   OVERPAID: "Paga acima do total",
+};
+
+const tooltipContentStyle: CSSProperties = {
+  background: "var(--popover)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+  color: "var(--popover-foreground)",
+  fontSize: 12,
+};
+
+const tooltipTextStyle: CSSProperties = {
+  color: "var(--popover-foreground)",
 };
 
 export default function ReportsPage() {
@@ -120,13 +133,6 @@ export default function ReportsPage() {
     (fixedVariable.data?.unclassifiedAmount ?? 0);
   const cardBillsTotal = cardSummary.data?.reduce((total, card) => total + Number(card.totalAmount ?? 0), 0) ?? summary.data?.cardBillsTotal;
 
-  const tooltipStyle = {
-    background: "var(--popover)",
-    border: "1px solid var(--border)",
-    borderRadius: 12,
-    fontSize: 12,
-  };
-
   if (summary.isLoading && !summary.data) {
     return (
       <div className="flex h-[450px] items-center justify-center">
@@ -181,7 +187,12 @@ export default function ReportsPage() {
                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                   tickFormatter={(value) => (Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`)}
                 />
-                <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => formatBRL(value)} />
+                <Tooltip
+                  contentStyle={tooltipContentStyle}
+                  itemStyle={tooltipTextStyle}
+                  labelStyle={tooltipTextStyle}
+                  formatter={(value: number) => formatBRL(value)}
+                />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="Receita" fill="var(--success)" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="Despesa" fill="var(--primary)" radius={[4, 4, 0, 0]} />
@@ -206,7 +217,12 @@ export default function ReportsPage() {
                         <Cell key={index} fill={PALETTE[index % PALETTE.length]} />
                       ))}
                     </Pie>
-                    <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => formatBRL(value)} />
+                    <Tooltip
+                      contentStyle={tooltipContentStyle}
+                      itemStyle={tooltipTextStyle}
+                      labelStyle={tooltipTextStyle}
+                      formatter={(value: number) => formatBRL(value)}
+                    />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                   </PieChart>
                 </ResponsiveContainer>
@@ -227,7 +243,12 @@ export default function ReportsPage() {
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     tickFormatter={(value) => (Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`)}
                   />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => formatBRL(value)} />
+                  <Tooltip
+                    contentStyle={tooltipContentStyle}
+                    itemStyle={tooltipTextStyle}
+                    labelStyle={tooltipTextStyle}
+                    formatter={(value: number) => formatBRL(value)}
+                  />
                   <Line type="monotone" dataKey="Saldo" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>

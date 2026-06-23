@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { registerPwaServiceWorker } from "@/lib/pwa";
+import { ThemeProvider } from "@/lib/theme";
 import LoginPage from "@/routes/auth.login";
 import RegisterPage from "@/routes/auth.register";
 import AccountsPage from "@/routes/_app.accounts";
@@ -25,12 +26,14 @@ export function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-        <Toaster richColors position="top-center" />
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <AppRoutes />
+          <Toaster richColors position="top-center" />
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   );
 }
 
@@ -67,7 +70,7 @@ function AppRoutes() {
 function HomeRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <FullPageSpinner />;
-  return <Navigate to={user ? "/home" : "/auth/login"} replace />;
+  return <Navigate to={user ? "/transactions" : "/auth/login"} replace />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {

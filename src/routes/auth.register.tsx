@@ -39,7 +39,7 @@ export default function RegisterPage() {
 
   return (
     <main className="soft-grid flex min-h-screen items-center justify-center px-6 py-12">
-      <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(16,27,21,0.04)] md:p-8">
+      <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-card p-6 shadow-[0_22px_60px_rgba(16,27,21,0.04)] md:p-8">
         <Link to="/auth/login" className="flex items-center gap-2">
           <BrandLogo markSize="sm" textClassName="text-2xl" />
         </Link>

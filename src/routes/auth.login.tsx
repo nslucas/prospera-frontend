@@ -42,7 +42,7 @@ export default function LoginPage() {
 
   return (
     <div className="soft-grid grid min-h-screen md:grid-cols-[0.9fr_1.1fr]">
-      <aside className="hidden flex-col justify-between border-r border-border/70 bg-white p-10 text-foreground shadow-[18px_0_55px_rgba(16,27,21,0.025)] md:flex">
+      <aside className="hidden flex-col justify-between border-r border-border/70 bg-card p-10 text-foreground shadow-[18px_0_55px_rgba(16,27,21,0.025)] md:flex">
         <BrandLogo textClassName="text-2xl" />
         <div className="space-y-3">
           <h2 className="text-4xl font-semibold leading-tight tracking-tight">
@@ -63,7 +63,7 @@ export default function LoginPage() {
       </aside>
 
       <main className="flex items-center justify-center px-6 py-12">
-        <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-white p-6 shadow-[0_22px_60px_rgba(16,27,21,0.04)] md:p-8">
+        <div className="w-full max-w-md space-y-6 rounded-lg border border-border/80 bg-card p-6 shadow-[0_22px_60px_rgba(16,27,21,0.04)] md:p-8">
           <BrandLogo className="md:hidden" markSize="sm" textClassName="text-2xl" />
           <div className="mt-6 md:mt-0">
             <h1 className="text-3xl font-semibold tracking-tight">Entrar</h1>
