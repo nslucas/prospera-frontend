@@ -9,6 +9,7 @@ import { fetchBudgetProgress, fetchCategories, fetchExpenses, fetchTransactions 
 import { api } from "@/lib/api";
 import type { Budget, BudgetProgress, Expense, Transaction } from "@/lib/types";
 import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
+import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -238,16 +239,17 @@ export default function BudgetsPage() {
                     >
                       <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        if (confirm("Remover orcamento?")) remove.mutate(item.budgetId);
-                      }}
+                    <ConfirmAction
+                      title="Remover orcamento?"
+                      description={`O orcamento de ${item.categoryName} sera removido.`}
+                      confirmLabel="Remover"
+                      destructive
+                      onConfirm={() => remove.mutate(item.budgetId)}
                     >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </ConfirmAction>
                   </div>
                 </div>
                 <Progress value={Math.min(100, item.percentUsed)} className="mt-3" />

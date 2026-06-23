@@ -9,6 +9,7 @@ import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetch
 import { api } from "@/lib/api";
 import type { CardPayment, CardStatement, Expense, Transaction, TransactionType } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, formatDateTime, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
+import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -296,6 +297,27 @@ export default function TransactionsPage() {
   const cardName = (id?: number | null) => cards.data?.find((card) => card.id === id)?.name ?? `Cartao #${id ?? ""}`;
   const expensesById = new Map((expenses.data ?? []).map((expense) => [expense.id, expense]));
   const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
+  const deleteMovement = (item: MovementItem) => {
+    if (item.kind === "card-expense") {
+      removeExpense.mutate(item.id);
+      return;
+    }
+    if (item.kind === "card-payment") {
+      removeCardPayment.mutate({ cardId: item.cardId, paymentId: item.id });
+      return;
+    }
+    removeTransaction.mutate(item.id);
+  };
+  const deleteMovementTitle = (item: MovementItem) => {
+    if (item.kind === "card-expense") return "Remover compra?";
+    if (item.kind === "card-payment") return "Remover pagamento?";
+    return "Remover lancamento?";
+  };
+  const deleteMovementDescription = (item: MovementItem) => {
+    if (item.kind === "card-expense") return "A compra inteira sera removida, incluindo as demais parcelas.";
+    if (item.kind === "card-payment") return "Este pagamento de fatura sera removido.";
+    return "Este lancamento sera removido.";
+  };
 
   const openNew = () => {
     setEditing(null);
@@ -623,27 +645,17 @@ export default function TransactionsPage() {
                     </Button>
                   )}
                   {canDeleteMovement(item) && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => {
-                        if (item.kind === "card-expense") {
-                          if (!confirm("A compra inteira sera removida, incluindo as demais parcelas. Continuar?")) return;
-                          removeExpense.mutate(item.id);
-                          return;
-                        }
-                        if (item.kind === "card-payment") {
-                          if (!confirm("Remover este pagamento de fatura?")) return;
-                          removeCardPayment.mutate({ cardId: item.cardId, paymentId: item.id });
-                          return;
-                        }
-                        if (!confirm("Remover este lancamento?")) return;
-                        removeTransaction.mutate(item.id);
-                      }}
+                    <ConfirmAction
+                      title={deleteMovementTitle(item)}
+                      description={deleteMovementDescription(item)}
+                      confirmLabel="Remover"
+                      destructive
+                      onConfirm={() => deleteMovement(item)}
                     >
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
-                    </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </ConfirmAction>
                   )}
                 </li>
               ))}

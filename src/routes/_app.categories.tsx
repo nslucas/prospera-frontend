@@ -8,6 +8,7 @@ import { Pencil, Plus, Trash2, Tag as TagIcon } from "lucide-react";
 import { fetchCategories } from "@/lib/queries";
 import { api } from "@/lib/api";
 import type { Category, CategoryType } from "@/lib/types";
+import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -173,16 +174,17 @@ export default function CategoriesPage() {
                           >
                             <Pencil className="h-4 w-4 text-muted-foreground" />
                           </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => {
-                              if (confirm(`Desativar "${c.name}"?`)) remove.mutate(c.id);
-                            }}
+                          <ConfirmAction
+                            title="Desativar categoria?"
+                            description={`A categoria "${c.name}" sera desativada.`}
+                            confirmLabel="Desativar"
+                            destructive
+                            onConfirm={() => remove.mutate(c.id)}
                           >
-                            <Trash2 className="h-4 w-4 text-muted-foreground" />
-                          </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Trash2 className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </ConfirmAction>
                         </li>
                       ))}
                     </ul>

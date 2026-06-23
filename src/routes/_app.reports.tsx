@@ -26,6 +26,7 @@ import {
   fetchYearlySummary,
 } from "@/lib/queries";
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
+import { recurrenceStatusLabel } from "@/lib/recurrence-labels";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -265,7 +266,7 @@ export default function ReportsPage() {
                         <span className="font-medium">{occurrence.recurrenceName}</span>
                         <span className="tabular-nums">{formatBRL(occurrence.amount)}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground">{formatDate(occurrence.occurrenceDate)} - {occurrence.status}</div>
+                      <div className="text-xs text-muted-foreground">{formatDate(occurrence.occurrenceDate)} - {recurrenceStatusLabel(occurrence.status)}</div>
                     </div>
                   ))}
                 </>

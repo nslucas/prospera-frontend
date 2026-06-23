@@ -9,6 +9,7 @@ import { fetchAccounts } from "@/lib/queries";
 import { api } from "@/lib/api";
 import type { Account, AccountType } from "@/lib/types";
 import { formatBRL, nowIsoDateTime } from "@/lib/format";
+import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -240,15 +241,17 @@ export default function AccountsPage() {
                   >
                     <ArrowLeftRight className="h-4 w-4 text-muted-foreground" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      if (confirm(`Desativar a conta "${a.name}"?`)) remove.mutate(a.id);
-                    }}
+                  <ConfirmAction
+                    title="Desativar conta?"
+                    description={`A conta "${a.name}" sera desativada.`}
+                    confirmLabel="Desativar"
+                    destructive
+                    onConfirm={() => remove.mutate(a.id)}
                   >
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
+                    <Button variant="ghost" size="icon">
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </ConfirmAction>
                 </div>
               </CardContent>
             </Card>

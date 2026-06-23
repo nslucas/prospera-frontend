@@ -9,6 +9,14 @@ import { fetchAccounts, fetchCards, fetchCategories, fetchOccurrences, fetchRecu
 import { api } from "@/lib/api";
 import type { Recurrence } from "@/lib/types";
 import { addDaysIso, formatBRL, formatDate, todayIsoDate } from "@/lib/format";
+import {
+  recurrenceClassificationLabel,
+  recurrenceFrequencyLabel,
+  recurrenceStatusLabel,
+  recurrenceTargetLabel,
+  recurrenceTransactionTypeLabel,
+} from "@/lib/recurrence-labels";
+import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -261,9 +269,11 @@ export default function RecurrencesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{item.recurrenceName}</span>
-                      <Badge variant="outline" className="text-[10px]">{item.classification}</Badge>
+                      <Badge variant="outline" className="text-[10px]">
+                        {recurrenceClassificationLabel(item.classification)}
+                      </Badge>
                       <Badge variant={item.status === "MATERIALIZED" ? "secondary" : "outline"} className="text-[10px]">
-                        {item.status}
+                        {recurrenceStatusLabel(item.status)}
                       </Badge>
                     </div>
                     <div className="text-xs text-muted-foreground">{formatDate(item.occurrenceDate)}</div>
@@ -292,20 +302,16 @@ export default function RecurrencesPage() {
                     </div>
                   )}
                   {item.status === "MATERIALIZED" && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      disabled={revert.isPending}
-                      title="Desfazer lancamento"
-                      onClick={() => {
-                        if (confirm(`Desfazer o lancamento de "${item.recurrenceName}" em ${formatDate(item.occurrenceDate)}?`)) {
-                          revert.mutate({ id: item.recurrenceId, date: item.occurrenceDate });
-                        }
-                      }}
+                    <ConfirmAction
+                      title="Desfazer lancamento?"
+                      description={`A ocorrencia "${item.recurrenceName}" de ${formatDate(item.occurrenceDate)} voltara para pendente.`}
+                      confirmLabel="Desfazer"
+                      onConfirm={() => revert.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
                     >
-                      <RotateCcw className="h-4 w-4" />
-                    </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8" disabled={revert.isPending} title="Desfazer lancamento">
+                        <RotateCcw className="h-4 w-4" />
+                      </Button>
+                    </ConfirmAction>
                   )}
                 </CardContent>
               </Card>
@@ -327,23 +333,24 @@ export default function RecurrencesPage() {
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium">{item.name}</div>
                     <div className="text-xs text-muted-foreground">
-                      {item.frequency} - {item.classification} - {item.targetType === "CARD_EXPENSE" ? "cartao" : item.transactionType}
+                      {recurrenceFrequencyLabel(item.frequency)} - {recurrenceClassificationLabel(item.classification)} - {recurrenceDestinationLabel(item)}
                     </div>
                   </div>
                   <div className="text-sm font-semibold tabular-nums">{formatBRL(item.amount)}</div>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
                     <Pencil className="h-4 w-4 text-muted-foreground" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => {
-                      if (confirm(`Remover "${item.name}"?`)) remove.mutate(item.id);
-                    }}
+                  <ConfirmAction
+                    title="Remover recorrencia?"
+                    description={`A recorrencia "${item.name}" sera desativada.`}
+                    confirmLabel="Remover"
+                    destructive
+                    onConfirm={() => remove.mutate(item.id)}
                   >
-                    <Trash2 className="h-4 w-4 text-muted-foreground" />
-                  </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </ConfirmAction>
                 </CardContent>
               </Card>
             ))
@@ -535,6 +542,11 @@ function RecurrenceFields({
       </div>
     </div>
   );
+}
+
+function recurrenceDestinationLabel(item: Recurrence) {
+  if (item.targetType === "CARD_EXPENSE") return recurrenceTargetLabel(item.targetType);
+  return recurrenceTransactionTypeLabel(item.transactionType) ?? recurrenceTargetLabel(item.targetType);
 }
 
 function toPayload(values: Values) {

@@ -9,6 +9,7 @@ import { fetchAccounts, fetchCardStatement, fetchCards, fetchExpenses } from "@/
 import { api } from "@/lib/api";
 import type { Account, Card as CardType, Expense } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
+import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -373,16 +374,17 @@ function CardItem({
               <Button variant="ghost" size="icon" className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100" onClick={onEdit}>
                 <Pencil className="h-4 w-4" />
               </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
-                onClick={() => {
-                  if (confirm(`Desativar o cartao "${card.name}"?`)) onDelete();
-                }}
+              <ConfirmAction
+                title="Desativar cartao?"
+                description={`O cartao "${card.name}" sera desativado.`}
+                confirmLabel="Desativar"
+                destructive
+                onConfirm={onDelete}
               >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </ConfirmAction>
             </div>
           </div>
           <div className="relative mt-12 flex items-end justify-between gap-3">
