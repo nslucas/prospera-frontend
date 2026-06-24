@@ -272,7 +272,7 @@ export function AppShell() {
 
       <main
         className={cn(
-          "pb-24 md:pb-8 transition-all duration-300 ease-in-out",
+          "pb-32 md:pb-8 transition-all duration-300 ease-in-out",
           isCollapsed ? "md:ml-[72px]" : "md:ml-72",
         )}
       >
@@ -281,8 +281,8 @@ export function AppShell() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-border/60 bg-background/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.35rem)] pt-2 shadow-[0_-12px_30px_rgba(16,27,21,0.05)] backdrop-blur md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
+      <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.7rem)] z-20 px-4 md:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-5 gap-1 rounded-[2rem] border border-white/10 bg-card/72 p-2 shadow-[0_18px_45px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/58">
           {bottomItems.map((item) => (
             <Link
               key={item.to}
@@ -290,10 +290,10 @@ export function AppShell() {
               aria-label={item.label}
               title={item.label}
               className={cn(
-                "flex min-h-[3.75rem] items-center justify-center rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
+                "flex min-h-[3.75rem] items-center justify-center rounded-[1.45rem] px-1 text-[11px] font-medium leading-none transition-all",
                 isActive(item.to)
-                  ? "bg-accent text-primary shadow-sm"
-                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                  ? "bg-primary/18 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_rgba(24,201,87,0.16)] ring-1 ring-primary/20"
+                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
               )}
             >
               <item.icon
@@ -307,10 +307,10 @@ export function AppShell() {
             title="Mais"
             onClick={() => setMobileMenu(true)}
             className={cn(
-              "flex min-h-[3.75rem] items-center justify-center rounded-lg px-1 text-[11px] font-medium leading-none transition-all",
+              "flex min-h-[3.75rem] items-center justify-center rounded-[1.45rem] px-1 text-[11px] font-medium leading-none transition-all",
               moreItems.some((item) => isActive(item.to))
-                ? "bg-accent text-primary shadow-sm"
-                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+                ? "bg-primary/18 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_rgba(24,201,87,0.16)] ring-1 ring-primary/20"
+                : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
             )}
           >
             <MoreHorizontal className="h-6 w-6" />
