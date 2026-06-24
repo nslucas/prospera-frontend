@@ -19,9 +19,17 @@ export function CurrencyAmountInput({ value, onChange, disabled }: CurrencyAmoun
   }, [focused, numericValue]);
 
   const updateAmount = (nextText: string) => {
-    const sanitized = sanitizeCurrencyText(nextText);
-    setText(sanitized);
-    onChange(parseCurrencyAmount(sanitized));
+    const parsed = parseCurrencyAmount(nextText);
+    const digits = nextText.replace(/\D/g, "");
+
+    if (!digits) {
+      setText(nextText.trim().startsWith("-") ? "-" : "");
+      onChange(0);
+      return;
+    }
+
+    setText(formatCurrencyForEditing(parsed));
+    onChange(parsed);
   };
 
   return (
@@ -51,7 +59,7 @@ export function CurrencyAmountInput({ value, onChange, disabled }: CurrencyAmoun
 
 function sanitizeCurrencyText(value: string) {
   return value
-    .replace(/[^\d,.-]/g, "")
+    .replace(/[^\d-]/g, "")
     .replace(/(?!^)-/g, "")
     .slice(0, 18);
 }
@@ -59,31 +67,14 @@ function sanitizeCurrencyText(value: string) {
 function parseCurrencyAmount(value: string) {
   const sanitized = sanitizeCurrencyText(value);
   const negative = sanitized.startsWith("-");
-  const unsigned = negative ? sanitized.slice(1) : sanitized;
-  if (!unsigned) return 0;
+  const digits = sanitized.replace(/\D/g, "");
+  if (!digits) return 0;
 
-  const lastComma = unsigned.lastIndexOf(",");
-  const lastDot = unsigned.lastIndexOf(".");
-  const decimalSeparator = getDecimalSeparator(unsigned, lastComma, lastDot);
-  const normalized =
-    decimalSeparator >= 0
-      ? `${unsigned.slice(0, decimalSeparator).replace(/\D/g, "") || "0"}.${unsigned.slice(decimalSeparator + 1).replace(/\D/g, "").slice(0, 2)}`
-      : unsigned.replace(/\D/g, "");
-  const parsed = Number(normalized);
+  const parsed = Number(digits) / 100;
   if (!Number.isFinite(parsed)) return 0;
 
   const rounded = Math.round(parsed * 100) / 100;
   return negative ? -rounded : rounded;
-}
-
-function getDecimalSeparator(value: string, lastComma: number, lastDot: number) {
-  if (lastComma >= 0) return lastComma;
-  if (lastDot < 0) return -1;
-
-  const digitsAfterDot = value.length - lastDot - 1;
-  const dots = value.match(/\./g)?.length ?? 0;
-  if (dots === 1 && digitsAfterDot > 0 && digitsAfterDot <= 2) return lastDot;
-  return -1;
 }
 
 function formatCurrencyForEditing(value: number) {

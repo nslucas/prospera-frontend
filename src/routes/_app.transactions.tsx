@@ -230,13 +230,36 @@ export default function TransactionsPage() {
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: movementDefaults("EXPENSE", month, year),
+    defaultValues: movementDefaults("CARD_EXPENSE", month, year),
   });
   const kind = form.watch("kind");
   const shareEnabled = form.watch("shareEnabled");
   const participantAmount = Number(form.watch("participantAmount") ?? 0);
   const creatorShareAmount = roundMoney(Number(form.watch("amount") ?? 0) - participantAmount);
   const errors = form.formState.errors;
+
+  const switchMovementKind = (nextKind: MovementKind) => {
+    const occurredAt = form.getValues("occurredAt");
+    form.setValue("kind", nextKind, { shouldDirty: true, shouldValidate: true });
+
+    if (nextKind === "CARD_PAYMENT" && occurredAt?.includes("T")) {
+      form.setValue("occurredAt", occurredAt.slice(0, 10), { shouldDirty: true, shouldValidate: true });
+    }
+    if (nextKind !== "CARD_PAYMENT" && occurredAt && !occurredAt.includes("T")) {
+      form.setValue("occurredAt", `${occurredAt}T00:00`, { shouldDirty: true, shouldValidate: true });
+    }
+    if (nextKind === "CARD_EXPENSE" && !form.getValues("installmentCount")) {
+      form.setValue("installmentCount", 1, { shouldDirty: true, shouldValidate: true });
+    }
+    if (nextKind === "CARD_PAYMENT") {
+      if (!form.getValues("paymentMonth")) {
+        form.setValue("paymentMonth", month, { shouldDirty: true, shouldValidate: true });
+      }
+      if (!form.getValues("paymentYear")) {
+        form.setValue("paymentYear", year, { shouldDirty: true, shouldValidate: true });
+      }
+    }
+  };
 
   const reloadFinanceData = () => {
     tx.reload();
@@ -321,7 +344,7 @@ export default function TransactionsPage() {
       reloadFinanceData();
       setOpen(false);
       setEditing(null);
-      form.reset(movementDefaults("EXPENSE", month, year));
+      form.reset(movementDefaults("CARD_EXPENSE", month, year));
     },
     onError: (e) => toast.error(e.message),
   });
@@ -420,7 +443,7 @@ export default function TransactionsPage() {
 
   const openNew = () => {
     setEditing(null);
-    form.reset(movementDefaults("EXPENSE", month, year));
+    form.reset(movementDefaults("CARD_EXPENSE", month, year));
     setOpen(true);
   };
 
@@ -524,7 +547,7 @@ export default function TransactionsPage() {
                       disabled={!!editing}
                       onValueChange={(value) => {
                         const nextKind = value as MovementKind;
-                        form.reset(movementDefaults(nextKind, month, year));
+                        switchMovementKind(nextKind);
                       }}
                     >
                       <SelectTrigger>
