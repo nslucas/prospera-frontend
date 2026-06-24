@@ -1,0 +1,18 @@
+name: Trigger Prospera Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger backend deploy
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.PROSPERA_DEPLOY_TOKEN }}
+          repository: nslucas/app-prospera
+          event-type: deploy-prospera
