@@ -390,6 +390,10 @@ export default function TransactionsPage() {
   });
   const accountName = (id: number) => accounts.data?.find((account) => account.id === id)?.name ?? `Conta #${id}`;
   const cardName = (id?: number | null) => cards.data?.find((card) => card.id === id)?.name ?? `Cartão #${id ?? ""}`;
+  const categoryName = (id?: number | null) => {
+    if (!id) return "Sem categoria";
+    return categories.data?.find((category) => category.id === id)?.name ?? `Categoria #${id}`;
+  };
   const expensesById = new Map((expenses.data ?? []).map((expense) => [expense.id, expense]));
   const settlementItemByExpenseId = useMemo(() => {
     const map = new Map<number, SettlementItem>();
@@ -407,6 +411,7 @@ export default function TransactionsPage() {
             item.title,
             movementDate(item),
             movementMeta(item, accountName, cardName),
+            movementCategoryName(item, categoryName),
             formatBRL(Math.abs(item.amount)),
             item.kind,
           ].join(" "),
@@ -813,7 +818,7 @@ export default function TransactionsPage() {
             <Input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Buscar por descrição, conta, cartão, data ou valor"
+              placeholder="Buscar por descrição, categoria, conta, cartão, data ou valor"
               className="h-12 rounded-2xl bg-card pl-10 pr-10 text-base shadow-sm md:text-sm"
               autoFocus
             />
@@ -1128,6 +1133,11 @@ function movementMeta(item: MovementItem, accountName: (id: number) => string, c
   if (item.type === "TRANSFER_IN") return `Transferência recebida - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_OUT") return `Transferência enviada - ${accountName(item.accountId)}`;
   return accountName(item.accountId);
+}
+
+function movementCategoryName(item: MovementItem, categoryName: (id?: number | null) => string) {
+  if (item.kind === "card-payment") return "";
+  return categoryName(item.categoryId);
 }
 
 function nextMonthPeriod(month: number, year: number) {
