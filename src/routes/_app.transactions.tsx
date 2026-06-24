@@ -501,12 +501,12 @@ export default function TransactionsPage() {
   return (
     <div className="space-y-5">
       <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 space-y-1">
             <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
-            <h1 className="truncate text-3xl font-semibold tracking-tight md:text-4xl">Todos os lançamentos</h1>
+            <h1 className="text-3xl font-semibold leading-tight tracking-tight md:text-4xl">Todos os lançamentos</h1>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
             <Button
               type="button"
               variant={searchOpen ? "secondary" : "ghost"}
@@ -529,7 +529,7 @@ export default function TransactionsPage() {
               }}
             >
             <DialogTrigger asChild>
-              <Button onClick={openNew}>
+              <Button onClick={openNew} className="flex-1 sm:flex-none">
                 <Plus className="h-4 w-4" /> Novo
               </Button>
             </DialogTrigger>
@@ -835,26 +835,28 @@ export default function TransactionsPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-2xl bg-card/80 p-2 shadow-sm ring-1 ring-border/70">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 rounded-2xl bg-card/80 p-2 shadow-sm ring-1 ring-border/70 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <Button
             type="button"
             variant="ghost"
-            className="h-12 justify-start rounded-xl px-2 text-muted-foreground hover:text-foreground md:px-3"
+            className="h-12 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-start sm:px-2 md:px-3"
             onClick={() => setPeriod(previousPeriod)}
+            aria-label={`Ir para ${monthName(previousPeriod.month, previousPeriod.year)}`}
           >
             <ChevronLeft className="h-5 w-5" />
-            <span className="truncate text-base font-medium md:text-sm">{monthName(previousPeriod.month, previousPeriod.year)}</span>
+            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">{monthName(previousPeriod.month, previousPeriod.year)}</span>
           </Button>
 
-          <PeriodPicker month={month} year={year} onChange={setPeriod} />
+          <PeriodPicker month={month} year={year} onChange={setPeriod} className="w-full min-w-0 px-3" />
 
           <Button
             type="button"
             variant="ghost"
-            className="h-12 justify-end rounded-xl px-2 text-muted-foreground hover:text-foreground md:px-3"
+            className="h-12 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-end sm:px-2 md:px-3"
             onClick={() => setPeriod(nextPeriod)}
+            aria-label={`Ir para ${monthName(nextPeriod.month, nextPeriod.year)}`}
           >
-            <span className="truncate text-base font-medium md:text-sm">{monthName(nextPeriod.month, nextPeriod.year)}</span>
+            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">{monthName(nextPeriod.month, nextPeriod.year)}</span>
             <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
@@ -896,13 +898,13 @@ export default function TransactionsPage() {
                 const sharedItem = item.kind === "card-expense" ? settlementItemByExpenseId.get(item.id) : undefined;
                 const isSettledSharedExpense = sharedItem?.status === "SETTLED";
                 return (
-                  <li key={movementKey(item)} className="flex items-center gap-3 p-4">
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${movementIconBackground(item)}`}>
+                  <li key={movementKey(item)} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 p-4 sm:flex sm:items-center sm:gap-3">
+                    <div className={`grid h-9 w-9 shrink-0 place-items-center self-start rounded-full sm:self-center ${movementIconBackground(item)}`}>
                       {movementIcon(item)}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <div className="truncate text-sm font-medium">{item.title}</div>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <div className="min-w-0 max-w-full flex-1 break-words text-sm font-medium leading-snug sm:truncate">{item.title}</div>
                         {sharedItem && (
                           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                             <UsersRound className="h-3 w-3" />
@@ -910,32 +912,36 @@ export default function TransactionsPage() {
                           </span>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="mt-1 text-xs leading-relaxed text-muted-foreground sm:truncate">
                         {movementDate(item)} - {movementMeta(item, accountName, cardName)}
                       </div>
                     </div>
-                    <div className={`text-sm font-semibold tabular-nums ${movementAmountClass(item)}`}>
-                      {movementAmountPrefix(item)}
-                      {formatBRL(Math.abs(item.amount))}
+                    <div className="col-start-2 flex min-w-0 items-center justify-between gap-3 sm:col-start-auto sm:shrink-0 sm:justify-end">
+                      <div className={`shrink-0 whitespace-nowrap text-base font-semibold tabular-nums sm:text-sm ${movementAmountClass(item)}`}>
+                        {movementAmountPrefix(item)}
+                        {formatBRL(Math.abs(item.amount))}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {(item.kind === "card-expense" || item.kind === "card-payment") && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                            <Pencil className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        )}
+                        {canDeleteMovement(item, sharedItem) && (
+                          <ConfirmAction
+                            title={deleteMovementTitle(item)}
+                            description={deleteMovementDescription(item)}
+                            confirmLabel="Remover"
+                            destructive
+                            onConfirm={() => deleteMovement(item)}
+                          >
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Trash2 className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </ConfirmAction>
+                        )}
+                      </div>
                     </div>
-                    {(item.kind === "card-expense" || item.kind === "card-payment") && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                        <Pencil className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    )}
-                    {canDeleteMovement(item, sharedItem) && (
-                      <ConfirmAction
-                        title={deleteMovementTitle(item)}
-                        description={deleteMovementDescription(item)}
-                        confirmLabel="Remover"
-                        destructive
-                        onConfirm={() => deleteMovement(item)}
-                      >
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <Trash2 className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      </ConfirmAction>
-                    )}
                   </li>
                 );
               })}
