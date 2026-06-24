@@ -142,17 +142,17 @@ export default function HomePage() {
 
       <div className="space-y-4 px-4 md:space-y-5 md:px-0">
         <section className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <BalancePanel
-            loading={summary.isLoading}
-            total={formatBRL(s?.totalAccountBalance)}
-            accounts={accounts.data ?? []}
-            valuesHidden={valuesHidden}
-            onToggleValues={() => setValuesHidden((hidden) => !hidden)}
-          />
           <CardsPanel
             loading={summary.isLoading || cardBillsLoading}
             total={formatBRL(openCardBillsTotal)}
             cards={cards.data ?? []}
+            valuesHidden={valuesHidden}
+            onToggleValues={() => setValuesHidden((hidden) => !hidden)}
+          />
+          <BalancePanel
+            loading={summary.isLoading}
+            total={formatBRL(s?.totalAccountBalance)}
+            accounts={accounts.data ?? []}
             valuesHidden={valuesHidden}
             onToggleValues={() => setValuesHidden((hidden) => !hidden)}
           />
