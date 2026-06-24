@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Trigger backend deploy
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4.0.1
         with:
           token: ${{ secrets.PROSPERA_DEPLOY_TOKEN }}
           repository: nslucas/app-prospera
