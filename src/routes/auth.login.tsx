@@ -5,6 +5,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
+import { consumeSessionExpiredNotice } from "@/lib/api";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +30,11 @@ export default function LoginPage() {
   useEffect(() => {
     if (user) navigate("/");
   }, [user, navigate]);
+
+  useEffect(() => {
+    const notice = consumeSessionExpiredNotice();
+    if (notice) toast.warning(notice);
+  }, []);
 
   const onSubmit = async (values: FormValues) => {
     try {

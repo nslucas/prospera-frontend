@@ -1,6 +1,8 @@
 // Tiny fetch wrapper for the Prospera REST API.
 // JWT lives in localStorage; SSR is guarded.
 const STORAGE_KEY = "prospera.token";
+const USER_STORAGE_KEY = "prospera.user";
+const SESSION_EXPIRED_NOTICE_KEY = "prospera.session-expired-notice";
 const DEFAULT_API_BASE_URL = "http://localhost:8080";
 const rawApiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
 
@@ -20,6 +22,23 @@ export function setToken(token: string | null): void {
   if (typeof window === "undefined") return;
   if (token) window.localStorage.setItem(STORAGE_KEY, token);
   else window.localStorage.removeItem(STORAGE_KEY);
+}
+
+export function consumeSessionExpiredNotice(): string | null {
+  if (typeof window === "undefined") return null;
+  const notice = window.sessionStorage.getItem(SESSION_EXPIRED_NOTICE_KEY);
+  if (notice) window.sessionStorage.removeItem(SESSION_EXPIRED_NOTICE_KEY);
+  return notice;
+}
+
+function clearExpiredSession(): void {
+  if (typeof window === "undefined") return;
+  setToken(null);
+  window.localStorage.removeItem(USER_STORAGE_KEY);
+  window.sessionStorage.setItem(
+    SESSION_EXPIRED_NOTICE_KEY,
+    "Sua sessão expirou. Faça login novamente para continuar.",
+  );
 }
 
 export interface ApiErrorBody {
@@ -83,7 +102,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
   }
 
   if (res.status === 401 && path !== "/auth/login") {
-    setToken(null);
+    clearExpiredSession();
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
       window.location.href = "/auth/login";
     }
