@@ -1,10 +1,26 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, CreditCard, Pencil, Plus, Trash2, UsersRound, WalletCards } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Check,
+  ChevronLeft,
+  ChevronDown,
+  ChevronRight,
+  CreditCard,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  UsersRound,
+  WalletCards,
+  X,
+} from "lucide-react";
 import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchConnections, fetchExpenses, fetchSettlementItems, fetchTransactions } from "@/lib/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -27,6 +43,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CurrencyAmountInput } from "@/components/currency-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type MovementKind = "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT" | "TRANSFER" | "CARD_PAYMENT";
 type MovementItem =
@@ -210,6 +227,8 @@ export default function TransactionsPage() {
   const settlementItems = useAsyncData(() => fetchSettlementItems(), [], { cacheKey: "settlement-items", staleMs: 30_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -337,7 +356,9 @@ export default function TransactionsPage() {
     onError: (e) => toast.error(e.message),
   });
 
-  const monthOptions = useMonthOptions();
+  const monthOptions = useMonthOptions(month, year);
+  const previousPeriod = addMonthsToPeriod(month, year, -1);
+  const nextPeriod = addMonthsToPeriod(month, year, 1);
   const activeAccounts = (accounts.data ?? []).filter((account) => account.active);
   const activeConnections = connections.data ?? [];
   const showsCategory = kind === "INCOME" || kind === "EXPENSE" || kind === "CARD_EXPENSE";
@@ -357,6 +378,20 @@ export default function TransactionsPage() {
     return map;
   }, [settlementItems.data]);
   const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
+  const normalizedSearchQuery = normalizeSearch(searchQuery);
+  const filteredItems = normalizedSearchQuery
+    ? items.filter((item) =>
+        normalizeSearch(
+          [
+            item.title,
+            movementDate(item),
+            movementMeta(item, accountName, cardName),
+            formatBRL(Math.abs(item.amount)),
+            item.kind,
+          ].join(" "),
+        ).includes(normalizedSearchQuery),
+      )
+    : items;
   const movementsLoading = tx.isLoading || cards.isLoading;
   const supplementalLoading = cardStatements.isLoading || cardPayments.isLoading || expenses.isLoading;
   const deleteMovement = (item: MovementItem) => {
@@ -438,38 +473,35 @@ export default function TransactionsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
-          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Movimentações</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <Select
-            value={`${month}-${year}`}
-            onValueChange={(value) => {
-              const [m, y] = value.split("-").map(Number);
-              setPeriod({ month: m, year: y });
-            }}
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {monthOptions.map((option) => (
-                <SelectItem key={option.key} value={option.key}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Dialog
-            open={open}
-            onOpenChange={(next) => {
-              setOpen(next);
-              if (!next) setEditing(null);
-            }}
-          >
+    <div className="space-y-5">
+      <div className="space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
+            <h1 className="truncate text-3xl font-semibold tracking-tight md:text-4xl">Todos os lançamentos</h1>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              variant={searchOpen ? "secondary" : "ghost"}
+              size="icon"
+              aria-label={searchOpen ? "Fechar busca" : "Buscar movimentação"}
+              aria-pressed={searchOpen}
+              className="h-10 w-10 rounded-2xl"
+              onClick={() => {
+                setSearchOpen((open) => !open);
+                if (searchOpen) setSearchQuery("");
+              }}
+            >
+              <Search className="h-5 w-5" />
+            </Button>
+            <Dialog
+              open={open}
+              onOpenChange={(next) => {
+                setOpen(next);
+                if (!next) setEditing(null);
+              }}
+            >
             <DialogTrigger asChild>
               <Button onClick={openNew}>
                 <Plus className="h-4 w-4" /> Novo
@@ -751,6 +783,54 @@ export default function TransactionsPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
+        </div>
+
+        {searchOpen && (
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Buscar por descrição, conta, cartão, data ou valor"
+              className="h-12 rounded-2xl bg-card pl-10 pr-10 text-base shadow-sm md:text-sm"
+              autoFocus
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="Limpar busca"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 rounded-2xl bg-card/80 p-2 shadow-sm ring-1 ring-border/70">
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-12 justify-start rounded-xl px-2 text-muted-foreground hover:text-foreground md:px-3"
+            onClick={() => setPeriod(previousPeriod)}
+          >
+            <ChevronLeft className="h-5 w-5" />
+            <span className="truncate text-base font-medium md:text-sm">{monthName(previousPeriod.month, previousPeriod.year)}</span>
+          </Button>
+
+          <PeriodPicker month={month} year={year} onChange={setPeriod} />
+
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-12 justify-end rounded-xl px-2 text-muted-foreground hover:text-foreground md:px-3"
+            onClick={() => setPeriod(nextPeriod)}
+          >
+            <span className="truncate text-base font-medium md:text-sm">{monthName(nextPeriod.month, nextPeriod.year)}</span>
+            <ChevronRight className="h-5 w-5" />
+          </Button>
         </div>
       </div>
 
@@ -759,9 +839,25 @@ export default function TransactionsPage() {
           {movementsLoading ? (
             <p className="p-6 text-sm text-muted-foreground">Carregando...</p>
           ) : !items.length ? (
-            <p className="p-6 text-sm text-muted-foreground">
-              {supplementalLoading ? "Carregando faturas e pagamentos..." : "Nenhum lançamento nesse mês."}
-            </p>
+            <div className="grid min-h-[18rem] place-items-center p-6 text-center">
+              <div>
+                <p className="text-xl font-semibold tracking-tight">
+                  {supplementalLoading ? "Carregando faturas e pagamentos..." : "Nenhum lançamento no período"}
+                </p>
+                {!supplementalLoading && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Toque em <span className="font-semibold text-primary">+</span> para adicionar um lançamento.
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : !filteredItems.length ? (
+            <div className="grid min-h-[16rem] place-items-center p-6 text-center">
+              <div>
+                <p className="text-xl font-semibold tracking-tight">Nenhum lançamento encontrado</p>
+                <p className="mt-2 text-sm text-muted-foreground">Tente buscar por descrição, conta, cartão, data ou valor.</p>
+              </div>
+            </div>
           ) : (
             <>
               {supplementalLoading && (
@@ -770,7 +866,7 @@ export default function TransactionsPage() {
                 </div>
               )}
               <ul className="divide-y divide-border">
-              {items.map((item) => {
+              {filteredItems.map((item) => {
                 const sharedItem = item.kind === "card-expense" ? settlementItemByExpenseId.get(item.id) : undefined;
                 const isSettledSharedExpense = sharedItem?.status === "SETTLED";
                 return (
@@ -848,6 +944,88 @@ function AccountSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+function PeriodPicker({
+  month,
+  year,
+  onChange,
+}: {
+  month: number;
+  year: number;
+  onChange: (period: { month: number; year: number }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [visibleYear, setVisibleYear] = useState(year);
+
+  useEffect(() => {
+    if (open) setVisibleYear(year);
+  }, [open, year]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 min-w-[9.5rem] rounded-2xl border-border/80 bg-background px-5 text-base font-semibold shadow-none md:min-w-[10.5rem]"
+        >
+          <span>{periodLabel(month, year)}</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="center" className="w-[19rem] rounded-2xl p-3">
+        <div className="mb-3 flex items-center justify-between">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-xl"
+            aria-label="Ano anterior"
+            onClick={() => setVisibleYear((current) => current - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <div className="text-base font-semibold tabular-nums">{visibleYear}</div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-xl"
+            aria-label="Próximo ano"
+            onClick={() => setVisibleYear((current) => current + 1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5">
+          {Array.from({ length: 12 }, (_, index) => {
+            const optionMonth = index + 1;
+            const selected = optionMonth === month && visibleYear === year;
+            return (
+              <button
+                key={optionMonth}
+                type="button"
+                onClick={() => {
+                  onChange({ month: optionMonth, year: visibleYear });
+                  setOpen(false);
+                }}
+                className={`flex h-10 items-center justify-center gap-1 rounded-xl px-2 text-sm font-medium transition-colors ${
+                  selected
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                {monthName(optionMonth, visibleYear)}
+                {selected && <Check className="h-3.5 w-3.5" />}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -1018,18 +1196,39 @@ function nextMonthPeriod(month: number, year: number) {
   return { month: month + 1, year };
 }
 
+function addMonthsToPeriod(month: number, year: number, amount: number) {
+  const date = new Date(year, month - 1 + amount, 1);
+  return { month: date.getMonth() + 1, year: date.getFullYear() };
+}
+
 function uniquePeriods(periods: Array<{ month: number; year: number }>) {
   return Array.from(new Map(periods.map((period) => [`${period.month}-${period.year}`, period])).values());
 }
 
-function useMonthOptions() {
-  const now = new Date();
+function useMonthOptions(selectedMonth: number, selectedYear: number) {
   const out: { key: string; label: string }[] = [];
-  for (let i = 0; i < 12; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+  for (let offset = -6; offset < 18; offset += 1) {
+    const date = new Date(selectedYear, selectedMonth - 1 - offset, 1);
     const month = date.getMonth() + 1;
     const year = date.getFullYear();
     out.push({ key: `${month}-${year}`, label: monthLabel(month, year) });
   }
   return out;
+}
+
+function monthName(month: number, year: number) {
+  const label = monthLabel(month, year).replace(/\s+de\s+\d{4}$/i, "");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function periodLabel(month: number, year: number) {
+  return `${monthName(month, year)} de ${year}`;
+}
+
+function normalizeSearch(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
