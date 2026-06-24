@@ -9,8 +9,9 @@ import { fetchAccounts, fetchCardStatement, fetchCards, fetchExpenses } from "@/
 import { api } from "@/lib/api";
 import { getBankBrand as getSharedBankBrand } from "@/lib/bank-brand";
 import type { Account, Card as CardType, Expense } from "@/lib/types";
-import { currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
+import { currentMonthYear, formatBRL, formatDate, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
+import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -244,8 +245,6 @@ function CardItem({
   const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
   const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
-  const monthOptions = useMemo(getMonthOptions, []);
-
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
     defaultValues: { paymentDate: todayIsoDate() },
@@ -321,24 +320,7 @@ function CardItem({
         <div className="space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className="text-muted-foreground">Fatura</span>
-            <Select
-              value={`${period.month}-${period.year}`}
-              onValueChange={(value) => {
-                const [month, year] = value.split("-").map(Number);
-                setPeriod({ month, year });
-              }}
-            >
-              <SelectTrigger className="h-8 w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {monthOptions.map((option) => (
-                  <SelectItem key={option.key} value={option.key}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PeriodPicker month={period.month} year={period.year} onChange={setPeriod} className="h-10 min-w-[10rem] px-4 text-sm" />
             {stmt.data && <Badge variant={stmt.data.status === "PAID" ? "secondary" : "outline"}>{stmt.data.status.replaceAll("_", " ")}</Badge>}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -431,17 +413,5 @@ function CardItem({
       </CardContent>
     </Card>
   );
-}
-
-function getMonthOptions() {
-  const now = new Date();
-  const out: { key: string; label: string }[] = [];
-  for (let i = 0; i < 18; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const m = d.getMonth() + 1;
-    const y = d.getFullYear();
-    out.push({ key: `${m}-${y}`, label: monthLabel(m, y) });
-  }
-  return out;
 }
 

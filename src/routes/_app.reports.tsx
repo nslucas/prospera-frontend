@@ -32,9 +32,9 @@ import {
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { recurrenceStatusLabel } from "@/lib/recurrence-labels";
 import type { CardStatementStatus, Category, CategorySummary, Expense, Transaction } from "@/lib/types";
+import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 const CATEGORY_PALETTE = [
@@ -70,7 +70,6 @@ const tooltipTextStyle: CSSProperties = {
 export default function ReportsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const today = todayIsoDate();
-  const monthOptions = getMonthOptions();
   const cardStatementPeriod = nextMonthPeriod(month, year);
   const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year], {
     cacheKey: `summary-monthly:${month}:${year}`,
@@ -152,24 +151,7 @@ export default function ReportsPage() {
           <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Relatórios</h1>
         </div>
-        <Select
-          value={`${month}-${year}`}
-          onValueChange={(value) => {
-            const [selectedMonth, selectedYear] = value.split("-").map(Number);
-            setPeriod({ month: selectedMonth, year: selectedYear });
-          }}
-        >
-          <SelectTrigger className="w-full md:w-44">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {monthOptions.map((option) => (
-              <SelectItem key={option.key} value={option.key}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PeriodPicker month={month} year={year} onChange={setPeriod} className="w-full justify-center md:w-auto" />
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -454,16 +436,4 @@ function isInMonth(iso: string, month: number, year: number): boolean {
 function nextMonthPeriod(month: number, year: number): { month: number; year: number } {
   if (month === 12) return { month: 1, year: year + 1 };
   return { month: month + 1, year };
-}
-
-function getMonthOptions() {
-  const now = new Date();
-  const out: Array<{ key: string; label: string }> = [];
-  for (let i = 0; i < 18; i += 1) {
-    const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const month = date.getMonth() + 1;
-    const year = date.getFullYear();
-    out.push({ key: `${month}-${year}`, label: monthLabel(month, year) });
-  }
-  return out;
 }
