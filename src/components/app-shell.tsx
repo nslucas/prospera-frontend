@@ -214,7 +214,7 @@ export function AppShell() {
         )}
       </aside>
 
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border/70 bg-background/88 px-4 py-3 backdrop-blur md:hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between bg-gradient-to-b from-background via-background/95 to-background/70 px-4 pb-4 pt-3 backdrop-blur md:hidden">
         <Link to="/transactions" className="flex items-center gap-2">
           <BrandLogo markSize="sm" textClassName="text-lg" />
         </Link>

@@ -26,6 +26,7 @@ import {
 import { fetchAccounts, fetchAlerts, fetchCards, fetchCardStatement, fetchMonthlySummary, fetchTrends } from "@/lib/queries";
 import { useAuth } from "@/lib/auth";
 import { alertMessage, alertTypeLabel } from "@/lib/alert-labels";
+import { getBankBrand } from "@/lib/bank-brand";
 import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -93,8 +94,9 @@ export default function HomePage() {
   return (
     <div className="space-y-4 md:space-y-6">
       <section className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)] md:items-stretch">
-        <header className="relative overflow-hidden border border-border/80 bg-card px-5 pb-6 pt-7 text-foreground shadow-[0_14px_36px_rgba(16,27,21,0.045)] md:rounded-lg md:p-6">
-          <div className="absolute right-10 top-10 hidden h-36 w-36 rounded-full bg-primary/6 md:block" />
+        <header className="relative overflow-hidden px-5 pb-5 pt-4 text-foreground md:rounded-2xl md:bg-card/72 md:p-6 md:shadow-[0_14px_36px_rgba(16,27,21,0.045)] md:ring-1 md:ring-border/70">
+          <div className="absolute inset-x-4 bottom-0 hidden h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent md:block" />
+          <div className="absolute right-10 top-10 hidden h-36 w-36 rounded-full bg-primary/6 blur-2xl md:block" />
           <div className="relative flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-sm font-medium text-muted-foreground">{getGreeting()},</p>
@@ -108,7 +110,7 @@ export default function HomePage() {
             <Link
               to="/accounts"
               aria-label="Gerenciar conexoes"
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-border bg-card text-primary shadow-[0_10px_24px_rgba(16,27,21,0.05)] transition-colors hover:bg-accent"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary shadow-[0_10px_24px_rgba(16,27,21,0.05)] ring-1 ring-primary/15 transition-colors hover:bg-primary/15"
             >
               <Link2 className="h-6 w-6" />
             </Link>
@@ -309,8 +311,8 @@ function BalancePanel({
         </div>
 
         <div className="space-y-4">
-          {accounts.slice(0, 3).map((account, index) => (
-            <AccountRow key={account.id} account={account} index={index} valuesHidden={valuesHidden} />
+          {accounts.slice(0, 3).map((account) => (
+            <AccountRow key={account.id} account={account} valuesHidden={valuesHidden} />
           ))}
           {!accounts.length && <p className="text-sm text-muted-foreground">Nenhuma conta cadastrada.</p>}
         </div>
@@ -387,14 +389,14 @@ function CardsPanel({
   );
 }
 
-function AccountRow({ account, index, valuesHidden }: { account: Account; index: number; valuesHidden: boolean }) {
-  const tones = ["bg-violet-600", "bg-blue-600", "bg-amber-500"];
+function AccountRow({ account, valuesHidden }: { account: Account; valuesHidden: boolean }) {
+  const brand = getBankBrand(account.name);
 
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="flex min-w-0 items-center gap-4">
         <span
-          className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full ${tones[index % tones.length]} text-base font-bold text-white shadow-sm md:h-12 md:w-12 md:text-sm`}
+          className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full ${brand.solidClassName} text-base font-bold shadow-sm md:h-12 md:w-12 md:text-sm`}
         >
           {getInitials(account.name)}
         </span>
@@ -403,7 +405,7 @@ function AccountRow({ account, index, valuesHidden }: { account: Account; index:
           <p className="text-sm text-muted-foreground md:text-sm">{accountTypeLabel(account.type)}</p>
         </div>
       </div>
-      <p className="shrink-0 text-lg font-medium tabular-nums text-blue-700 md:text-base">
+      <p className="shrink-0 text-lg font-medium tabular-nums md:text-base" style={{ color: brand.color }}>
         {valuesHidden ? "R$ ****" : formatBRL(account.balance, account.currency || "BRL")}
       </p>
     </div>
@@ -411,9 +413,11 @@ function AccountRow({ account, index, valuesHidden }: { account: Account; index:
 }
 
 function CardRow({ card }: { card: CreditCardModel }) {
+  const brand = getBankBrand(card.bankName);
+
   return (
     <div className="flex items-center gap-4">
-      <span className="grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg bg-muted text-primary md:h-12 md:w-12">
+      <span className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg ${brand.softClassName} md:h-12 md:w-12`}>
         <Landmark className="h-7 w-7 md:h-6 md:w-6" />
       </span>
       <div className="min-w-0">

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { CreditCard as CardIcon, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
 import { fetchAccounts, fetchCardStatement, fetchCards, fetchExpenses } from "@/lib/queries";
 import { api } from "@/lib/api";
+import { getBankBrand as getSharedBankBrand } from "@/lib/bank-brand";
 import type { Account, Card as CardType, Expense } from "@/lib/types";
 import { currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
@@ -47,89 +48,6 @@ const paymentSchema = z.object({
 });
 type PaymentValues = z.infer<typeof paymentSchema>;
 
-interface BankBrand {
-  id: string;
-  label: string;
-  logo: string;
-  match: readonly string[];
-  className: string;
-  accentClassName: string;
-  logoClassName?: string;
-}
-
-const BANK_BRANDS: readonly BankBrand[] = [
-  {
-    id: "nubank",
-    label: "Nubank",
-    logo: "/images/banks/nubank.svg",
-    match: ["nubank", "nu bank", "nu"],
-    className: "from-[#612f74] via-[#82429a] to-[#3f1d4c] text-white",
-    accentClassName: "bg-white/12 border-white/18",
-    logoClassName: "brightness-0 invert",
-  },
-  {
-    id: "banestes",
-    label: "Banestes",
-    logo: "/images/banks/banestes.png",
-    match: ["banestes", "banescard"],
-    className: "from-[#1017d8] via-[#1828f0] to-[#0a1178] text-white",
-    accentClassName: "bg-white/12 border-white/18",
-    logoClassName: "brightness-0 invert",
-  },
-  {
-    id: "itau",
-    label: "Itau",
-    logo: "/images/banks/itau.svg",
-    match: ["itau", "itau unibanco", "itaú"],
-    className: "from-[#ff6b00] via-[#f47c00] to-[#10307d] text-white",
-    accentClassName: "bg-white/16 border-white/20",
-  },
-  {
-    id: "banco-do-brasil",
-    label: "Banco do Brasil",
-    logo: "/images/banks/banco-do-brasil.svg",
-    match: ["banco do brasil", "bb"],
-    className: "from-[#f8df18] via-[#f5cf00] to-[#1f54a7] text-[#102b5c]",
-    accentClassName: "bg-white/28 border-white/35",
-  },
-  {
-    id: "bradesco",
-    label: "Bradesco",
-    logo: "/images/banks/bradesco.svg",
-    match: ["bradesco"],
-    className: "from-[#b5122a] via-[#e5173f] to-[#6e0718] text-white",
-    accentClassName: "bg-white/12 border-white/18",
-    logoClassName: "brightness-0 invert",
-  },
-  {
-    id: "santander",
-    label: "Santander",
-    logo: "/images/banks/santander.svg",
-    match: ["santander"],
-    className: "from-[#e50000] via-[#ec1c24] to-[#8f0000] text-white",
-    accentClassName: "bg-white/12 border-white/18",
-    logoClassName: "brightness-0 invert",
-  },
-  {
-    id: "picpay",
-    label: "PicPay",
-    logo: "/images/banks/picpay.svg",
-    match: ["picpay", "pic pay"],
-    className: "from-[#11c76f] via-[#21c25e] to-[#08783e] text-white",
-    accentClassName: "bg-white/12 border-white/18",
-    logoClassName: "brightness-0 invert",
-  },
-] as const;
-
-const DEFAULT_BANK_BRAND: BankBrand = {
-  id: "default",
-  label: "Cartão",
-  logo: "",
-  match: [],
-  className: "from-[#1f2937] via-[#3f4858] to-[#111827] text-white",
-  accentClassName: "bg-white/12 border-white/18",
-  logoClassName: "",
-};
 const EMPTY_EXPENSES: Expense[] = [];
 
 export default function CardsPage() {
@@ -322,7 +240,7 @@ function CardItem({
   const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year], {
     cacheKey: `card-statement:${card.id}:${period.month}:${period.year}`,
   });
-  const brand = useMemo(() => getBankBrand(card.bankName), [card.bankName]);
+  const brand = useMemo(() => getSharedBankBrand(card.bankName), [card.bankName]);
   const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
   const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
@@ -527,16 +445,3 @@ function getMonthOptions() {
   return out;
 }
 
-function getBankBrand(bankName: string): BankBrand {
-  const normalized = normalizeBankName(bankName);
-  return BANK_BRANDS.find((brand) => brand.match.some((value) => normalized.includes(normalizeBankName(value)))) ?? DEFAULT_BANK_BRAND;
-}
-
-function normalizeBankName(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}

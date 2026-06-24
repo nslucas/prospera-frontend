@@ -54,6 +54,15 @@
   --chart-3: oklch(0.72 0.085 85);
   --chart-4: oklch(0.62 0.095 35);
   --chart-5: oklch(0.55 0.06 235);
+
+  --category-chart-1: #18c957;
+  --category-chart-2: #10b981;
+  --category-chart-3: #14b8a6;
+  --category-chart-4: #0d9488;
+  --category-chart-5: #34d399;
+  --category-chart-6: #059669;
+  --category-chart-7: #2dd4bf;
+  --category-chart-8: #047857;
 }
 
 .dark {
@@ -89,6 +98,14 @@
   --chart-3: #b6f36f;
   --chart-4: #ffd166;
   --chart-5: #8ab4ff;
+  --category-chart-1: #22c55e;
+  --category-chart-2: #2dd4bf;
+  --category-chart-3: #34d399;
+  --category-chart-4: #14b8a6;
+  --category-chart-5: #86efac;
+  --category-chart-6: #10b981;
+  --category-chart-7: #5eead4;
+  --category-chart-8: #4ade80;
 }
 
 @theme inline {

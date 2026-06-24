@@ -37,12 +37,15 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
-const PALETTE = [
-  "var(--chart-1)",
-  "var(--chart-2)",
-  "var(--chart-3)",
-  "var(--chart-4)",
-  "var(--chart-5)",
+const CATEGORY_PALETTE = [
+  "var(--category-chart-1)",
+  "var(--category-chart-2)",
+  "var(--category-chart-3)",
+  "var(--category-chart-4)",
+  "var(--category-chart-5)",
+  "var(--category-chart-6)",
+  "var(--category-chart-7)",
+  "var(--category-chart-8)",
 ];
 
 const CARD_STATUS_LABELS: Record<CardStatementStatus, string> = {
@@ -116,6 +119,7 @@ export default function ReportsPage() {
   const pieData = categoryBreakdown
     .filter((item) => !item.categoryType || item.categoryType === "EXPENSE")
     .map((item) => ({
+      colorKey: String(item.categoryId ?? item.categoryName),
       name: item.categoryName,
       value: getCategoryAmount(item),
     }))
@@ -195,7 +199,7 @@ export default function ReportsPage() {
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="Receita" fill="var(--success)" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Despesa" fill="var(--primary)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Despesa" fill="var(--destructive)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -212,9 +216,18 @@ export default function ReportsPage() {
               ) : (
                 <ResponsiveContainer>
                   <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={90} paddingAngle={2}>
-                      {pieData.map((_, index) => (
-                        <Cell key={index} fill={PALETTE[index % PALETTE.length]} />
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={1.5}
+                      stroke="var(--card)"
+                      strokeWidth={2}
+                    >
+                      {pieData.map((item) => (
+                        <Cell key={item.colorKey} fill={getCategoryColor(item.colorKey)} />
                       ))}
                     </Pie>
                     <Tooltip
@@ -372,6 +385,14 @@ function getCategoryAmount(item: CategorySummary): number {
   const value = item.amount ?? item.total ?? 0;
   const amount = typeof value === "number" ? value : Number(value);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+function getCategoryColor(key: string): string {
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
 }
 
 function buildCategoryBreakdown(
