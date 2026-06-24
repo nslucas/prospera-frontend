@@ -9,7 +9,7 @@ import { fetchAccounts, fetchCardStatement, fetchCards, fetchExpenses } from "@/
 import { api } from "@/lib/api";
 import { getBankBrand as getSharedBankBrand } from "@/lib/bank-brand";
 import type { Account, Card as CardType, Expense } from "@/lib/types";
-import { currentMonthYear, formatBRL, formatDate, todayIsoDate } from "@/lib/format";
+import { formatBRL, formatDate, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
 import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
@@ -236,7 +236,7 @@ function CardItem({
   onDelete: () => void;
   onRefresh: () => void;
 }) {
-  const [period, setPeriod] = useState(currentMonthYear);
+  const [period, setPeriod] = useState(() => currentOpenStatementPeriod(card));
   const [paymentOpen, setPaymentOpen] = useState(false);
   const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year], {
     cacheKey: `card-statement:${card.id}:${period.month}:${period.year}`,
@@ -413,5 +413,28 @@ function CardItem({
       </CardContent>
     </Card>
   );
+}
+
+function currentOpenStatementPeriod(card: CardType): { month: number; year: number } {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const statementMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const closingDate = atConfiguredDay(statementMonth.getFullYear(), statementMonth.getMonth(), card.closingDay);
+
+  if (today > closingDate) {
+    statementMonth.setMonth(statementMonth.getMonth() + 1);
+  }
+
+  const dueMonth = new Date(statementMonth);
+  if (card.dueDay <= card.closingDay) {
+    dueMonth.setMonth(dueMonth.getMonth() + 1);
+  }
+
+  return { month: dueMonth.getMonth() + 1, year: dueMonth.getFullYear() };
+}
+
+function atConfiguredDay(year: number, zeroBasedMonth: number, day: number): Date {
+  const lastDay = new Date(year, zeroBasedMonth + 1, 0).getDate();
+  return new Date(year, zeroBasedMonth, Math.min(day, lastDay));
 }
 
