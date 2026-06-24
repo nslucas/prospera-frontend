@@ -67,6 +67,10 @@ const tooltipTextStyle: CSSProperties = {
   color: "var(--popover-foreground)",
 };
 
+const legendTextStyle: CSSProperties = {
+  color: "var(--foreground)",
+};
+
 export default function ReportsPage() {
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const today = todayIsoDate();
@@ -218,7 +222,10 @@ export default function ReportsPage() {
                       labelStyle={tooltipTextStyle}
                       formatter={(value: number) => formatBRL(value)}
                     />
-                    <Legend wrapperStyle={{ fontSize: 11 }} />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11 }}
+                      formatter={(value) => <span style={legendTextStyle}>{value}</span>}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               )}

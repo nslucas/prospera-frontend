@@ -256,8 +256,8 @@ function CardItem({
         method: "POST",
         body: {
           ...values,
-          month: period.month,
-          year: period.year,
+          month: stmt.data?.month ?? period.month,
+          year: stmt.data?.year ?? period.year,
           description: values.description || null,
         },
       }),

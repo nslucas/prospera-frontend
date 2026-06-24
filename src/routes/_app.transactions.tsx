@@ -253,10 +253,10 @@ export default function TransactionsPage() {
     }
     if (nextKind === "CARD_PAYMENT") {
       if (!form.getValues("paymentMonth")) {
-        form.setValue("paymentMonth", month, { shouldDirty: true, shouldValidate: true });
+        form.setValue("paymentMonth", cardStatementPeriod.month, { shouldDirty: true, shouldValidate: true });
       }
       if (!form.getValues("paymentYear")) {
-        form.setValue("paymentYear", year, { shouldDirty: true, shouldValidate: true });
+        form.setValue("paymentYear", cardStatementPeriod.year, { shouldDirty: true, shouldValidate: true });
       }
     }
   };
@@ -1056,6 +1056,7 @@ function mergeMovements(
 }
 
 function movementDefaults(kind: MovementKind, month: number, year: number): Values {
+  const paymentPeriod = kind === "CARD_PAYMENT" ? nextMonthPeriod(month, year) : { month, year };
   return {
     kind,
     title: "",
@@ -1063,8 +1064,8 @@ function movementDefaults(kind: MovementKind, month: number, year: number): Valu
     occurredAt: kind === "CARD_PAYMENT" ? todayIsoDate() : nowIsoDateTime(),
     installmentCount: 1,
     shareEnabled: false,
-    paymentMonth: month,
-    paymentYear: year,
+    paymentMonth: paymentPeriod.month,
+    paymentYear: paymentPeriod.year,
   };
 }
 
