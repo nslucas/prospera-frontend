@@ -120,9 +120,6 @@ export default function HomePage() {
               <h1 className="mt-1 max-w-[13rem] break-words text-[2rem] font-bold leading-[1.05] tracking-tight md:max-w-none md:text-3xl">
                 {displayName}
               </h1>
-              <p className="mt-2 text-xs font-medium capitalize text-muted-foreground md:text-sm">
-                {monthLabel(month, year)}
-              </p>
             </div>
             <Link
               to="/accounts"
@@ -416,7 +413,7 @@ function CardsPanel({
           </Link>
         </div>
 
-        <div className="space-y-4 pr-16 md:pr-0">
+        <div className="space-y-4 pb-16 md:pb-0">
           {cards.slice(0, 3).map((card) => (
             <CardRow
               key={card.id}
@@ -487,22 +484,26 @@ function CardRow({
   const brand = getBankBrand(card.bankName);
 
   return (
-    <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_max-content] items-center gap-3 md:grid-cols-[3rem_minmax(0,1fr)_max-content] md:gap-4">
+    <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-3 md:grid-cols-[3rem_minmax(0,1fr)] md:gap-4">
       <span
         className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg ${brand.softClassName} md:h-12 md:w-12`}
       >
         <Landmark className="h-7 w-7 md:h-6 md:w-6" />
       </span>
-      <div className="min-w-0">
-        <p className="truncate text-lg font-semibold tracking-tight md:text-base">{card.name}</p>
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <p className="min-w-[7rem] flex-1 truncate text-lg font-semibold tracking-tight md:text-base">
+            {card.name}
+          </p>
+          <p className="shrink-0 text-base font-semibold leading-tight tabular-nums text-primary md:text-base">
+            {loading ? "..." : valuesHidden ? "R$ ****" : formatBRL(billAmount)}
+          </p>
+        </div>
         <p className="truncate text-sm text-muted-foreground md:text-sm">
           {card.bankName}
           {card.lastFourDigits ? ` - ${card.lastFourDigits}` : ""}
         </p>
       </div>
-      <p className="max-w-[7.75rem] justify-self-end text-right text-base font-semibold leading-tight tabular-nums text-primary md:max-w-none md:text-base">
-        {loading ? "..." : valuesHidden ? "R$ ****" : formatBRL(billAmount)}
-      </p>
     </div>
   );
 }
