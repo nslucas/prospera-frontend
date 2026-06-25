@@ -5,6 +5,9 @@ import type { AuthResponse } from "./types";
 interface AuthUser {
   id: number;
   email: string;
+  name?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
 }
 
 interface AuthContextValue {
@@ -45,7 +48,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (id == null) throw new Error("Resposta de login sem identificador de usuario");
     setToken(res.token);
     setTokenState(res.token);
-    const u = { id, email: res.email };
+    const displayName = res.displayName ?? buildDisplayName(res.name, res.lastName);
+    const u = {
+      id,
+      email: res.email,
+      name: res.name ?? null,
+      lastName: res.lastName ?? null,
+      displayName,
+    };
     setUser(u);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(USER_KEY, JSON.stringify(u));
@@ -107,4 +117,12 @@ export function useAuth(): AuthContextValue {
   const ctx = React.useContext(AuthContext);
   if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
+}
+
+function buildDisplayName(name?: string | null, lastName?: string | null): string | null {
+  const fullName = [name, lastName]
+    .map((part) => part?.trim())
+    .filter(Boolean)
+    .join(" ");
+  return fullName || null;
 }

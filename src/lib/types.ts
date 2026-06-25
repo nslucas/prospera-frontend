@@ -330,4 +330,7 @@ export interface AuthResponse {
   id?: number;
   userId?: number;
   email: string;
+  name?: string | null;
+  lastName?: string | null;
+  displayName?: string | null;
 }

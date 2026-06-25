@@ -95,7 +95,7 @@ export default function HomePage() {
       Despesa: item.accountExpenseTotal + item.cardStatementExpenseTotal,
     })) ?? [];
   const overdueAlerts = alerts.data?.filter((alert) => alert.type === "CARD_BILL_OVERDUE") ?? [];
-  const displayName = getDisplayName(user?.email);
+  const userName = getUserName(user);
   const openCardBillsTotal = openStatements.data?.length
     ? openStatements.data.reduce(
         (total, statement) => total + Number(statement.totalAmount ?? 0),
@@ -118,7 +118,7 @@ export default function HomePage() {
             <div className="min-w-0">
               <p className="text-sm font-medium text-muted-foreground">{getGreeting()},</p>
               <h1 className="mt-1 max-w-[13rem] break-words text-[2rem] font-bold leading-[1.05] tracking-tight md:max-w-none md:text-3xl">
-                {displayName}
+                {userName}
               </h1>
             </div>
             <Link
@@ -547,18 +547,19 @@ function getGreeting(): string {
   return "Boa noite";
 }
 
-function getDisplayName(email?: string): string {
-  if (!email) return "Prospera";
+function getUserName(user?: { name?: string | null; lastName?: string | null; email?: string | null } | null): string {
+  const name = user?.name?.trim();
+  const lastName = user?.lastName?.trim();
+  const fullName = [name, lastName].filter(Boolean).join(" ");
+  if (fullName) return fullName;
+  if (!user?.email) return "Prospera";
+  const email = user.email;
   const local = email.split("@")[0] || "Prospera";
   const parts = local
     .split(/[._-]+/)
     .filter(Boolean)
     .map((part) => part.replace(/\d+$/g, ""))
     .filter(Boolean);
-
-  if (parts.length >= 2 && /^lucasn$/i.test(parts[0]) && /^nunes$/i.test(parts[1])) {
-    return "Lucas Nunes";
-  }
 
   return parts
     .slice(0, 2)

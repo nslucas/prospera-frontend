@@ -56,7 +56,7 @@ Response:
 ```json
 {
   "token": "jwt-token",
-  "id": 1,
+  "userId": 1,
   "email": "user@example.com"
 }
 ```
@@ -64,6 +64,7 @@ Response:
 Particularities:
 
 - Store the `token` and send it as `Authorization: Bearer <token>`.
+- The frontend also accepts optional `name`, `lastName`, and `displayName` fields for user-facing greetings. When those fields are absent, it derives a generic label from `email`.
 - Invalid credentials return `401` with a plain text body.
 
 ### `POST /auth/register`
