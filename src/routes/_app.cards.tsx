@@ -243,6 +243,7 @@ function CardItem({
   });
   const brand = useMemo(() => getSharedBankBrand(card.bankName), [card.bankName]);
   const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
+  const availableLimit = Math.max(0, Number(card.creditLimit) - usedLimit);
   const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
   const paymentForm = useForm<PaymentValues>({
@@ -323,19 +324,28 @@ function CardItem({
             <PeriodPicker month={period.month} year={period.year} onChange={setPeriod} className="h-10 min-w-[10rem] px-4 text-sm" />
             {stmt.data && <Badge variant={stmt.data.status === "PAID" ? "secondary" : "outline"}>{stmt.data.status.replaceAll("_", " ")}</Badge>}
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-md border border-border/70 bg-muted/20 p-3">
+          <div className="grid gap-3 sm:grid-cols-[1.2fr_0.8fr]">
+            <div className="rounded-md border border-primary/25 bg-primary/5 p-3">
+              <div className="text-xs text-muted-foreground">Limite disponivel</div>
+              <div className="text-2xl font-semibold tabular-nums text-primary">
+                {cardExpensesLoading ? "..." : formatBRL(availableLimit)}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">de {formatBRL(card.creditLimit)}</div>
+            </div>
+            <div className="rounded-md border border-border/70 bg-muted/20 p-3 sm:text-right">
               <div className="text-xs text-muted-foreground">A pagar na fatura</div>
               <div className="text-xl font-semibold tabular-nums">{formatBRL(stmt.data?.remainingAmount ?? 0)}</div>
             </div>
-            <div className="rounded-md border border-border/70 bg-muted/20 p-3 sm:text-right">
-              <div className="text-xs text-muted-foreground">Limite usado</div>
-              <div className="text-sm font-medium tabular-nums">
-                {cardExpensesLoading ? "..." : `${formatBRL(usedLimit)} / ${formatBRL(card.creditLimit)}`}
-              </div>
-            </div>
           </div>
-          <Progress value={usedPct} />
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+              <span>Uso do limite</span>
+              <span className="tabular-nums">
+                {cardExpensesLoading ? "..." : `${formatBRL(usedLimit)} (${usedPct.toFixed(0)}%)`}
+              </span>
+            </div>
+            <Progress value={usedPct} />
+          </div>
           {stmt.data && (
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span>Fecha {formatDate(stmt.data.closingDate)}</span>

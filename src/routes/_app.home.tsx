@@ -98,10 +98,10 @@ export default function HomePage() {
   const displayName = getDisplayName(user?.email);
   const openCardBillsTotal = openStatements.data?.length
     ? openStatements.data.reduce(
-        (total, statement) => total + Number(statement.totalAmount ?? 0),
+        (total, statement) => total + Number(statement.remainingAmount ?? 0),
         0,
       )
-    : (s?.cardBillsTotal ?? 0);
+    : (s?.cardBillsRemaining ?? s?.cardBillsTotal ?? 0);
   const statementTotalsByCardId = React.useMemo(
     () => buildStatementTotalsByCardId(cards.data ?? [], openStatements.data ?? []),
     [cards.data, openStatements.data],
@@ -619,7 +619,7 @@ function buildStatementTotalsByCardId(
 ): Map<number, number> {
   const totals = new Map<number, number>();
   statements.forEach((statement) => {
-    totals.set(statement.cardId, Number(statement.totalAmount ?? 0));
+    totals.set(statement.cardId, Number(statement.remainingAmount ?? 0));
   });
   cards.forEach((card) => {
     if (!totals.has(card.id)) totals.set(card.id, 0);
