@@ -23,15 +23,21 @@ import {
   Receipt,
   Wallet,
 } from "lucide-react";
-import { fetchAccounts, fetchAlerts, fetchCards, fetchCardStatement, fetchMonthlySummary, fetchTrends } from "@/lib/queries";
+import {
+  fetchAccounts,
+  fetchAlerts,
+  fetchCards,
+  fetchCardStatement,
+  fetchMonthlySummary,
+  fetchTrends,
+} from "@/lib/queries";
 import { useAuth } from "@/lib/auth";
 import { alertMessage, alertTypeLabel } from "@/lib/alert-labels";
 import { getBankBrand } from "@/lib/bank-brand";
 import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Account, Card as CreditCardModel } from "@/lib/types";
-
+import type { Account, Card as CreditCardModel, CardStatement } from "@/lib/types";
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -73,9 +79,13 @@ export default function HomePage() {
   });
   const fromMonth = month - 5 <= 0 ? month - 5 + 12 : month - 5;
   const fromYear = month - 5 <= 0 ? year - 1 : year;
-  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year], {
-    cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
-  });
+  const trends = useAsyncData(
+    () => fetchTrends(fromMonth, fromYear, month, year),
+    [fromMonth, fromYear, month, year],
+    {
+      cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
+    },
+  );
 
   const s = summary.data;
   const trendData =
@@ -87,8 +97,15 @@ export default function HomePage() {
   const overdueAlerts = alerts.data?.filter((alert) => alert.type === "CARD_BILL_OVERDUE") ?? [];
   const displayName = getDisplayName(user?.email);
   const openCardBillsTotal = openStatements.data?.length
-    ? openStatements.data.reduce((total, statement) => total + Number(statement.totalAmount ?? 0), 0)
+    ? openStatements.data.reduce(
+        (total, statement) => total + Number(statement.totalAmount ?? 0),
+        0,
+      )
     : (s?.cardBillsTotal ?? 0);
+  const statementTotalsByCardId = React.useMemo(
+    () => buildStatementTotalsByCardId(cards.data ?? [], openStatements.data ?? []),
+    [cards.data, openStatements.data],
+  );
   const cardBillsLoading = cards.isLoading || openStatements.isLoading;
 
   return (
@@ -125,7 +142,9 @@ export default function HomePage() {
             <AlertTriangle className="h-6 w-6" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold tracking-tight md:text-base">Lancamentos atrasados</span>
+            <span className="block text-sm font-bold tracking-tight md:text-base">
+              Lancamentos atrasados
+            </span>
             <span className="mt-0.5 block text-base leading-snug text-muted-foreground md:text-sm">
               {alerts.isLoading
                 ? "Verificando pendencias"
@@ -146,8 +165,10 @@ export default function HomePage() {
             loading={summary.isLoading || cardBillsLoading}
             total={formatBRL(openCardBillsTotal)}
             cards={cards.data ?? []}
+            statementTotalsByCardId={statementTotalsByCardId}
             valuesHidden={valuesHidden}
             onToggleValues={() => setValuesHidden((hidden) => !hidden)}
+            statementValuesLoading={cardBillsLoading}
           />
           <BalancePanel
             loading={summary.isLoading}
@@ -218,7 +239,9 @@ export default function HomePage() {
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                   <YAxis
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    tickFormatter={(value) => (Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`)}
+                    tickFormatter={(value) =>
+                      Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`
+                    }
                   />
                   <Tooltip
                     contentStyle={{
@@ -229,8 +252,20 @@ export default function HomePage() {
                     }}
                     formatter={(value: number) => formatBRL(value)}
                   />
-                  <Area type="monotone" dataKey="Receita" stroke="var(--success)" fill="url(#home-inc)" strokeWidth={2} />
-                  <Area type="monotone" dataKey="Despesa" stroke="var(--destructive)" fill="url(#home-exp)" strokeWidth={2} />
+                  <Area
+                    type="monotone"
+                    dataKey="Receita"
+                    stroke="var(--success)"
+                    fill="url(#home-inc)"
+                    strokeWidth={2}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="Despesa"
+                    stroke="var(--destructive)"
+                    fill="url(#home-exp)"
+                    strokeWidth={2}
+                  />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -246,7 +281,10 @@ export default function HomePage() {
           </div>
           <div className="space-y-2">
             {alerts.data?.slice(0, 5).map((alert) => (
-              <div key={alert.key} className="flex items-start gap-3 rounded-lg border border-border/80 bg-card p-3 shadow-sm">
+              <div
+                key={alert.key}
+                className="flex items-start gap-3 rounded-lg border border-border/80 bg-card p-3 shadow-sm"
+              >
                 <AlertTriangle
                   className={`mt-0.5 h-4 w-4 shrink-0 ${
                     alert.severity === "CRITICAL" ? "text-destructive" : "text-[var(--warning)]"
@@ -260,7 +298,9 @@ export default function HomePage() {
                 </div>
               </div>
             ))}
-            {!alerts.data?.length && <p className="text-sm text-muted-foreground">Tudo certo por aqui.</p>}
+            {!alerts.data?.length && (
+              <p className="text-sm text-muted-foreground">Tudo certo por aqui.</p>
+            )}
           </div>
         </section>
       </div>
@@ -314,7 +354,9 @@ function BalancePanel({
           {accounts.slice(0, 3).map((account) => (
             <AccountRow key={account.id} account={account} valuesHidden={valuesHidden} />
           ))}
-          {!accounts.length && <p className="text-sm text-muted-foreground">Nenhuma conta cadastrada.</p>}
+          {!accounts.length && (
+            <p className="text-sm text-muted-foreground">Nenhuma conta cadastrada.</p>
+          )}
         </div>
 
         <Link
@@ -332,14 +374,18 @@ function CardsPanel({
   loading,
   total,
   cards,
+  statementTotalsByCardId,
   valuesHidden,
   onToggleValues,
+  statementValuesLoading,
 }: {
   loading?: boolean;
   total: string;
   cards: CreditCardModel[];
+  statementTotalsByCardId: Map<number, number>;
   valuesHidden: boolean;
   onToggleValues: () => void;
+  statementValuesLoading?: boolean;
 }) {
   return (
     <Card className="relative overflow-hidden">
@@ -372,9 +418,17 @@ function CardsPanel({
 
         <div className="space-y-4 pr-16 md:pr-0">
           {cards.slice(0, 3).map((card) => (
-            <CardRow key={card.id} card={card} />
+            <CardRow
+              key={card.id}
+              card={card}
+              billAmount={statementTotalsByCardId.get(card.id) ?? 0}
+              valuesHidden={valuesHidden}
+              loading={statementValuesLoading}
+            />
           ))}
-          {!cards.length && <p className="text-sm text-muted-foreground">Nenhum cartão cadastrado.</p>}
+          {!cards.length && (
+            <p className="text-sm text-muted-foreground">Nenhum cartão cadastrado.</p>
+          )}
         </div>
 
         <Link
@@ -401,32 +455,56 @@ function AccountRow({ account, valuesHidden }: { account: Account; valuesHidden:
           {getInitials(account.name)}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-lg font-semibold tracking-tight md:text-base">{account.name}</p>
-          <p className="text-sm text-muted-foreground md:text-sm">{accountTypeLabel(account.type)}</p>
+          <p className="truncate text-lg font-semibold tracking-tight md:text-base">
+            {account.name}
+          </p>
+          <p className="text-sm text-muted-foreground md:text-sm">
+            {accountTypeLabel(account.type)}
+          </p>
         </div>
       </div>
-      <p className="shrink-0 text-lg font-medium tabular-nums md:text-base" style={{ color: brand.color }}>
+      <p
+        className="shrink-0 text-lg font-medium tabular-nums md:text-base"
+        style={{ color: brand.color }}
+      >
         {valuesHidden ? "R$ ****" : formatBRL(account.balance, account.currency || "BRL")}
       </p>
     </div>
   );
 }
 
-function CardRow({ card }: { card: CreditCardModel }) {
+function CardRow({
+  card,
+  billAmount,
+  valuesHidden,
+  loading,
+}: {
+  card: CreditCardModel;
+  billAmount: number;
+  valuesHidden: boolean;
+  loading?: boolean;
+}) {
   const brand = getBankBrand(card.bankName);
 
   return (
-    <div className="flex items-center gap-4">
-      <span className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg ${brand.softClassName} md:h-12 md:w-12`}>
-        <Landmark className="h-7 w-7 md:h-6 md:w-6" />
-      </span>
-      <div className="min-w-0">
-        <p className="truncate text-lg font-semibold tracking-tight md:text-base">{card.name}</p>
-        <p className="text-sm text-muted-foreground md:text-sm">
-          {card.bankName}
-          {card.lastFourDigits ? ` - ${card.lastFourDigits}` : ""}
-        </p>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex min-w-0 items-center gap-4">
+        <span
+          className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg ${brand.softClassName} md:h-12 md:w-12`}
+        >
+          <Landmark className="h-7 w-7 md:h-6 md:w-6" />
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-lg font-semibold tracking-tight md:text-base">{card.name}</p>
+          <p className="text-sm text-muted-foreground md:text-sm">
+            {card.bankName}
+            {card.lastFourDigits ? ` - ${card.lastFourDigits}` : ""}
+          </p>
+        </div>
       </div>
+      <p className="shrink-0 text-lg font-semibold tabular-nums text-primary md:text-base">
+        {loading ? "..." : valuesHidden ? "R$ ****" : formatBRL(billAmount)}
+      </p>
     </div>
   );
 }
@@ -449,9 +527,13 @@ function Stat({
       <CardContent className="p-4">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{label}</span>
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-card text-primary ring-1 ring-border">{icon}</span>
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-card text-primary ring-1 ring-border">
+            {icon}
+          </span>
         </div>
-        <div className={`mt-2 truncate text-lg font-semibold tabular-nums md:text-xl ${tone === "success" ? "text-[var(--success)]" : ""}`}>
+        <div
+          className={`mt-2 truncate text-lg font-semibold tabular-nums md:text-xl ${tone === "success" ? "text-[var(--success)]" : ""}`}
+        >
           {loading ? "..." : value}
         </div>
       </CardContent>
@@ -508,7 +590,11 @@ function currentOpenStatementPeriod(card: CreditCardModel): { month: number; yea
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const statementMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const closingDate = atConfiguredDay(statementMonth.getFullYear(), statementMonth.getMonth(), card.closingDay);
+  const closingDate = atConfiguredDay(
+    statementMonth.getFullYear(),
+    statementMonth.getMonth(),
+    card.closingDay,
+  );
 
   if (today > closingDate) {
     statementMonth.setMonth(statementMonth.getMonth() + 1);
@@ -525,4 +611,18 @@ function currentOpenStatementPeriod(card: CreditCardModel): { month: number; yea
 function atConfiguredDay(year: number, zeroBasedMonth: number, day: number): Date {
   const lastDay = new Date(year, zeroBasedMonth + 1, 0).getDate();
   return new Date(year, zeroBasedMonth, Math.min(day, lastDay));
+}
+
+function buildStatementTotalsByCardId(
+  cards: CreditCardModel[],
+  statements: CardStatement[],
+): Map<number, number> {
+  const totals = new Map<number, number>();
+  statements.forEach((statement) => {
+    totals.set(statement.cardId, Number(statement.totalAmount ?? 0));
+  });
+  cards.forEach((card) => {
+    if (!totals.has(card.id)) totals.set(card.id, 0);
+  });
+  return totals;
 }

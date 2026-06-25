@@ -17,6 +17,7 @@ export type RecurringOccurrenceStatus = "PENDING" | "MATERIALIZED" | "SKIPPED";
 export type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 export type ExpenseShareStatus = "OPEN" | "SETTLED";
 export type SettlementDirection = "YOU_OWE" | "OWES_YOU";
+export type MovementKind = "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT" | "TRANSFER" | "CARD_PAYMENT";
 export type AlertType =
   | "CARD_LIMIT_NEAR"
   | "BUDGET_NEAR_LIMIT"
@@ -219,6 +220,16 @@ export interface Alert {
   dueDate?: string | null;
   month?: number | null;
   year?: number | null;
+}
+
+export interface UserPreferences {
+  defaultMovementKind: MovementKind;
+  defaultAccountId?: number | null;
+  defaultTargetAccountId?: number | null;
+  defaultCardId?: number | null;
+  defaultExpenseCategoryId?: number | null;
+  defaultIncomeCategoryId?: number | null;
+  defaultInstallmentCount: number;
 }
 
 export interface MonthlySummary {

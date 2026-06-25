@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   MoreHorizontal,
+  Settings,
   UsersRound,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -43,6 +44,7 @@ const NAV: NavItem[] = [
   { to: "/settlements", label: "Acertos", icon: HandCoins },
   { to: "/recurrences", label: "Recorrências", icon: RotateCw },
   { to: "/alerts", label: "Alertas", icon: Bell },
+  { to: "/settings", label: "Config.", icon: Settings },
 ];
 
 export function AppShell() {

@@ -19,10 +19,10 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchConnections, fetchExpenses, fetchSettlementItems, fetchTransactions } from "@/lib/queries";
+import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchConnections, fetchExpenses, fetchSettlementItems, fetchTransactions, fetchUserPreferences } from "@/lib/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { CardPayment, CardStatement, Connection, Expense, SettlementItem, Transaction, TransactionType } from "@/lib/types";
+import type { Account, Card as CreditCardRecord, CardPayment, CardStatement, Category, Connection, Expense, MovementKind, SettlementItem, Transaction, TransactionType, UserPreferences } from "@/lib/types";
 import { cardPaymentTitle, transactionTitle } from "@/lib/movement-labels";
 import { currentMonthYear, formatBRL, formatDate, formatDateTime, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
@@ -43,7 +43,6 @@ import { CurrencyAmountInput } from "@/components/currency-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PeriodPicker, monthName } from "@/components/period-picker";
 
-type MovementKind = "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT" | "TRANSFER" | "CARD_PAYMENT";
 type MovementItem =
   | {
       kind: "transaction";
@@ -223,6 +222,7 @@ export default function TransactionsPage() {
   const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const connections = useAsyncData(() => fetchConnections(), [], { cacheKey: "connections", staleMs: 60_000 });
   const settlementItems = useAsyncData(() => fetchSettlementItems(), [], { cacheKey: "settlement-items", staleMs: 30_000 });
+  const preferences = useAsyncData(() => fetchUserPreferences(), [], { cacheKey: "user-preferences", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -240,6 +240,11 @@ export default function TransactionsPage() {
 
   const switchMovementKind = (nextKind: MovementKind) => {
     const occurredAt = form.getValues("occurredAt");
+    const defaults = movementDefaults(nextKind, month, year, preferences.data, {
+      accounts: accounts.data,
+      cards: cards.data,
+      categories: categories.data,
+    });
     form.setValue("kind", nextKind, { shouldDirty: true, shouldValidate: true });
 
     if (nextKind === "CARD_PAYMENT" && occurredAt?.includes("T")) {
@@ -251,7 +256,28 @@ export default function TransactionsPage() {
     if (nextKind === "CARD_EXPENSE" && !form.getValues("installmentCount")) {
       form.setValue("installmentCount", 1, { shouldDirty: true, shouldValidate: true });
     }
+    if (nextKind === "CARD_EXPENSE") {
+      form.setValue("cardId", defaults.cardId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("categoryId", defaults.categoryId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("installmentCount", defaults.installmentCount, { shouldDirty: true, shouldValidate: true });
+    }
+    if (nextKind === "EXPENSE" || nextKind === "INCOME") {
+      form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("categoryId", defaults.categoryId, { shouldDirty: true, shouldValidate: true });
+    }
+    if (nextKind === "ADJUSTMENT") {
+      form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("categoryId", undefined, { shouldDirty: true, shouldValidate: true });
+    }
+    if (nextKind === "TRANSFER") {
+      form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("targetAccountId", defaults.targetAccountId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("categoryId", undefined, { shouldDirty: true, shouldValidate: true });
+    }
     if (nextKind === "CARD_PAYMENT") {
+      form.setValue("cardId", defaults.cardId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("categoryId", undefined, { shouldDirty: true, shouldValidate: true });
       if (!form.getValues("paymentMonth")) {
         form.setValue("paymentMonth", cardStatementPeriod.month, { shouldDirty: true, shouldValidate: true });
       }
@@ -344,7 +370,11 @@ export default function TransactionsPage() {
       reloadFinanceData();
       setOpen(false);
       setEditing(null);
-      form.reset(movementDefaults("CARD_EXPENSE", month, year));
+      form.reset(movementDefaults(preferences.data?.defaultMovementKind ?? "CARD_EXPENSE", month, year, preferences.data, {
+        accounts: accounts.data,
+        cards: cards.data,
+        categories: categories.data,
+      }));
     },
     onError: (e) => toast.error(e.message),
   });
@@ -447,8 +477,13 @@ export default function TransactionsPage() {
   };
 
   const openNew = () => {
+    const defaultKind = preferences.data?.defaultMovementKind ?? "CARD_EXPENSE";
     setEditing(null);
-    form.reset(movementDefaults("CARD_EXPENSE", month, year));
+    form.reset(movementDefaults(defaultKind, month, year, preferences.data, {
+      accounts: accounts.data,
+      cards: cards.data,
+      categories: categories.data,
+    }));
     setOpen(true);
   };
 
@@ -1055,18 +1090,67 @@ function mergeMovements(
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 }
 
-function movementDefaults(kind: MovementKind, month: number, year: number): Values {
+function movementDefaults(
+  kind: MovementKind,
+  month: number,
+  year: number,
+  preferences?: UserPreferences | null,
+  resources: { accounts?: Account[]; cards?: CreditCardRecord[]; categories?: Category[] } = {},
+): Values {
   const paymentPeriod = kind === "CARD_PAYMENT" ? nextMonthPeriod(month, year) : { month, year };
-  return {
+  const defaultAccountId = validActiveId(preferences?.defaultAccountId, resources.accounts);
+  const defaultTargetAccountId = validActiveId(preferences?.defaultTargetAccountId, resources.accounts);
+  const defaultCardId = validActiveId(preferences?.defaultCardId, resources.cards);
+  const defaultExpenseCategoryId = validCategoryId(preferences?.defaultExpenseCategoryId, resources.categories, "EXPENSE");
+  const defaultIncomeCategoryId = validCategoryId(preferences?.defaultIncomeCategoryId, resources.categories, "INCOME");
+  const defaults: Values = {
     kind,
     title: "",
     amount: 0,
     occurredAt: kind === "CARD_PAYMENT" ? todayIsoDate() : nowIsoDateTime(),
-    installmentCount: 1,
+    installmentCount: Math.max(1, preferences?.defaultInstallmentCount ?? 1),
     shareEnabled: false,
     paymentMonth: paymentPeriod.month,
     paymentYear: paymentPeriod.year,
   };
+
+  if (kind === "EXPENSE") {
+    defaults.accountId = defaultAccountId;
+    defaults.categoryId = defaultExpenseCategoryId;
+  }
+  if (kind === "CARD_EXPENSE") {
+    defaults.cardId = defaultCardId;
+    defaults.categoryId = defaultExpenseCategoryId;
+  }
+  if (kind === "INCOME") {
+    defaults.accountId = defaultAccountId;
+    defaults.categoryId = defaultIncomeCategoryId;
+  }
+  if (kind === "ADJUSTMENT") {
+    defaults.accountId = defaultAccountId;
+  }
+  if (kind === "TRANSFER") {
+    defaults.accountId = defaultAccountId;
+    defaults.targetAccountId = defaultTargetAccountId;
+  }
+  if (kind === "CARD_PAYMENT") {
+    defaults.accountId = defaultAccountId;
+    defaults.cardId = defaultCardId;
+  }
+
+  return defaults;
+}
+
+function validActiveId<T extends { id: number; active: boolean }>(id: number | null | undefined, items?: T[]) {
+  if (!id || !items?.some((item) => item.id === id && item.active)) return undefined;
+  return id;
+}
+
+function validCategoryId(id: number | null | undefined, categories: Category[] | undefined, type: "INCOME" | "EXPENSE") {
+  if (!id || !categories?.some((category) => category.id === id && category.active && category.type === type)) {
+    return undefined;
+  }
+  return id;
 }
 
 function roundMoney(value: number) {

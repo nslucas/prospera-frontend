@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import { CheckCircle2, HandCoins, ReceiptText, Scale } from "lucide-react";
 import { toast } from "sonner";
@@ -7,7 +7,14 @@ import { ConfirmAction } from "@/components/confirm-action";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { api } from "@/lib/api";
 import { formatBRL, formatDateTime } from "@/lib/format";
@@ -18,6 +25,7 @@ const ALL_COUNTERPARTIES = "_all";
 
 export default function SettlementsPage() {
   const [counterparty, setCounterparty] = useState<string>(ALL_COUNTERPARTIES);
+  const [selectedShareIds, setSelectedShareIds] = useState<Set<number>>(() => new Set());
   const counterpartyUserId = counterparty === ALL_COUNTERPARTIES ? undefined : Number(counterparty);
   const settlements = useAsyncData(() => fetchSettlements(), [], { cacheKey: "settlements" });
   const items = useAsyncData(
@@ -26,24 +34,78 @@ export default function SettlementsPage() {
     { cacheKey: `settlement-items:${counterpartyUserId ?? "all"}` },
   );
 
-  const settleItem = useAsyncMutation({
-    mutationFn: (shareId: number) =>
-      api<SettlementItem>(`/settlements/items/${shareId}/settle`, { method: "POST" }),
-    onSuccess: () => {
-      toast.success("Item marcado como quitado");
+  const settleSelectedItems = useAsyncMutation({
+    mutationFn: (shareIds: number[]) =>
+      Promise.all(
+        shareIds.map((shareId) =>
+          api<SettlementItem>(`/settlements/items/${shareId}/settle`, { method: "POST" }),
+        ),
+      ),
+    onSuccess: (_, shareIds) => {
+      toast.success(
+        shareIds.length === 1 ? "Acerto quitado" : `${shareIds.length} acertos quitados`,
+      );
+      setSelectedShareIds(new Set());
       settlements.reload();
       items.reload();
     },
     onError: (error) => toast.error(error.message),
   });
 
-  const openItems = useMemo(() => (items.data ?? []).filter((item) => item.status === "OPEN"), [items.data]);
+  const openItems = useMemo(
+    () => (items.data ?? []).filter((item) => item.status === "OPEN"),
+    [items.data],
+  );
+  const selectedOpenItems = useMemo(
+    () => openItems.filter((item) => selectedShareIds.has(item.shareId)),
+    [openItems, selectedShareIds],
+  );
+  const allOpenSelected = openItems.length > 0 && selectedOpenItems.length === openItems.length;
   const totalToReceive = (settlements.data ?? [])
     .filter((item) => item.direction === "OWES_YOU")
     .reduce((sum, item) => sum + Number(item.amount), 0);
   const totalToPay = (settlements.data ?? [])
     .filter((item) => item.direction === "YOU_OWE")
     .reduce((sum, item) => sum + Number(item.amount), 0);
+
+  useEffect(() => {
+    setSelectedShareIds((current) => {
+      const openIds = new Set(openItems.map((item) => item.shareId));
+      const next = new Set([...current].filter((shareId) => openIds.has(shareId)));
+      return next.size === current.size ? current : next;
+    });
+  }, [openItems]);
+
+  const selectedTotal = selectedOpenItems.reduce(
+    (sum, item) => sum + Number(item.participantAmount),
+    0,
+  );
+
+  function toggleItemSelection(shareId: number, checked: boolean) {
+    setSelectedShareIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(shareId);
+      } else {
+        next.delete(shareId);
+      }
+      return next;
+    });
+  }
+
+  function toggleAllOpenItems(checked: boolean) {
+    setSelectedShareIds((current) => {
+      const next = new Set(current);
+      openItems.forEach((item) => {
+        if (checked) {
+          next.add(item.shareId);
+        } else {
+          next.delete(item.shareId);
+        }
+      });
+      return next;
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -55,7 +117,12 @@ export default function SettlementsPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <Metric title="A receber" value={formatBRL(totalToReceive)} icon={HandCoins} tone="positive" />
+        <Metric
+          title="A receber"
+          value={formatBRL(totalToReceive)}
+          icon={HandCoins}
+          tone="positive"
+        />
         <Metric title="A pagar" value={formatBRL(totalToPay)} icon={Scale} />
         <Metric title="Itens em aberto" value={String(openItems.length)} icon={ReceiptText} />
       </div>
@@ -65,7 +132,9 @@ export default function SettlementsPage() {
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-lg font-semibold">Resumo por pessoa</h2>
-              <p className="text-sm text-muted-foreground">Saldos líquidos de compras ainda abertas.</p>
+              <p className="text-sm text-muted-foreground">
+                Saldos líquidos de compras ainda abertas.
+              </p>
             </div>
             <Select value={counterparty} onValueChange={setCounterparty}>
               <SelectTrigger className="w-full sm:w-64">
@@ -74,7 +143,10 @@ export default function SettlementsPage() {
               <SelectContent>
                 <SelectItem value={ALL_COUNTERPARTIES}>Todas as pessoas</SelectItem>
                 {(settlements.data ?? []).map((settlement) => (
-                  <SelectItem key={settlement.counterpartyUserId} value={String(settlement.counterpartyUserId)}>
+                  <SelectItem
+                    key={settlement.counterpartyUserId}
+                    value={String(settlement.counterpartyUserId)}
+                  >
                     {settlement.counterpartyName}
                   </SelectItem>
                 ))}
@@ -100,13 +172,17 @@ export default function SettlementsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-medium">{settlement.counterpartyName}</p>
-                      <p className="text-sm text-muted-foreground">{settlementLabel(settlement.direction)}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {settlementLabel(settlement.direction)}
+                      </p>
                     </div>
                     <Badge variant={settlement.direction === "OWES_YOU" ? "secondary" : "outline"}>
                       {settlementBadge(settlement.direction)}
                     </Badge>
                   </div>
-                  <p className="mt-3 text-2xl font-semibold tabular-nums">{formatBRL(settlement.amount)}</p>
+                  <p className="mt-3 text-2xl font-semibold tabular-nums">
+                    {formatBRL(settlement.amount)}
+                  </p>
                 </button>
               ))}
             </div>
@@ -116,11 +192,29 @@ export default function SettlementsPage() {
 
       <Card>
         <CardContent className="p-5">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold">Itens compartilhados</h2>
-            <p className="text-sm text-muted-foreground">
-              Detalhes das compras usadas para calcular os acertos.
-            </p>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Itens compartilhados</h2>
+              <p className="text-sm text-muted-foreground">
+                Detalhes das compras usadas para calcular os acertos.
+              </p>
+            </div>
+            <ConfirmAction
+              title="Quitar acertos selecionados?"
+              description="Os itens selecionados sairão dos acertos em aberto e nenhuma movimentação bancária será criada."
+              confirmLabel="Quitar selecionados"
+              onConfirm={() =>
+                settleSelectedItems.mutate(selectedOpenItems.map((item) => item.shareId))
+              }
+            >
+              <Button
+                type="button"
+                disabled={!selectedOpenItems.length || settleSelectedItems.isPending}
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                {selectedOpenItems.length ? `Quitar ${selectedOpenItems.length}` : "Quitar"}
+              </Button>
+            </ConfirmAction>
           </div>
 
           {items.isLoading ? (
@@ -130,43 +224,69 @@ export default function SettlementsPage() {
               Nenhum item encontrado para o filtro atual.
             </p>
           ) : (
-            <ul className="divide-y divide-border">
-              {items.data.map((item) => (
-                <li key={item.shareId} className="flex flex-wrap items-center gap-3 py-4 first:pt-0 last:pb-0">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent">
-                    <ReceiptText className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{item.expenseName}</p>
-                      <Badge variant={item.status === "SETTLED" ? "secondary" : "outline"}>
-                        {item.status === "SETTLED" ? "Quitado" : "Aberto"}
-                      </Badge>
+            <>
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/80 bg-muted/40 px-3 py-2">
+                <label className="flex items-center gap-3 text-sm font-medium">
+                  <Checkbox
+                    checked={
+                      allOpenSelected
+                        ? true
+                        : selectedOpenItems.length > 0
+                          ? "indeterminate"
+                          : false
+                    }
+                    disabled={!openItems.length || settleSelectedItems.isPending}
+                    onCheckedChange={(checked) => toggleAllOpenItems(checked === true)}
+                  />
+                  Selecionar todos em aberto
+                </label>
+                <span className="text-sm text-muted-foreground">
+                  {selectedOpenItems.length} selecionado{selectedOpenItems.length === 1 ? "" : "s"}{" "}
+                  - {formatBRL(selectedTotal)}
+                </span>
+              </div>
+              <ul className="divide-y divide-border">
+                {items.data.map((item) => (
+                  <li
+                    key={item.shareId}
+                    className="flex flex-wrap items-center gap-3 py-4 first:pt-0 last:pb-0"
+                  >
+                    {item.status === "OPEN" && (
+                      <Checkbox
+                        checked={selectedShareIds.has(item.shareId)}
+                        disabled={settleSelectedItems.isPending}
+                        aria-label={`Selecionar ${item.expenseName}`}
+                        onCheckedChange={(checked) =>
+                          toggleItemSelection(item.shareId, checked === true)
+                        }
+                      />
+                    )}
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent">
+                      <ReceiptText className="h-5 w-5 text-primary" />
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      {itemDescription(item)} • criado em {formatDateTime(item.createdAt)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-semibold tabular-nums">{formatBRL(item.participantAmount)}</p>
-                    <p className="text-xs text-muted-foreground">de {formatBRL(item.expenseAmount)}</p>
-                  </div>
-                  {item.status === "OPEN" && (
-                    <ConfirmAction
-                      title="Marcar como quitado?"
-                      description="Este item sairá dos acertos em aberto e não criará movimentação bancária."
-                      confirmLabel="Marcar como quitado"
-                      onConfirm={() => settleItem.mutate(item.shareId)}
-                    >
-                      <Button type="button" size="sm" disabled={settleItem.isPending}>
-                        <CheckCircle2 className="h-4 w-4" />
-                        Quitar
-                      </Button>
-                    </ConfirmAction>
-                  )}
-                </li>
-              ))}
-            </ul>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium">{item.expenseName}</p>
+                        <Badge variant={item.status === "SETTLED" ? "secondary" : "outline"}>
+                          {item.status === "SETTLED" ? "Quitado" : "Aberto"}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {itemDescription(item)} • criado em {formatDateTime(item.createdAt)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-semibold tabular-nums">
+                        {formatBRL(item.participantAmount)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        de {formatBRL(item.expenseAmount)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </>
           )}
         </CardContent>
       </Card>
@@ -190,7 +310,9 @@ function Metric({
       <CardContent className="flex items-center justify-between gap-4 p-5">
         <div>
           <p className="text-sm text-muted-foreground">{title}</p>
-          <p className={`mt-1 text-2xl font-semibold tabular-nums ${tone === "positive" ? "text-[var(--success)]" : ""}`}>
+          <p
+            className={`mt-1 text-2xl font-semibold tabular-nums ${tone === "positive" ? "text-[var(--success)]" : ""}`}
+          >
             {value}
           </p>
         </div>

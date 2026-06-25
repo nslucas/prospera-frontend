@@ -18,6 +18,7 @@ import HomePage from "@/routes/_app.home";
 import RecurrencesPage from "@/routes/_app.recurrences";
 import ReportsPage from "@/routes/_app.reports";
 import SettlementsPage from "@/routes/_app.settlements";
+import SettingsPage from "@/routes/_app.settings";
 import TransactionsPage from "@/routes/_app.transactions";
 
 export function App() {
@@ -61,6 +62,7 @@ function AppRoutes() {
         <Route path="/settlements" element={<SettlementsPage />} />
         <Route path="/recurrences" element={<RecurrencesPage />} />
         <Route path="/alerts" element={<AlertsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

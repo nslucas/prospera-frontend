@@ -23,6 +23,7 @@ import type {
   Transaction,
   TrendPoint,
   UpcomingSummary,
+  UserPreferences,
   YearlySummary,
 } from "./types";
 
@@ -79,6 +80,11 @@ export const fetchOccurrences = (from: string, to: string) =>
 
 export const fetchAlerts = (params: { month?: number; year?: number; from?: string; to?: string } = {}) =>
   api<Alert[]>("/alerts", { query: params });
+
+export const fetchUserPreferences = () => api<UserPreferences>("/me/preferences");
+
+export const updateUserPreferences = (preferences: UserPreferences) =>
+  api<UserPreferences>("/me/preferences", { method: "PUT", body: preferences });
 
 export const fetchMonthlySummary = (month: number, year: number) =>
   api<ApiEnvelope<MonthlySummary>>("/summary/monthly", { query: { month, year } }).then(unwrapData);
