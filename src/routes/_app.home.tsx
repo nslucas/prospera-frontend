@@ -98,10 +98,10 @@ export default function HomePage() {
   const displayName = getDisplayName(user?.email);
   const openCardBillsTotal = openStatements.data?.length
     ? openStatements.data.reduce(
-        (total, statement) => total + Number(statement.remainingAmount ?? 0),
+        (total, statement) => total + Number(statement.totalAmount ?? 0),
         0,
       )
-    : (s?.cardBillsRemaining ?? s?.cardBillsTotal ?? 0);
+    : (s?.cardBillsTotal ?? 0);
   const statementTotalsByCardId = React.useMemo(
     () => buildStatementTotalsByCardId(cards.data ?? [], openStatements.data ?? []),
     [cards.data, openStatements.data],
@@ -487,22 +487,20 @@ function CardRow({
   const brand = getBankBrand(card.bankName);
 
   return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-4">
-        <span
-          className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg ${brand.softClassName} md:h-12 md:w-12`}
-        >
-          <Landmark className="h-7 w-7 md:h-6 md:w-6" />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-lg font-semibold tracking-tight md:text-base">{card.name}</p>
-          <p className="text-sm text-muted-foreground md:text-sm">
-            {card.bankName}
-            {card.lastFourDigits ? ` - ${card.lastFourDigits}` : ""}
-          </p>
-        </div>
+    <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_max-content] items-center gap-3 md:grid-cols-[3rem_minmax(0,1fr)_max-content] md:gap-4">
+      <span
+        className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg ${brand.softClassName} md:h-12 md:w-12`}
+      >
+        <Landmark className="h-7 w-7 md:h-6 md:w-6" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-lg font-semibold tracking-tight md:text-base">{card.name}</p>
+        <p className="truncate text-sm text-muted-foreground md:text-sm">
+          {card.bankName}
+          {card.lastFourDigits ? ` - ${card.lastFourDigits}` : ""}
+        </p>
       </div>
-      <p className="shrink-0 text-lg font-semibold tabular-nums text-primary md:text-base">
+      <p className="max-w-[7.75rem] justify-self-end text-right text-base font-semibold leading-tight tabular-nums text-primary md:max-w-none md:text-base">
         {loading ? "..." : valuesHidden ? "R$ ****" : formatBRL(billAmount)}
       </p>
     </div>
@@ -590,22 +588,23 @@ function currentOpenStatementPeriod(card: CreditCardModel): { month: number; yea
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const statementMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const closingDate = atConfiguredDay(
-    statementMonth.getFullYear(),
-    statementMonth.getMonth(),
-    card.closingDay,
-  );
+  let dueMonth = statementDueMonth(statementMonth, card);
+  const dueDate = atConfiguredDay(dueMonth.getFullYear(), dueMonth.getMonth(), card.dueDay);
 
-  if (today > closingDate) {
+  if (today > dueDate) {
     statementMonth.setMonth(statementMonth.getMonth() + 1);
+    dueMonth = statementDueMonth(statementMonth, card);
   }
 
+  return { month: dueMonth.getMonth() + 1, year: dueMonth.getFullYear() };
+}
+
+function statementDueMonth(statementMonth: Date, card: CreditCardModel): Date {
   const dueMonth = new Date(statementMonth);
   if (card.dueDay <= card.closingDay) {
     dueMonth.setMonth(dueMonth.getMonth() + 1);
   }
-
-  return { month: dueMonth.getMonth() + 1, year: dueMonth.getFullYear() };
+  return dueMonth;
 }
 
 function atConfiguredDay(year: number, zeroBasedMonth: number, day: number): Date {
@@ -619,7 +618,7 @@ function buildStatementTotalsByCardId(
 ): Map<number, number> {
   const totals = new Map<number, number>();
   statements.forEach((statement) => {
-    totals.set(statement.cardId, Number(statement.remainingAmount ?? 0));
+    totals.set(statement.cardId, Number(statement.totalAmount ?? 0));
   });
   cards.forEach((card) => {
     if (!totals.has(card.id)) totals.set(card.id, 0);

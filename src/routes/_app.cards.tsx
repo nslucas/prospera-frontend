@@ -204,7 +204,6 @@ export default function CardsPage() {
               card={card}
               accounts={accounts.data ?? []}
               cardExpenses={expensesByCard.get(card.id) ?? EMPTY_EXPENSES}
-              cardExpensesLoading={allExpenses.isLoading}
               onEdit={() => {
                 setEditing(card);
                 setOpen(true);
@@ -223,7 +222,6 @@ function CardItem({
   card,
   accounts,
   cardExpenses,
-  cardExpensesLoading,
   onEdit,
   onDelete,
   onRefresh,
@@ -231,7 +229,6 @@ function CardItem({
   card: CardType;
   accounts: Account[];
   cardExpenses: Expense[];
-  cardExpensesLoading: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onRefresh: () => void;
@@ -243,8 +240,10 @@ function CardItem({
   });
   const brand = useMemo(() => getSharedBankBrand(card.bankName), [card.bankName]);
   const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
-  const availableLimit = Math.max(0, Number(card.creditLimit) - usedLimit);
-  const usedPct = card.creditLimit > 0 ? Math.min(100, (usedLimit / card.creditLimit) * 100) : 0;
+  const fallbackAvailableLimit = Math.max(0, Number(card.creditLimit) - usedLimit);
+  const availableLimit = stmt.data ? Number(stmt.data.availableLimit ?? fallbackAvailableLimit) : fallbackAvailableLimit;
+  const displayedUsedLimit = Math.max(0, Number(card.creditLimit) - availableLimit);
+  const usedPct = card.creditLimit > 0 ? Math.min(100, (displayedUsedLimit / card.creditLimit) * 100) : 0;
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
@@ -328,7 +327,7 @@ function CardItem({
             <div className="rounded-md border border-primary/25 bg-primary/5 p-3">
               <div className="text-xs text-muted-foreground">Limite disponivel</div>
               <div className="text-2xl font-semibold tabular-nums text-primary">
-                {cardExpensesLoading ? "..." : formatBRL(availableLimit)}
+                {stmt.isLoading && !stmt.data ? "..." : formatBRL(availableLimit)}
               </div>
               <div className="mt-1 text-xs text-muted-foreground">de {formatBRL(card.creditLimit)}</div>
             </div>
@@ -341,7 +340,7 @@ function CardItem({
             <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
               <span>Uso do limite</span>
               <span className="tabular-nums">
-                {cardExpensesLoading ? "..." : `${formatBRL(usedLimit)} (${usedPct.toFixed(0)}%)`}
+                {stmt.isLoading && !stmt.data ? "..." : `${formatBRL(displayedUsedLimit)} (${usedPct.toFixed(0)}%)`}
               </span>
             </div>
             <Progress value={usedPct} />
@@ -429,18 +428,23 @@ function currentOpenStatementPeriod(card: CardType): { month: number; year: numb
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const statementMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  const closingDate = atConfiguredDay(statementMonth.getFullYear(), statementMonth.getMonth(), card.closingDay);
+  let dueMonth = statementDueMonth(statementMonth, card);
+  const dueDate = atConfiguredDay(dueMonth.getFullYear(), dueMonth.getMonth(), card.dueDay);
 
-  if (today > closingDate) {
+  if (today > dueDate) {
     statementMonth.setMonth(statementMonth.getMonth() + 1);
+    dueMonth = statementDueMonth(statementMonth, card);
   }
 
+  return { month: dueMonth.getMonth() + 1, year: dueMonth.getFullYear() };
+}
+
+function statementDueMonth(statementMonth: Date, card: CardType): Date {
   const dueMonth = new Date(statementMonth);
   if (card.dueDay <= card.closingDay) {
     dueMonth.setMonth(dueMonth.getMonth() + 1);
   }
-
-  return { month: dueMonth.getMonth() + 1, year: dueMonth.getFullYear() };
+  return dueMonth;
 }
 
 function atConfiguredDay(year: number, zeroBasedMonth: number, day: number): Date {
