@@ -170,7 +170,8 @@ type Values = z.infer<typeof schema>;
 export default function TransactionsPage() {
   const { user } = useAuth();
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
-  const cardStatementPeriod = nextMonthPeriod(month, year);
+  const [statementPeriodOffset, setStatementPeriodOffset] = useState(1);
+  const cardStatementPeriod = addMonthsToPeriod(month, year, statementPeriodOffset);
   const cardPaymentPeriods = uniquePeriods([
     { month, year },
     cardStatementPeriod,
@@ -410,6 +411,8 @@ export default function TransactionsPage() {
   const monthOptions = useMonthOptions(month, year);
   const previousPeriod = addMonthsToPeriod(month, year, -1);
   const nextPeriod = addMonthsToPeriod(month, year, 1);
+  const previousStatementPeriod = addMonthsToPeriod(month, year, statementPeriodOffset - 1);
+  const nextStatementPeriod = addMonthsToPeriod(month, year, statementPeriodOffset + 1);
   const activeAccounts = (accounts.data ?? []).filter((account) => account.active);
   const activeConnections = connections.data ?? [];
   const showsCategory = kind === "INCOME" || kind === "EXPENSE" || kind === "CARD_EXPENSE";
@@ -433,6 +436,9 @@ export default function TransactionsPage() {
     return map;
   }, [settlementItems.data]);
   const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
+  const movementTotals = calculateMovementTotals(items);
+  const statementSummaries = (cardStatements.data ?? []).filter((statement): statement is CardStatement => Boolean(statement));
+  const statementTotals = calculateStatementTotals(statementSummaries);
   const normalizedSearchQuery = normalizeSearch(searchQuery);
   const filteredItems = normalizedSearchQuery
     ? items.filter((item) =>
@@ -895,6 +901,80 @@ export default function TransactionsPage() {
             <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
+
+        <div className="rounded-2xl bg-card/70 px-4 py-3 shadow-sm ring-1 ring-border/70">
+          <div className="grid gap-4 md:grid-cols-[minmax(8rem,1.1fr)_minmax(0,1.7fr)_minmax(12rem,1.2fr)] md:items-center">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-xs text-muted-foreground">Lançamentos</p>
+                <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{items.length}</span>
+              </div>
+              <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">{formatBRL(movementTotals.net)}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Entradas</p>
+                <p className="truncate font-semibold tabular-nums text-[var(--success)]">{formatBRL(movementTotals.income)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Saídas</p>
+                <p className="truncate font-semibold tabular-nums">{formatBRL(movementTotals.outflow)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Fatura</p>
+                <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(statementTotals.total)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Aberto</p>
+                <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.remaining)}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-1 rounded-xl bg-muted/20 p-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-xl"
+                onClick={() => setStatementPeriodOffset((offset) => offset - 1)}
+                aria-label={`Ver fatura de ${monthName(previousStatementPeriod.month, previousStatementPeriod.year)}`}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+              <div className="min-w-0 text-center">
+                <p className="text-[11px] text-muted-foreground">Fatura</p>
+                <p className="truncate text-sm font-semibold capitalize">{monthName(cardStatementPeriod.month, cardStatementPeriod.year)}</p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 rounded-xl"
+                onClick={() => setStatementPeriodOffset((offset) => offset + 1)}
+                aria-label={`Ver fatura de ${monthName(nextStatementPeriod.month, nextStatementPeriod.year)}`}
+              >
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            </div>
+          </div>
+
+          {cardStatements.isLoading && !statementSummaries.length ? (
+            <p className="mt-2 text-xs text-muted-foreground">Carregando faturas...</p>
+          ) : statementSummaries.length ? (
+            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+              {statementSummaries.map((statement) => (
+                <div key={`${statement.cardId}-${statement.month}-${statement.year}`} className="flex min-w-40 items-center justify-between gap-3 rounded-lg bg-muted/20 px-3 py-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{statement.cardName}</p>
+                    <p className="truncate text-muted-foreground">Vence {formatDate(statement.dueDate)}</p>
+                  </div>
+                  <p className="shrink-0 font-semibold tabular-nums">{formatBRL(statement.remainingAmount)}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <Card>
@@ -1088,6 +1168,33 @@ function mergeMovements(
       };
     }),
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
+}
+
+function calculateMovementTotals(items: MovementItem[]) {
+  return items.reduce(
+    (totals, item) => {
+      if (isPositiveMovement(item)) {
+        totals.income += Math.abs(item.amount);
+      } else {
+        totals.outflow += Math.abs(item.amount);
+      }
+      totals.net = totals.income - totals.outflow;
+      return totals;
+    },
+    { income: 0, outflow: 0, net: 0 },
+  );
+}
+
+function calculateStatementTotals(statements: CardStatement[]) {
+  return statements.reduce(
+    (totals, statement) => {
+      totals.total += Number(statement.totalAmount);
+      totals.paid += Number(statement.paidAmount);
+      totals.remaining += Number(statement.remainingAmount);
+      return totals;
+    },
+    { total: 0, paid: 0, remaining: 0 },
+  );
 }
 
 function movementDefaults(
