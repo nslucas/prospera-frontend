@@ -26,6 +26,11 @@ export type AlertType =
   | "CARD_BILL_OVERDUE"
   | "LOW_ACCOUNT_BALANCE";
 export type AlertSeverity = "WARNING" | "CRITICAL";
+export type NotificationCategory = "CONNECTION_REQUEST" | "SHARED_EXPENSE" | "FINANCIAL_DIGEST";
+export type NotificationType =
+  | "CONNECTION_REQUEST_RECEIVED"
+  | "SHARED_EXPENSE_RECEIVED"
+  | "FINANCIAL_ALERT_DIGEST";
 
 export interface Account {
   id: number;
@@ -222,6 +227,25 @@ export interface Alert {
   year?: number | null;
 }
 
+export interface AppNotification {
+  id: number;
+  type: NotificationType;
+  category: NotificationCategory;
+  title: string;
+  body: string;
+  url: string;
+  readAt?: string | null;
+  createdAt: string;
+  resourceType?: string | null;
+  resourceId?: number | null;
+}
+
+export interface NotificationPreferences {
+  connectionRequests: boolean;
+  sharedExpenses: boolean;
+  financialDigest: boolean;
+}
+
 export interface UserPreferences {
   defaultMovementKind: MovementKind;
   defaultAccountId?: number | null;
@@ -230,6 +254,7 @@ export interface UserPreferences {
   defaultExpenseCategoryId?: number | null;
   defaultIncomeCategoryId?: number | null;
   defaultInstallmentCount: number;
+  notifications?: NotificationPreferences | null;
 }
 
 export interface MonthlySummary {

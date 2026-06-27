@@ -66,3 +66,52 @@ self.addEventListener("fetch", (event) => {
     }),
   );
 });
+
+self.addEventListener("push", (event) => {
+  const payload = readPushPayload(event);
+  const title = payload.title || "Prospera";
+  const options = {
+    body: payload.body || "Você tem uma nova notificação.",
+    icon: payload.icon || "/icon-192.png",
+    badge: payload.badge || "/icon-maskable-192.png",
+    tag: payload.tag || payload.url || "prospera-notification",
+    data: {
+      url: payload.url || "/notifications",
+      notificationId: payload.notificationId,
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+
+  const targetUrl = new URL(event.notification.data?.url || "/notifications", self.location.origin).href;
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client && new URL(client.url).origin === self.location.origin) {
+          return client.navigate(targetUrl).then((navigatedClient) => (navigatedClient || client).focus());
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+
+      return undefined;
+    }),
+  );
+});
+
+function readPushPayload(event) {
+  if (!event.data) return {};
+
+  try {
+    return event.data.json();
+  } catch {
+    return { body: event.data.text() };
+  }
+}

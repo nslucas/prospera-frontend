@@ -30,6 +30,9 @@ const TARGET_LABELS: Record<RecurringTargetType, string> = {
 const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
   INCOME: "Receita",
   EXPENSE: "Despesa",
+  TRANSFER_IN: "Transferencia recebida",
+  TRANSFER_OUT: "Transferencia enviada",
+  CARD_PAYMENT: "Pagamento de fatura",
   ADJUSTMENT: "Ajuste",
 };
 

@@ -64,6 +64,7 @@ export interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | undefined | null>;
   signal?: AbortSignal;
+  skipSessionExpiredRedirect?: boolean;
 }
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
@@ -101,7 +102,7 @@ export async function api<T = unknown>(path: string, opts: RequestOptions = {}):
     throw new ApiError(0, "Sem conexão com a API. Verifique VITE_API_BASE_URL.", String(e));
   }
 
-  if (res.status === 401 && path !== "/auth/login") {
+  if (res.status === 401 && path !== "/auth/login" && !opts.skipSessionExpiredRedirect) {
     clearExpiredSession();
     if (typeof window !== "undefined" && !window.location.pathname.startsWith("/auth")) {
       window.location.href = "/auth/login";

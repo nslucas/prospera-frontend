@@ -2,6 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { AppShell } from "@/components/app-shell";
+import { NotificationSync } from "@/components/notification-sync";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { registerPwaServiceWorker } from "@/lib/pwa";
@@ -15,6 +16,7 @@ import CardsPage from "@/routes/_app.cards";
 import CategoriesPage from "@/routes/_app.categories";
 import ConnectionsPage from "@/routes/_app.connections";
 import HomePage from "@/routes/_app.home";
+import NotificationsPage from "@/routes/_app.notifications";
 import RecurrencesPage from "@/routes/_app.recurrences";
 import ReportsPage from "@/routes/_app.reports";
 import SettlementsPage from "@/routes/_app.settlements";
@@ -30,6 +32,7 @@ export function App() {
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
+          <NotificationSync />
           <AppRoutes />
           <Toaster richColors position="top-center" />
         </AuthProvider>
@@ -59,6 +62,7 @@ function AppRoutes() {
         <Route path="/budgets" element={<BudgetsPage />} />
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/connections" element={<ConnectionsPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/settlements" element={<SettlementsPage />} />
         <Route path="/recurrences" element={<RecurrencesPage />} />
         <Route path="/alerts" element={<AlertsPage />} />

@@ -7,6 +7,7 @@ import {
   ArrowLeftRight,
   PiggyBank,
   Bell,
+  BellRing,
   BarChart3,
   Tag,
   RotateCw,
@@ -24,6 +25,7 @@ import { BrandLogo, BrandMark } from "@/components/brand-logo";
 import { ThemeSelector } from "@/components/theme-selector";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { fetchPendingConnectionRequests } from "@/lib/queries";
+import { fetchUnreadNotificationCount } from "@/lib/notifications";
 
 interface NavItem {
   to: string;
@@ -41,6 +43,7 @@ const NAV: NavItem[] = [
   { to: "/budgets", label: "Orçamentos", icon: PiggyBank },
   { to: "/categories", label: "Categorias", icon: Tag },
   { to: "/connections", label: "Conexões", icon: UsersRound },
+  { to: "/notifications", label: "Notif.", icon: BellRing },
   { to: "/settlements", label: "Acertos", icon: HandCoins },
   { to: "/recurrences", label: "Recorrências", icon: RotateCw },
   { to: "/alerts", label: "Alertas", icon: Bell },
@@ -64,6 +67,12 @@ export function AppShell() {
     cacheKey: "connection-requests-pending",
   });
   const pendingConnectionCount = pendingRequests.data?.length ?? 0;
+  const unreadNotifications = useAsyncData(() => fetchUnreadNotificationCount(), [], {
+    enabled: !loading && !!user,
+    initialData: { count: 0 },
+    cacheKey: "notifications:unread-count",
+  });
+  const unreadNotificationCount = unreadNotifications.data?.count ?? 0;
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => {
@@ -88,6 +97,14 @@ export function AppShell() {
     window.addEventListener("prospera:connections-updated", reloadPendingRequests);
     return () => window.removeEventListener("prospera:connections-updated", reloadPendingRequests);
   }, [pendingRequests.reload]);
+
+  React.useEffect(() => {
+    const reloadNotifications = () => {
+      unreadNotifications.reload();
+    };
+    window.addEventListener("prospera:notifications-updated", reloadNotifications);
+    return () => window.removeEventListener("prospera:notifications-updated", reloadNotifications);
+  }, [unreadNotifications.reload]);
 
   if (loading || !user) {
     return (
@@ -188,6 +205,16 @@ export function AppShell() {
                   {pendingConnectionCount}
                 </span>
               )}
+              {item.to === "/notifications" && unreadNotificationCount > 0 && (
+                <span
+                  className={cn(
+                    "ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground",
+                    isCollapsed && "absolute right-1 top-1 h-2 min-w-2 p-0 text-[0px]",
+                  )}
+                >
+                  {unreadNotificationCount}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -257,6 +284,11 @@ export function AppShell() {
                   {item.to === "/connections" && pendingConnectionCount > 0 && (
                     <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
                       {pendingConnectionCount}
+                    </span>
+                  )}
+                  {item.to === "/notifications" && unreadNotificationCount > 0 && (
+                    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                      {unreadNotificationCount}
                     </span>
                   )}
                 </Link>

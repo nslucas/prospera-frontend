@@ -26,6 +26,7 @@ import type {
   UserPreferences,
   YearlySummary,
 } from "./types";
+import { normalizeUserPreferences } from "./notifications";
 
 type ApiEnvelope<T> = T | { data: T };
 
@@ -81,10 +82,11 @@ export const fetchOccurrences = (from: string, to: string) =>
 export const fetchAlerts = (params: { month?: number; year?: number; from?: string; to?: string } = {}) =>
   api<Alert[]>("/alerts", { query: params });
 
-export const fetchUserPreferences = () => api<UserPreferences>("/me/preferences");
+export const fetchUserPreferences = () =>
+  api<UserPreferences>("/me/preferences").then(normalizeUserPreferences);
 
 export const updateUserPreferences = (preferences: UserPreferences) =>
-  api<UserPreferences>("/me/preferences", { method: "PUT", body: preferences });
+  api<UserPreferences>("/me/preferences", { method: "PUT", body: preferences }).then(normalizeUserPreferences);
 
 export const fetchMonthlySummary = (month: number, year: number) =>
   api<ApiEnvelope<MonthlySummary>>("/summary/monthly", { query: { month, year } }).then(unwrapData);

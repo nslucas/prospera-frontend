@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Save, Settings } from "lucide-react";
+import { useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
+import { BellRing, Save, Settings } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -7,9 +7,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { fetchAccounts, fetchCards, fetchCategories, fetchUserPreferences, updateUserPreferences } from "@/lib/queries";
-import type { MovementKind, UserPreferences } from "@/lib/types";
+import {
+  canUsePushNotifications,
+  ensurePushSubscription,
+  getBrowserNotificationPermission,
+  normalizeNotificationPreferences,
+  normalizeUserPreferences,
+  requestBrowserNotificationPermission,
+} from "@/lib/notifications";
+import type { MovementKind, NotificationPreferences, UserPreferences } from "@/lib/types";
 
 const MOVEMENT_LABELS: Record<MovementKind, string> = {
   EXPENSE: "Despesa em conta",
@@ -31,6 +40,7 @@ const FALLBACK_PREFERENCES: UserPreferences = {
   defaultExpenseCategoryId: null,
   defaultIncomeCategoryId: null,
   defaultInstallmentCount: 1,
+  notifications: normalizeNotificationPreferences(),
 };
 
 export default function SettingsPage() {
@@ -42,6 +52,9 @@ export default function SettingsPage() {
   const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards", staleMs: 60_000 });
   const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const [form, setForm] = useState<UserPreferences>(FALLBACK_PREFERENCES);
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() =>
+    getBrowserNotificationPermission(),
+  );
 
   const activeAccounts = useMemo(() => (accounts.data ?? []).filter((account) => account.active), [accounts.data]);
   const activeCards = useMemo(() => (cards.data ?? []).filter((card) => card.active), [cards.data]);
@@ -55,15 +68,16 @@ export default function SettingsPage() {
   );
 
   useEffect(() => {
-    if (preferences.data) setForm(preferences.data);
+    if (preferences.data) setForm(normalizeUserPreferences(preferences.data));
   }, [preferences.data]);
 
   const save = useAsyncMutation({
     mutationFn: () =>
-      updateUserPreferences({
+      updateUserPreferences(normalizeUserPreferences({
         ...form,
         defaultInstallmentCount: Math.max(1, Number(form.defaultInstallmentCount || 1)),
-      }),
+        notifications: normalizeNotificationPreferences(form.notifications),
+      })),
     onSuccess: (saved) => {
       setForm(saved);
       preferences.reload();
@@ -71,6 +85,29 @@ export default function SettingsPage() {
     },
     onError: (error) => toast.error(error.message),
   });
+
+  async function enablePushNotifications() {
+    if (!canUsePushNotifications()) {
+      setPermission("unsupported");
+      toast.error("Este navegador não oferece suporte a notificações push.");
+      return;
+    }
+
+    const nextPermission = await requestBrowserNotificationPermission();
+    setPermission(nextPermission);
+
+    if (nextPermission !== "granted") {
+      toast.error("Permissão de notificação não concedida.");
+      return;
+    }
+
+    try {
+      await ensurePushSubscription();
+      toast.success("Notificações ativadas neste dispositivo");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível ativar notificações.");
+    }
+  }
 
   const isLoading = preferences.isLoading || accounts.isLoading || cards.isLoading || categories.isLoading;
 
@@ -175,8 +212,99 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardContent className="space-y-5 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                <BellRing className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Notificações</h2>
+                <p className="text-sm text-muted-foreground">
+                  Escolha quais avisos aparecem no app e podem ser enviados por push.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={enablePushNotifications}
+              disabled={permission === "granted"}
+            >
+              <BellRing className="h-4 w-4" />
+              {permissionStatusLabel(permission)}
+            </Button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <NotificationToggle
+              title="Solicitações"
+              description="Novos pedidos de conexão."
+              checked={normalizeNotificationPreferences(form.notifications).connectionRequests}
+              onCheckedChange={(checked) => updateNotificationPreference(setForm, "connectionRequests", checked)}
+            />
+            <NotificationToggle
+              title="Despesas compartilhadas"
+              description="Novos acertos em que você participa."
+              checked={normalizeNotificationPreferences(form.notifications).sharedExpenses}
+              onCheckedChange={(checked) => updateNotificationPreference(setForm, "sharedExpenses", checked)}
+            />
+            <NotificationToggle
+              title="Resumo financeiro"
+              description="Digest diário de alertas importantes."
+              checked={normalizeNotificationPreferences(form.notifications).financialDigest}
+              onCheckedChange={(checked) => updateNotificationPreference(setForm, "financialDigest", checked)}
+            />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
+}
+
+function NotificationToggle({
+  title,
+  description,
+  checked,
+  onCheckedChange,
+}: {
+  title: string;
+  description: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex min-h-28 items-start justify-between gap-4 rounded-lg border p-4">
+      <div>
+        <p className="font-medium">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
+  );
+}
+
+function updateNotificationPreference(
+  setForm: Dispatch<SetStateAction<UserPreferences>>,
+  key: keyof NotificationPreferences,
+  value: boolean,
+) {
+  setForm((current) => ({
+    ...current,
+    notifications: {
+      ...normalizeNotificationPreferences(current.notifications),
+      [key]: value,
+    },
+  }));
+}
+
+function permissionStatusLabel(permission: NotificationPermission | "unsupported") {
+  if (permission === "granted") return "Ativado";
+  if (permission === "denied") return "Bloqueado";
+  if (permission === "unsupported") return "Indisponível";
+  return "Ativar push";
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
