@@ -170,8 +170,7 @@ type Values = z.infer<typeof schema>;
 export default function TransactionsPage() {
   const { user } = useAuth();
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
-  const [statementPeriodOffset, setStatementPeriodOffset] = useState(1);
-  const cardStatementPeriod = addMonthsToPeriod(month, year, statementPeriodOffset);
+  const cardStatementPeriod = nextMonthPeriod(month, year);
   const cardPaymentPeriods = uniquePeriods([
     { month, year },
     cardStatementPeriod,
@@ -411,8 +410,6 @@ export default function TransactionsPage() {
   const monthOptions = useMonthOptions(month, year);
   const previousPeriod = addMonthsToPeriod(month, year, -1);
   const nextPeriod = addMonthsToPeriod(month, year, 1);
-  const previousStatementPeriod = addMonthsToPeriod(month, year, statementPeriodOffset - 1);
-  const nextStatementPeriod = addMonthsToPeriod(month, year, statementPeriodOffset + 1);
   const activeAccounts = (accounts.data ?? []).filter((account) => account.active);
   const activeConnections = connections.data ?? [];
   const showsCategory = kind === "INCOME" || kind === "EXPENSE" || kind === "CARD_EXPENSE";
@@ -907,7 +904,6 @@ export default function TransactionsPage() {
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="text-xs text-muted-foreground">Fluxo do mês</p>
-                <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{items.length}</span>
               </div>
               <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">{formatBRL(cashFlowTotals.net)}</p>
             </div>
@@ -931,31 +927,19 @@ export default function TransactionsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-1 rounded-xl bg-muted/20 p-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-xl"
-                onClick={() => setStatementPeriodOffset((offset) => offset - 1)}
-                aria-label={`Ver fatura de ${monthName(previousStatementPeriod.month, previousStatementPeriod.year)}`}
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </Button>
-              <div className="min-w-0 text-center">
+            <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/20 px-3 py-2 text-sm">
+              <div className="col-span-2 min-w-0">
                 <p className="text-[11px] text-muted-foreground">Fatura</p>
-                <p className="truncate text-sm font-semibold capitalize">{monthName(cardStatementPeriod.month, cardStatementPeriod.year)}</p>
+                <p className="truncate font-semibold capitalize">{monthName(cardStatementPeriod.month, cardStatementPeriod.year)}</p>
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-xl"
-                onClick={() => setStatementPeriodOffset((offset) => offset + 1)}
-                aria-label={`Ver fatura de ${monthName(nextStatementPeriod.month, nextStatementPeriod.year)}`}
-              >
-                <ChevronRight className="h-5 w-5" />
-              </Button>
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Total</p>
+                <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(statementTotals.total)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Pago</p>
+                <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.paid)}</p>
+              </div>
             </div>
           </div>
 
