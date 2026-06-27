@@ -1,9 +1,13 @@
-const CACHE_NAME = "prospera-pwa-v2";
+const CACHE_NAME = "prospera-pwa-v4";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
+  "/prospera-mark.png",
   "/icon-192.png",
   "/icon-512.png",
+  "/icon-maskable-192.png",
+  "/icon-maskable-512.png",
+  "/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {

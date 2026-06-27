@@ -15,12 +15,16 @@ export function BrandMark({ size = "md", className }: BrandMarkProps) {
     <span
       aria-hidden="true"
       className={cn(
-        "grid shrink-0 place-items-center bg-primary text-primary-foreground shadow-[0_10px_22px_rgba(24,201,87,0.24)] ring-1 ring-primary/20",
+        "relative shrink-0 overflow-hidden bg-[#06351f] shadow-[0_12px_28px_rgba(24,201,87,0.22)]",
         markSizes[size],
         className,
       )}
     >
-      <span className="font-display font-extrabold leading-none tracking-normal">P</span>
+      <img
+        src="/prospera-mark.png"
+        alt=""
+        className="absolute inset-0 h-full w-full scale-[1.68] object-cover"
+      />
     </span>
   );
 }
