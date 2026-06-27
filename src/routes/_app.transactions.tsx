@@ -571,8 +571,8 @@ export default function TransactionsPage() {
                 <Plus className="h-4 w-4" /> Novo
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
+            <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] overflow-y-auto rounded-[1.65rem] border-white/70 bg-card/95 p-5 shadow-[0_28px_90px_rgba(16,27,21,0.22),0_8px_24px_rgba(24,201,87,0.08)] backdrop-blur-xl sm:max-w-xl sm:rounded-[1.65rem] sm:p-6">
+              <DialogHeader className="pr-8 text-left sm:text-center">
                 <DialogTitle>{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
               </DialogHeader>
               <form
@@ -840,7 +840,11 @@ export default function TransactionsPage() {
                   )}
                 </div>
                 <DialogFooter>
-                  <Button type="submit" disabled={save.isPending}>
+                  <Button
+                    type="submit"
+                    disabled={save.isPending}
+                    className="h-11 w-full rounded-2xl shadow-[0_14px_34px_rgba(24,201,87,0.24)] sm:w-auto sm:min-w-32"
+                  >
                     {save.isPending ? "Salvando..." : "Salvar"}
                   </Button>
                 </DialogFooter>
