@@ -436,7 +436,7 @@ export default function TransactionsPage() {
     return map;
   }, [settlementItems.data]);
   const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
-  const movementTotals = calculateMovementTotals(items);
+  const cashFlowTotals = calculateCashFlowTotals(items);
   const statementSummaries = (cardStatements.data ?? []).filter((statement): statement is CardStatement => Boolean(statement));
   const statementTotals = calculateStatementTotals(statementSummaries);
   const normalizedSearchQuery = normalizeSearch(searchQuery);
@@ -906,24 +906,24 @@ export default function TransactionsPage() {
           <div className="grid gap-4 md:grid-cols-[minmax(8rem,1.1fr)_minmax(0,1.7fr)_minmax(12rem,1.2fr)] md:items-center">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-xs text-muted-foreground">Lançamentos</p>
+                <p className="text-xs text-muted-foreground">Fluxo do mês</p>
                 <span className="rounded-full bg-accent px-2 py-0.5 text-[11px] font-medium text-muted-foreground">{items.length}</span>
               </div>
-              <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">{formatBRL(movementTotals.net)}</p>
+              <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">{formatBRL(cashFlowTotals.net)}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Entradas</p>
-                <p className="truncate font-semibold tabular-nums text-[var(--success)]">{formatBRL(movementTotals.income)}</p>
+                <p className="truncate font-semibold tabular-nums text-[var(--success)]">{formatBRL(cashFlowTotals.inflow)}</p>
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Saídas</p>
-                <p className="truncate font-semibold tabular-nums">{formatBRL(movementTotals.outflow)}</p>
+                <p className="text-[11px] text-muted-foreground">Saídas conta</p>
+                <p className="truncate font-semibold tabular-nums">{formatBRL(cashFlowTotals.accountOutflow)}</p>
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Fatura</p>
-                <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(statementTotals.total)}</p>
+                <p className="text-[11px] text-muted-foreground">Cartão</p>
+                <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(cashFlowTotals.cardPurchases)}</p>
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Aberto</p>
@@ -1170,19 +1170,38 @@ function mergeMovements(
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 }
 
-function calculateMovementTotals(items: MovementItem[]) {
-  return items.reduce(
+function calculateCashFlowTotals(items: MovementItem[]) {
+  const totals = items.reduce(
     (totals, item) => {
-      if (isPositiveMovement(item)) {
-        totals.income += Math.abs(item.amount);
-      } else {
-        totals.outflow += Math.abs(item.amount);
+      const amount = Math.abs(Number(item.amount));
+
+      if (item.kind === "card-expense") {
+        totals.cardPurchases += amount;
+        return totals;
       }
-      totals.net = totals.income - totals.outflow;
+
+      if (item.kind === "card-payment") {
+        totals.accountOutflow += amount;
+        return totals;
+      }
+
+      if (isPositiveMovement(item)) {
+        totals.inflow += amount;
+        return totals;
+      }
+
+      totals.accountOutflow += amount;
       return totals;
     },
-    { income: 0, outflow: 0, net: 0 },
+    { inflow: 0, accountOutflow: 0, cardPurchases: 0 },
   );
+
+  return {
+    inflow: roundMoney(totals.inflow),
+    accountOutflow: roundMoney(totals.accountOutflow),
+    cardPurchases: roundMoney(totals.cardPurchases),
+    net: roundMoney(totals.inflow - totals.accountOutflow),
+  };
 }
 
 function calculateStatementTotals(statements: CardStatement[]) {
