@@ -1,4 +1,5 @@
-const CACHE_NAME = "prospera-pwa-v4";
+const APP_NAME = "AppProspera";
+const CACHE_NAME = "prospera-pwa-v5";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -23,7 +24,9 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then((keys) =>
+        Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))),
+      )
       .then(() => self.clients.claim()),
   );
 });
@@ -36,7 +39,11 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/api") || url.pathname.startsWith("/src") || url.pathname.startsWith("/@")) {
+  if (
+    url.pathname.startsWith("/api") ||
+    url.pathname.startsWith("/src") ||
+    url.pathname.startsWith("/@")
+  ) {
     return;
   }
 
@@ -69,31 +76,36 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   const payload = readPushPayload(event);
-  const title = payload.title || "Prospera";
+  const body = payload.body || payload.title || "Voce tem uma nova notificacao.";
   const options = {
-    body: payload.body || "Você tem uma nova notificação.",
+    body,
     icon: payload.icon || "/icon-192.png",
     badge: payload.badge || "/icon-maskable-192.png",
+    image: payload.image,
     tag: payload.tag || payload.url || "prospera-notification",
+    renotify: Boolean(payload.tag),
     data: {
       url: payload.url || "/notifications",
       notificationId: payload.notificationId,
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(self.registration.showNotification(APP_NAME, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  const targetUrl = new URL(event.notification.data?.url || "/notifications", self.location.origin).href;
+  const targetUrl = new URL(event.notification.data?.url || "/notifications", self.location.origin)
+    .href;
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
       for (const client of clients) {
         if ("focus" in client && new URL(client.url).origin === self.location.origin) {
-          return client.navigate(targetUrl).then((navigatedClient) => (navigatedClient || client).focus());
+          return client
+            .navigate(targetUrl)
+            .then((navigatedClient) => (navigatedClient || client).focus());
         }
       }
 
