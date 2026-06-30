@@ -19,7 +19,6 @@ import {
   EyeOff,
   Landmark,
   Link2,
-  Plus,
   Receipt,
   Wallet,
 } from "lucide-react";
@@ -34,7 +33,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { alertMessage, alertTypeLabel } from "@/lib/alert-labels";
 import { getBankBrand } from "@/lib/bank-brand";
-import { currentMonthYear, formatBRL, monthLabel } from "@/lib/format";
+import { currentMonthYear, formatBRL } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Account, Card as CreditCardModel, CardStatement } from "@/lib/types";
@@ -109,42 +108,40 @@ export default function HomePage() {
   const cardBillsLoading = cards.isLoading || openStatements.isLoading;
 
   return (
-    <div className="space-y-4 md:space-y-6">
-      <section className="grid gap-4 md:grid-cols-[minmax(0,1.2fr)_minmax(20rem,0.8fr)] md:items-stretch">
-        <header className="relative overflow-hidden px-5 pb-5 pt-4 text-foreground md:rounded-2xl md:bg-card/72 md:p-6 md:shadow-[0_14px_36px_rgba(16,27,21,0.045)] md:ring-1 md:ring-border/70">
-          <div className="absolute inset-x-4 bottom-0 hidden h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent md:block" />
-          <div className="absolute right-10 top-10 hidden h-36 w-36 rounded-full bg-primary/6 blur-2xl md:block" />
-          <div className="relative flex items-start justify-between gap-4">
+    <div className="space-y-4 md:space-y-5">
+      <section className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(18rem,0.68fr)] md:items-center">
+        <header className="px-4 pb-1 pt-2 text-foreground md:px-0 md:py-1">
+          <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium text-muted-foreground">{getGreeting()},</p>
-              <h1 className="mt-1 max-w-[13rem] break-words text-[2rem] font-bold leading-[1.05] tracking-tight md:max-w-none md:text-3xl">
+              <p className="text-sm text-muted-foreground">{getGreeting()},</p>
+              <h1 className="mt-0.5 max-w-[13rem] break-words text-2xl font-semibold leading-tight tracking-tight md:max-w-none md:text-3xl">
                 {userName}
               </h1>
             </div>
             <Link
               to="/accounts"
-              aria-label="Gerenciar conexoes"
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary shadow-[0_10px_24px_rgba(16,27,21,0.05)] ring-1 ring-primary/15 transition-colors hover:bg-primary/15"
+              aria-label="Gerenciar conexões"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground ring-1 ring-border transition-colors hover:bg-accent hover:text-primary"
             >
-              <Link2 className="h-6 w-6" />
+              <Link2 className="h-5 w-5" />
             </Link>
           </div>
         </header>
 
         <Link
           to="/alerts"
-          className="mx-4 flex items-center gap-3 rounded-lg bg-card p-4 shadow-[0_12px_30px_rgba(16,27,21,0.045)] ring-1 ring-border/70 transition-transform hover:-translate-y-0.5 md:mx-0 md:gap-4 md:p-5"
+          className="mx-4 flex items-center gap-3 rounded-lg border border-border/80 bg-card px-3 py-3 transition-colors hover:border-primary/30 hover:bg-accent/30 md:mx-0 md:px-4"
         >
-          <span className="grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full bg-muted text-foreground md:h-14 md:w-14">
-            <AlertTriangle className="h-6 w-6" />
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+            <AlertTriangle className="h-5 w-5" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold tracking-tight md:text-base">
-              Lancamentos atrasados
+            <span className="block text-sm font-semibold tracking-tight">
+              Lançamentos atrasados
             </span>
-            <span className="mt-0.5 block text-base leading-snug text-muted-foreground md:text-sm">
+            <span className="mt-0.5 block text-sm leading-snug text-muted-foreground">
               {alerts.isLoading
-                ? "Verificando pendencias"
+                ? "Verificando pendências"
                 : overdueAlerts.length
                   ? `Você tem ${overdueAlerts.length} lançamento${overdueAlerts.length > 1 ? "s" : ""} atrasado${
                       overdueAlerts.length > 1 ? "s" : ""
@@ -152,12 +149,12 @@ export default function HomePage() {
                   : "Nenhum lançamento atrasado"}
             </span>
           </span>
-          <ChevronRight className="h-7 w-7 shrink-0 text-primary" />
+          <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
         </Link>
       </section>
 
-      <div className="space-y-4 px-4 md:space-y-5 md:px-0">
-        <section className="grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
+      <div className="space-y-3 px-4 md:space-y-4 md:px-0">
+        <section className="grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
           <CardsPanel
             loading={summary.isLoading || cardBillsLoading}
             total={formatBRL(openCardBillsTotal)}
@@ -176,7 +173,7 @@ export default function HomePage() {
           />
         </section>
 
-        <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <section className="grid grid-cols-2 gap-2.5 md:grid-cols-4">
           <Stat
             label="Receitas"
             value={formatBRL(s?.incomeTotal)}
@@ -191,7 +188,7 @@ export default function HomePage() {
             loading={summary.isLoading}
           />
           <Stat
-            label="Fluxo liquido"
+            label="Fluxo líquido"
             value={formatBRL(s?.netCashFlow)}
             icon={<Wallet className="h-4 w-4" />}
             loading={summary.isLoading}
@@ -206,33 +203,33 @@ export default function HomePage() {
         </section>
 
         <Card className="overflow-hidden">
-          <CardContent className="p-4 md:p-6">
-            <div className="mb-4 flex items-end justify-between">
+          <CardContent className="p-4 md:p-5">
+            <div className="mb-3 flex items-end justify-between gap-3">
               <div>
-                <div className="mb-2 grid h-9 w-9 place-items-center rounded-lg bg-card text-primary ring-1 ring-border">
-                  <BarChart3 className="h-5 w-5" />
+                <div className="mb-1 flex items-center gap-2 text-primary">
+                  <BarChart3 className="h-4 w-4" />
+                  <h2 className="text-lg font-semibold tracking-tight">Receitas vs. Despesas</h2>
                 </div>
-                <h2 className="text-xl font-semibold tracking-tight">Receitas vs. Despesas</h2>
                 <p className="text-xs text-muted-foreground">Últimos 6 meses</p>
               </div>
               <Link to="/reports" className="text-xs font-medium text-primary hover:underline">
                 Ver relatórios
               </Link>
             </div>
-            <div className="h-56">
+            <div className="h-48 md:h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trendData} margin={{ left: -20, right: 8, top: 8, bottom: 0 }}>
                   <defs>
                     <linearGradient id="home-inc" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--success)" stopOpacity={0.3} />
+                      <stop offset="0%" stopColor="var(--success)" stopOpacity={0.18} />
                       <stop offset="100%" stopColor="var(--success)" stopOpacity={0} />
                     </linearGradient>
                     <linearGradient id="home-exp" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--destructive)" stopOpacity={0.22} />
+                      <stop offset="0%" stopColor="var(--destructive)" stopOpacity={0.14} />
                       <stop offset="100%" stopColor="var(--destructive)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <CartesianGrid vertical={false} stroke="var(--border)" strokeOpacity={0.65} />
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                   <YAxis
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
@@ -271,7 +268,7 @@ export default function HomePage() {
 
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xl font-semibold tracking-tight">Alertas do mês</h2>
+            <h2 className="text-lg font-semibold tracking-tight">Alertas do mês</h2>
             <Link to="/alerts" className="text-xs font-medium text-primary hover:underline">
               Ver todos
             </Link>
@@ -280,7 +277,7 @@ export default function HomePage() {
             {alerts.data?.slice(0, 5).map((alert) => (
               <div
                 key={alert.key}
-                className="flex items-start gap-3 rounded-lg border border-border/80 bg-card p-3 shadow-sm"
+                className="flex items-start gap-3 rounded-lg border border-border/70 bg-card px-3 py-2.5"
               >
                 <AlertTriangle
                   className={`mt-0.5 h-4 w-4 shrink-0 ${
@@ -320,11 +317,11 @@ function BalancePanel({
 }) {
   return (
     <Card>
-      <CardContent className="p-5 md:p-7">
+      <CardContent className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-lg text-muted-foreground md:text-base">Saldo geral</p>
-            <p className="mt-1 text-2xl font-bold tracking-tight tabular-nums md:text-4xl">
+            <p className="text-sm text-muted-foreground">Saldo geral</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums md:text-3xl">
               {loading ? "..." : valuesHidden ? "R$ ****" : total}
             </p>
           </div>
@@ -332,22 +329,22 @@ function BalancePanel({
             type="button"
             aria-label={valuesHidden ? "Mostrar saldo" : "Ocultar saldo"}
             onClick={onToggleValues}
-            className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <EyeOff className="h-6 w-6" />
+            <EyeOff className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="my-5 h-px bg-border/70 md:my-7" />
+        <div className="my-4 h-px bg-border/70" />
 
-        <div className="mb-4 flex items-center justify-between md:mb-5">
-          <h2 className="text-xl font-bold tracking-tight md:text-xl">Minhas contas</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold tracking-tight">Minhas contas</h2>
           <Link to="/accounts" className="text-xs font-medium text-primary hover:underline">
             Ver todas
           </Link>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {accounts.slice(0, 3).map((account) => (
             <AccountRow key={account.id} account={account} valuesHidden={valuesHidden} />
           ))}
@@ -355,13 +352,6 @@ function BalancePanel({
             <p className="text-sm text-muted-foreground">Nenhuma conta cadastrada.</p>
           )}
         </div>
-
-        <Link
-          to="/accounts"
-          className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-lg border-2 border-primary text-base font-bold text-primary transition-colors hover:bg-accent md:mt-7 md:text-base"
-        >
-          Gerenciar contas
-        </Link>
       </CardContent>
     </Card>
   );
@@ -385,12 +375,12 @@ function CardsPanel({
   statementValuesLoading?: boolean;
 }) {
   return (
-    <Card className="relative overflow-hidden">
-      <CardContent className="p-5 md:p-7">
+    <Card className="overflow-hidden">
+      <CardContent className="p-4 md:p-5">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-lg text-muted-foreground md:text-base">Total das faturas</p>
-            <p className="mt-1 text-2xl font-bold tracking-tight text-primary tabular-nums md:text-4xl">
+            <p className="text-sm text-muted-foreground">Total das faturas</p>
+            <p className="mt-1 text-2xl font-semibold tracking-tight text-primary tabular-nums md:text-3xl">
               {loading ? "..." : valuesHidden ? "R$ ****" : total}
             </p>
           </div>
@@ -398,22 +388,22 @@ function CardsPanel({
             type="button"
             aria-label={valuesHidden ? "Mostrar faturas" : "Ocultar faturas"}
             onClick={onToggleValues}
-            className="grid h-11 w-11 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           >
-            <EyeOff className="h-6 w-6" />
+            <EyeOff className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="my-5 h-px bg-border/70 md:my-7" />
+        <div className="my-4 h-px bg-border/70" />
 
-        <div className="mb-4 flex items-center justify-between md:mb-5">
-          <h2 className="text-xl font-bold tracking-tight md:text-xl">Meus cartões</h2>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-base font-semibold tracking-tight">Meus cartões</h2>
           <Link to="/cards" className="text-xs font-medium text-primary hover:underline">
             Ver todos
           </Link>
         </div>
 
-        <div className="space-y-4 pb-16 md:pb-0">
+        <div className="space-y-3">
           {cards.slice(0, 3).map((card) => (
             <CardRow
               key={card.id}
@@ -427,14 +417,6 @@ function CardsPanel({
             <p className="text-sm text-muted-foreground">Nenhum cartão cadastrado.</p>
           )}
         </div>
-
-        <Link
-          to="/cards"
-          aria-label="Adicionar cartão"
-          className="absolute bottom-5 right-5 grid h-14 w-14 place-items-center rounded-full bg-destructive text-destructive-foreground shadow-[0_18px_34px_rgba(220,38,38,0.25)] transition-transform hover:-translate-y-0.5 md:hidden"
-        >
-          <Plus className="h-8 w-8" />
-        </Link>
       </CardContent>
     </Card>
   );
@@ -445,25 +427,18 @@ function AccountRow({ account, valuesHidden }: { account: Account; valuesHidden:
 
   return (
     <div className="flex items-center justify-between gap-4">
-      <div className="flex min-w-0 items-center gap-4">
+      <div className="flex min-w-0 items-center gap-3">
         <span
-          className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full ${brand.solidClassName} text-base font-bold shadow-sm md:h-12 md:w-12 md:text-sm`}
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${brand.solidClassName} text-sm font-semibold`}
         >
           {getInitials(account.name)}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-lg font-semibold tracking-tight md:text-base">
-            {account.name}
-          </p>
-          <p className="text-sm text-muted-foreground md:text-sm">
-            {accountTypeLabel(account.type)}
-          </p>
+          <p className="truncate text-base font-medium tracking-tight">{account.name}</p>
+          <p className="text-xs text-muted-foreground">{accountTypeLabel(account.type)}</p>
         </div>
       </div>
-      <p
-        className="shrink-0 text-lg font-medium tabular-nums md:text-base"
-        style={{ color: brand.color }}
-      >
+      <p className="shrink-0 text-sm font-medium tabular-nums" style={{ color: brand.color }}>
         {valuesHidden ? "R$ ****" : formatBRL(account.balance, account.currency || "BRL")}
       </p>
     </div>
@@ -484,22 +459,22 @@ function CardRow({
   const brand = getBankBrand(card.bankName);
 
   return (
-    <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] items-center gap-3 md:grid-cols-[3rem_minmax(0,1fr)] md:gap-4">
+    <div className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3">
       <span
-        className={`grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-lg ${brand.softClassName} md:h-12 md:w-12`}
+        className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${brand.softClassName}`}
       >
-        <Landmark className="h-7 w-7 md:h-6 md:w-6" />
+        <Landmark className="h-5 w-5" />
       </span>
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <p className="min-w-[7rem] flex-1 truncate text-lg font-semibold tracking-tight md:text-base">
+          <p className="min-w-[7rem] flex-1 truncate text-base font-medium tracking-tight">
             {card.name}
           </p>
-          <p className="shrink-0 text-base font-semibold leading-tight tabular-nums text-primary md:text-base">
+          <p className="shrink-0 text-sm font-semibold leading-tight tabular-nums text-primary">
             {loading ? "..." : valuesHidden ? "R$ ****" : formatBRL(billAmount)}
           </p>
         </div>
-        <p className="truncate text-sm text-muted-foreground md:text-sm">
+        <p className="truncate text-xs text-muted-foreground">
           {card.bankName}
           {card.lastFourDigits ? ` - ${card.lastFourDigits}` : ""}
         </p>
@@ -522,16 +497,14 @@ function Stat({
   tone?: "success";
 }) {
   return (
-    <Card className="transition-transform duration-200 hover:-translate-y-0.5">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
+    <Card>
+      <CardContent className="p-3">
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>{label}</span>
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-card text-primary ring-1 ring-border">
-            {icon}
-          </span>
+          <span className="text-primary">{icon}</span>
         </div>
         <div
-          className={`mt-2 truncate text-lg font-semibold tabular-nums md:text-xl ${tone === "success" ? "text-[var(--success)]" : ""}`}
+          className={`mt-1 truncate text-base font-semibold tabular-nums md:text-lg ${tone === "success" ? "text-[var(--success)]" : ""}`}
         >
           {loading ? "..." : value}
         </div>
@@ -547,7 +520,9 @@ function getGreeting(): string {
   return "Boa noite";
 }
 
-function getUserName(user?: { name?: string | null; lastName?: string | null; email?: string | null } | null): string {
+function getUserName(
+  user?: { name?: string | null; lastName?: string | null; email?: string | null } | null,
+): string {
   const name = user?.name?.trim();
   const lastName = user?.lastName?.trim();
   const fullName = [name, lastName].filter(Boolean).join(" ");
@@ -579,7 +554,7 @@ function getInitials(value: string): string {
 function accountTypeLabel(type: Account["type"]): string {
   const labels: Record<Account["type"], string> = {
     CHECKING: "Conta corrente",
-    SAVINGS: "Poupanca",
+    SAVINGS: "Poupança",
     CASH: "Dinheiro",
     OTHER: "Conta manual",
   };

@@ -7,7 +7,6 @@ import {
   ArrowLeftRight,
   PiggyBank,
   Bell,
-  BellRing,
   BarChart3,
   Tag,
   RotateCw,
@@ -32,6 +31,7 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   bottom?: boolean;
+  activePaths?: string[];
 }
 
 const NAV: NavItem[] = [
@@ -43,11 +43,10 @@ const NAV: NavItem[] = [
   { to: "/budgets", label: "Orçamentos", icon: PiggyBank },
   { to: "/categories", label: "Categorias", icon: Tag },
   { to: "/connections", label: "Conexões", icon: UsersRound },
-  { to: "/notifications", label: "Notif.", icon: BellRing },
   { to: "/settlements", label: "Acertos", icon: HandCoins },
   { to: "/recurrences", label: "Recorrências", icon: RotateCw },
   { to: "/alerts", label: "Alertas", icon: Bell },
-  { to: "/settings", label: "Config.", icon: Settings },
+  { to: "/settings", label: "Config.", icon: Settings, activePaths: ["/notifications"] },
 ];
 
 export function AppShell() {
@@ -73,6 +72,8 @@ export function AppShell() {
     cacheKey: "notifications:unread-count",
   });
   const unreadNotificationCount = unreadNotifications.data?.count ?? 0;
+  const reloadPendingRequests = pendingRequests.reload;
+  const reloadUnreadNotifications = unreadNotifications.reload;
 
   const toggleSidebar = () => {
     setIsCollapsed((prev) => {
@@ -91,20 +92,22 @@ export function AppShell() {
   }, [pathname]);
 
   React.useEffect(() => {
-    const reloadPendingRequests = () => {
-      pendingRequests.reload();
+    const handleConnectionsUpdated = () => {
+      reloadPendingRequests();
     };
-    window.addEventListener("prospera:connections-updated", reloadPendingRequests);
-    return () => window.removeEventListener("prospera:connections-updated", reloadPendingRequests);
-  }, [pendingRequests.reload]);
+    window.addEventListener("prospera:connections-updated", handleConnectionsUpdated);
+    return () =>
+      window.removeEventListener("prospera:connections-updated", handleConnectionsUpdated);
+  }, [reloadPendingRequests]);
 
   React.useEffect(() => {
-    const reloadNotifications = () => {
-      unreadNotifications.reload();
+    const handleNotificationsUpdated = () => {
+      reloadUnreadNotifications();
     };
-    window.addEventListener("prospera:notifications-updated", reloadNotifications);
-    return () => window.removeEventListener("prospera:notifications-updated", reloadNotifications);
-  }, [unreadNotifications.reload]);
+    window.addEventListener("prospera:notifications-updated", handleNotificationsUpdated);
+    return () =>
+      window.removeEventListener("prospera:notifications-updated", handleNotificationsUpdated);
+  }, [reloadUnreadNotifications]);
 
   if (loading || !user) {
     return (
@@ -114,22 +117,29 @@ export function AppShell() {
     );
   }
 
-  const isActive = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
+  const isActivePath = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
+  const isNavItemActive = (item: NavItem) =>
+    isActivePath(item.to) || (item.activePaths?.some((path) => isActivePath(path)) ?? false);
   const bottomItems = NAV.filter((item) => item.bottom);
   const moreItems = NAV.filter((item) => !item.bottom);
+  const getBadgeCount = (item: NavItem) => {
+    if (item.to === "/connections") return pendingConnectionCount;
+    if (item.to === "/settings") return unreadNotificationCount;
+    return 0;
+  };
 
   return (
     <div className="soft-grid min-h-screen text-foreground">
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar p-4 shadow-[18px_0_45px_rgba(16,27,21,0.025)] md:flex transition-all duration-300 ease-in-out",
-          isCollapsed ? "w-[72px] px-2.5" : "w-72",
+          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar p-3 md:flex transition-all duration-300 ease-in-out",
+          isCollapsed ? "w-16 px-2" : "w-64",
         )}
       >
         <div
           className={cn(
-            "mb-8 flex items-center justify-between transition-all duration-300 gap-2",
-            isCollapsed ? "flex-col justify-center px-0 gap-4" : "flex-row px-2",
+            "mb-5 flex items-center justify-between transition-all duration-300 gap-2",
+            isCollapsed ? "flex-col justify-center px-0 gap-4" : "flex-row px-1.5",
           )}
         >
           {isCollapsed ? (
@@ -158,7 +168,7 @@ export function AppShell() {
                   <div className="text-xs text-muted-foreground">Finanças pessoais</div>
                 </div>
               </Link>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 <ThemeSelector />
                 <button
                   type="button"
@@ -173,50 +183,43 @@ export function AppShell() {
           )}
         </div>
         <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              title={isCollapsed ? item.label : undefined}
-              className={cn(
-                "group relative flex items-center rounded-lg py-2.5 text-sm transition-all duration-300 ease-in-out",
-                isCollapsed ? "px-2 justify-center" : "px-3 gap-3",
-                isActive(item.to)
-                  ? "bg-accent text-sidebar-accent-foreground font-medium shadow-sm shadow-[rgba(16,27,21,0.035)] ring-1 ring-sidebar-border/80"
-                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-              )}
-            >
-              <item.icon
+          {NAV.map((item) => {
+            const active = isNavItemActive(item);
+            const badgeCount = getBadgeCount(item);
+
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                title={isCollapsed ? item.label : undefined}
                 className={cn(
-                  "h-4 w-4 transition-colors shrink-0",
-                  isActive(item.to)
-                    ? "text-primary"
-                    : "text-muted-foreground group-hover:text-primary",
+                  "group relative flex items-center rounded-lg py-2 text-sm transition-all duration-200 ease-in-out",
+                  isCollapsed ? "px-2 justify-center" : "px-3 gap-3",
+                  active
+                    ? "bg-accent text-sidebar-accent-foreground font-medium ring-1 ring-sidebar-border/70"
+                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
                 )}
-              />
-              {!isCollapsed && <span className="truncate">{item.label}</span>}
-              {item.to === "/connections" && pendingConnectionCount > 0 && (
-                <span
+              >
+                <item.icon
                   className={cn(
-                    "ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground",
-                    isCollapsed && "absolute right-1 top-1 h-2 min-w-2 p-0 text-[0px]",
+                    "h-4 w-4 transition-colors shrink-0",
+                    active ? "text-primary" : "text-muted-foreground group-hover:text-primary",
                   )}
-                >
-                  {pendingConnectionCount}
-                </span>
-              )}
-              {item.to === "/notifications" && unreadNotificationCount > 0 && (
-                <span
-                  className={cn(
-                    "ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground",
-                    isCollapsed && "absolute right-1 top-1 h-2 min-w-2 p-0 text-[0px]",
-                  )}
-                >
-                  {unreadNotificationCount}
-                </span>
-              )}
-            </Link>
-          ))}
+                />
+                {!isCollapsed && <span className="truncate">{item.label}</span>}
+                {badgeCount > 0 && (
+                  <span
+                    className={cn(
+                      "ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground",
+                      isCollapsed && "absolute right-1 top-1 h-2 min-w-2 p-0 text-[0px]",
+                    )}
+                  >
+                    {badgeCount}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </nav>
 
         {isCollapsed ? (
@@ -230,9 +233,8 @@ export function AppShell() {
             </button>
           </div>
         ) : (
-          <div className="mt-4 rounded-lg border border-sidebar-border bg-card/72 p-3 shadow-sm transition-all duration-300">
-            <div className="truncate text-xs text-muted-foreground">Conectado como</div>
-            <div className="truncate text-sm font-medium">{user.email}</div>
+          <div className="mt-3 rounded-lg border border-sidebar-border bg-card/60 p-2.5 transition-all duration-300">
+            <div className="truncate text-xs text-muted-foreground">{user.email}</div>
             <button
               onClick={logout}
               className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
@@ -263,36 +265,35 @@ export function AppShell() {
         <div className="fixed inset-0 z-30 md:hidden" onClick={() => setMobileMenu(false)}>
           <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" />
           <div
-            className="absolute right-0 top-0 h-full w-72 bg-card p-4 shadow-xl"
+            className="absolute right-0 top-0 h-full w-64 bg-card p-4 shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="mb-4 truncate text-xs text-muted-foreground">{user.email}</div>
             <nav className="flex flex-col gap-1">
-              {NAV.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm",
-                    isActive(item.to)
-                      ? "bg-accent text-sidebar-accent-foreground font-medium shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/70",
-                  )}
-                >
+              {moreItems.map((item) => {
+                const badgeCount = getBadgeCount(item);
+
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
+                      isNavItemActive(item)
+                        ? "bg-accent text-sidebar-accent-foreground font-medium"
+                        : "text-muted-foreground hover:bg-muted/70",
+                    )}
+                  >
                     <item.icon className="h-4 w-4" />
-                  {item.label}
-                  {item.to === "/connections" && pendingConnectionCount > 0 && (
-                    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-                      {pendingConnectionCount}
-                    </span>
-                  )}
-                  {item.to === "/notifications" && unreadNotificationCount > 0 && (
-                    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-                      {unreadNotificationCount}
-                    </span>
-                  )}
-                </Link>
-              ))}
+                    {item.label}
+                    {badgeCount > 0 && (
+                      <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                        {badgeCount}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
               <button
                 onClick={logout}
                 className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10"
@@ -307,7 +308,7 @@ export function AppShell() {
       <main
         className={cn(
           "pb-32 md:pb-8 transition-all duration-300 ease-in-out",
-          isCollapsed ? "md:ml-[72px]" : "md:ml-72",
+          isCollapsed ? "md:ml-16" : "md:ml-64",
         )}
       >
         <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-10">
@@ -315,8 +316,8 @@ export function AppShell() {
         </div>
       </main>
 
-      <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.7rem)] z-20 px-4 md:hidden">
-        <div className="mx-auto grid max-w-md grid-cols-5 gap-1 rounded-[2rem] border border-white/10 bg-card/72 p-2 shadow-[0_18px_45px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl supports-[backdrop-filter]:bg-card/58">
+      <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.55rem)] z-20 px-4 md:hidden">
+        <div className="mx-auto grid max-w-sm grid-cols-5 gap-1 rounded-2xl border border-border/80 bg-card/92 p-1.5 shadow-[0_8px_24px_rgba(16,27,21,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/86">
           {bottomItems.map((item) => (
             <Link
               key={item.to}
@@ -324,15 +325,13 @@ export function AppShell() {
               aria-label={item.label}
               title={item.label}
               className={cn(
-                "flex min-h-[3.75rem] items-center justify-center rounded-[1.45rem] px-1 text-[11px] font-medium leading-none transition-all",
-                isActive(item.to)
-                  ? "bg-primary/18 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_rgba(24,201,87,0.16)] ring-1 ring-primary/20"
+                "flex min-h-12 items-center justify-center rounded-xl px-1 text-[11px] font-medium leading-none transition-all",
+                isNavItemActive(item)
+                  ? "bg-accent text-primary ring-1 ring-primary/15"
                   : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
               )}
             >
-              <item.icon
-                className={cn("h-6 w-6", isActive(item.to) && "stroke-[2.4]")}
-              />
+              <item.icon className={cn("h-5 w-5", isNavItemActive(item) && "stroke-[2.4]")} />
             </Link>
           ))}
           <button
@@ -341,13 +340,16 @@ export function AppShell() {
             title="Mais"
             onClick={() => setMobileMenu(true)}
             className={cn(
-              "flex min-h-[3.75rem] items-center justify-center rounded-[1.45rem] px-1 text-[11px] font-medium leading-none transition-all",
-              moreItems.some((item) => isActive(item.to))
-                ? "bg-primary/18 text-primary shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_24px_rgba(24,201,87,0.16)] ring-1 ring-primary/20"
+              "relative flex min-h-12 items-center justify-center rounded-xl px-1 text-[11px] font-medium leading-none transition-all",
+              moreItems.some((item) => isNavItemActive(item))
+                ? "bg-accent text-primary ring-1 ring-primary/15"
                 : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
             )}
           >
-            <MoreHorizontal className="h-6 w-6" />
+            <MoreHorizontal className="h-5 w-5" />
+            {moreItems.some((item) => getBadgeCount(item) > 0) && (
+              <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-primary" />
+            )}
           </button>
         </div>
       </nav>
