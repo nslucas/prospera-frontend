@@ -90,6 +90,7 @@ type MovementItem =
       occurredAt: string;
       expenseId: number;
       direction: SettlementItem["direction"];
+      status: SettlementItem["status"];
       counterpartyName: string;
     };
 
@@ -232,7 +233,7 @@ export default function TransactionsPage() {
   const expenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
   const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const connections = useAsyncData(() => fetchConnections(), [], { cacheKey: "connections", staleMs: 60_000 });
-  const settlementItems = useAsyncData(() => fetchSettlementItems(), [], { cacheKey: "settlement-items", staleMs: 30_000 });
+  const settlementItems = useAsyncData(() => fetchSettlementItems(), [], { cacheKey: "settlement-items:all", staleMs: 30_000 });
   const preferences = useAsyncData(() => fetchUserPreferences(), [], { cacheKey: "user-preferences", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
@@ -1178,7 +1179,7 @@ function mergeMovements(
     ...settlementItems
       .filter((item) => {
         const occurredAt = settlementOccurredAt(item);
-        return item.status === "SETTLED" && Boolean(occurredAt) && isInMonth(occurredAt, month, year);
+        return Boolean(occurredAt) && isInMonth(occurredAt, month, year);
       })
       .map((item): MovementItem => ({
         kind: "settlement",
@@ -1188,6 +1189,7 @@ function mergeMovements(
         occurredAt: settlementOccurredAt(item) ?? item.createdAt,
         expenseId: item.expenseId,
         direction: item.direction,
+        status: item.status,
         counterpartyName: settlementCounterpartyName(item),
       })),
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
@@ -1391,7 +1393,7 @@ function movementMeta(item: MovementItem, accountName: (id: number) => string, c
     return `${cardName(item.cardId)} - parcela ${item.installmentNumber}/${item.installmentCount} - fatura ${monthLabel(item.statementMonth, item.statementYear)}`;
   }
   if (item.kind === "card-payment") return `Pagamento de fatura - ${accountName(item.accountId)}`;
-  if (item.kind === "settlement") return item.direction === "OWES_YOU" ? `Acerto recebido - ${item.counterpartyName}` : `Acerto pago - ${item.counterpartyName}`;
+  if (item.kind === "settlement") return settlementMovementMeta(item);
   if (item.type === "CARD_PAYMENT") return `Pagamento de fatura - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_IN") return `Transferência recebida - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_OUT") return `Transferência enviada - ${accountName(item.accountId)}`;
@@ -1404,15 +1406,28 @@ function movementCategoryName(item: MovementItem, categoryName: (id?: number | n
 }
 
 function settlementOccurredAt(item: SettlementItem) {
-  return item.settledAt ?? item.createdAt;
+  return item.status === "SETTLED" ? item.settledAt ?? item.createdAt : item.createdAt;
 }
 
 function settlementMovementTitle(item: SettlementItem) {
+  if (item.status === "OPEN") {
+    return `${item.direction === "OWES_YOU" ? "Acerto a receber" : "Acerto a pagar"}: ${item.expenseName}`;
+  }
   return `${item.direction === "OWES_YOU" ? "Acerto recebido" : "Acerto pago"}: ${item.expenseName}`;
 }
 
 function settlementCounterpartyName(item: SettlementItem) {
   return item.direction === "OWES_YOU" ? item.participantName : item.creatorName;
+}
+
+function settlementMovementMeta(item: Extract<MovementItem, { kind: "settlement" }>) {
+  if (item.status === "SETTLED") {
+    return item.direction === "OWES_YOU" ? `Acerto recebido - ${item.counterpartyName}` : `Acerto pago - ${item.counterpartyName}`;
+  }
+  if (item.direction === "OWES_YOU") {
+    return `Acerto a receber - ${item.counterpartyName}`;
+  }
+  return `Acerto a pagar - ${item.counterpartyName}`;
 }
 
 function isInMonth(iso: string, month: number, year: number): boolean {
