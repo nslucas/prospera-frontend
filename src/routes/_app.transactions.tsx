@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CreditCard,
+  HandCoins,
   Pencil,
   Plus,
   Search,
@@ -80,6 +81,16 @@ type MovementItem =
       paymentMonth: number;
       paymentYear: number;
       transactionId?: number | null;
+    }
+  | {
+      kind: "settlement";
+      id: number;
+      title: string;
+      amount: number;
+      occurredAt: string;
+      expenseId: number;
+      direction: SettlementItem["direction"];
+      counterpartyName: string;
     };
 
 const schema = z
@@ -432,7 +443,7 @@ export default function TransactionsPage() {
     }
     return map;
   }, [settlementItems.data]);
-  const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? []);
+  const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? [], settlementItems.data ?? [], month, year);
   const cashFlowTotals = calculateCashFlowTotals(items);
   const statementSummaries = (cardStatements.data ?? []).filter((statement): statement is CardStatement => Boolean(statement));
   const statementTotals = calculateStatementTotals(statementSummaries);
@@ -452,7 +463,7 @@ export default function TransactionsPage() {
       )
     : items;
   const movementsLoading = tx.isLoading || cards.isLoading;
-  const supplementalLoading = cardStatements.isLoading || cardPayments.isLoading || expenses.isLoading;
+  const supplementalLoading = cardStatements.isLoading || cardPayments.isLoading || expenses.isLoading || settlementItems.isLoading;
   const deleteMovement = (item: MovementItem) => {
     if (item.kind === "card-expense" && settlementItemByExpenseId.get(item.id)?.status === "SETTLED") {
       toast.error("Compras compartilhadas já quitadas não podem ser removidas.");
@@ -912,7 +923,7 @@ export default function TransactionsPage() {
               <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">{formatBRL(cashFlowTotals.net)}</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Entradas</p>
                 <p className="truncate font-semibold tabular-nums text-[var(--success)]">{formatBRL(cashFlowTotals.inflow)}</p>
@@ -924,6 +935,12 @@ export default function TransactionsPage() {
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Cartão</p>
                 <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(cashFlowTotals.cardPurchases)}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] text-muted-foreground">Acertos</p>
+                <p className={`truncate font-semibold tabular-nums ${cashFlowTotals.settlementsNet > 0 ? "text-[var(--success)]" : ""}`}>
+                  {formatSignedBRL(cashFlowTotals.settlementsNet)}
+                </p>
               </div>
               <div className="min-w-0">
                 <p className="text-[11px] text-muted-foreground">Aberto</p>
@@ -1096,6 +1113,9 @@ function mergeMovements(
   statements: Array<CardStatement | null>,
   expensesById: Map<number, Expense>,
   cardPayments: CardPayment[],
+  settlementItems: SettlementItem[],
+  month: number,
+  year: number,
 ): MovementItem[] {
   const transactionsById = new Map(transactions.map((transaction) => [transaction.id, transaction]));
   const uniqueCardPayments = Array.from(new Map(cardPayments.map((payment) => [`${payment.cardId}-${payment.id}`, payment])).values());
@@ -1155,6 +1175,21 @@ function mergeMovements(
         transactionId: payment.transactionId,
       };
     }),
+    ...settlementItems
+      .filter((item) => {
+        const occurredAt = settlementOccurredAt(item);
+        return item.status === "SETTLED" && Boolean(occurredAt) && isInMonth(occurredAt, month, year);
+      })
+      .map((item): MovementItem => ({
+        kind: "settlement",
+        id: item.shareId,
+        title: settlementMovementTitle(item),
+        amount: item.participantAmount,
+        occurredAt: settlementOccurredAt(item) ?? item.createdAt,
+        expenseId: item.expenseId,
+        direction: item.direction,
+        counterpartyName: settlementCounterpartyName(item),
+      })),
   ].sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime());
 }
 
@@ -1173,6 +1208,17 @@ function calculateCashFlowTotals(items: MovementItem[]) {
         return totals;
       }
 
+      if (item.kind === "settlement") {
+        if (isPositiveMovement(item)) {
+          totals.inflow += amount;
+          totals.settlementsInflow += amount;
+        } else {
+          totals.accountOutflow += amount;
+          totals.settlementsOutflow += amount;
+        }
+        return totals;
+      }
+
       if (isPositiveMovement(item)) {
         totals.inflow += amount;
         return totals;
@@ -1181,13 +1227,14 @@ function calculateCashFlowTotals(items: MovementItem[]) {
       totals.accountOutflow += amount;
       return totals;
     },
-    { inflow: 0, accountOutflow: 0, cardPurchases: 0 },
+    { inflow: 0, accountOutflow: 0, cardPurchases: 0, settlementsInflow: 0, settlementsOutflow: 0 },
   );
 
   return {
     inflow: roundMoney(totals.inflow),
     accountOutflow: roundMoney(totals.accountOutflow),
     cardPurchases: roundMoney(totals.cardPurchases),
+    settlementsNet: roundMoney(totals.settlementsInflow - totals.settlementsOutflow),
     net: roundMoney(totals.inflow - totals.accountOutflow),
   };
 }
@@ -1271,12 +1318,18 @@ function roundMoney(value: number) {
   return Math.round(Number(value) * 100) / 100;
 }
 
+function formatSignedBRL(value: number) {
+  if (value === 0) return formatBRL(0);
+  return `${value > 0 ? "+" : "-"}${formatBRL(Math.abs(value))}`;
+}
+
 function normalizeDateTime(value: string) {
   return value.includes("T") ? value : `${value}T00:00`;
 }
 
 function canDeleteMovement(item: MovementItem, sharedItem?: SettlementItem) {
   if (sharedItem?.status === "SETTLED") return false;
+  if (item.kind === "settlement") return false;
   if (item.kind === "card-expense") return true;
   if (item.kind === "card-payment") return true;
   return item.type !== "CARD_PAYMENT";
@@ -1290,12 +1343,14 @@ function getConnectionPerson(connection: Connection, currentUserId?: number) {
 }
 
 function movementKey(item: MovementItem) {
+  if (item.kind === "settlement") return `settlement-${item.id}`;
   return item.kind === "card-expense" ? item.key : `${item.kind}-${item.id}`;
 }
 
 function movementDate(item: MovementItem) {
   if (item.kind === "card-payment") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
   if (item.kind === "card-expense") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
+  if (item.kind === "settlement") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
   return formatDateTime(item.occurredAt);
 }
 
@@ -1305,6 +1360,7 @@ function isInflow(type: TransactionType) {
 
 function isPositiveMovement(item: MovementItem) {
   if (item.kind === "card-expense" || item.kind === "card-payment") return false;
+  if (item.kind === "settlement") return item.direction === "OWES_YOU";
   return isInflow(item.type) || (item.type === "ADJUSTMENT" && item.amount > 0);
 }
 
@@ -1323,6 +1379,7 @@ function movementIconBackground(item: MovementItem) {
 function movementIcon(item: MovementItem) {
   if (item.kind === "card-expense") return <CreditCard className="h-4 w-4 text-primary" />;
   if (item.kind === "card-payment") return <WalletCards className="h-4 w-4 text-primary" />;
+  if (item.kind === "settlement") return <HandCoins className={`h-4 w-4 ${isPositiveMovement(item) ? "text-[var(--success)]" : "text-primary"}`} />;
   if (item.type === "CARD_PAYMENT") return <WalletCards className="h-4 w-4 text-primary" />;
   if (item.type === "TRANSFER_IN" || item.type === "TRANSFER_OUT") return <ArrowLeftRight className="h-4 w-4 text-primary" />;
   if (isPositiveMovement(item)) return <ArrowDownRight className="h-4 w-4 text-[var(--success)]" />;
@@ -1334,6 +1391,7 @@ function movementMeta(item: MovementItem, accountName: (id: number) => string, c
     return `${cardName(item.cardId)} - parcela ${item.installmentNumber}/${item.installmentCount} - fatura ${monthLabel(item.statementMonth, item.statementYear)}`;
   }
   if (item.kind === "card-payment") return `Pagamento de fatura - ${accountName(item.accountId)}`;
+  if (item.kind === "settlement") return item.direction === "OWES_YOU" ? `Acerto recebido - ${item.counterpartyName}` : `Acerto pago - ${item.counterpartyName}`;
   if (item.type === "CARD_PAYMENT") return `Pagamento de fatura - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_IN") return `Transferência recebida - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_OUT") return `Transferência enviada - ${accountName(item.accountId)}`;
@@ -1341,8 +1399,26 @@ function movementMeta(item: MovementItem, accountName: (id: number) => string, c
 }
 
 function movementCategoryName(item: MovementItem, categoryName: (id?: number | null) => string) {
-  if (item.kind === "card-payment") return "";
+  if (item.kind === "card-payment" || item.kind === "settlement") return "";
   return categoryName(item.categoryId);
+}
+
+function settlementOccurredAt(item: SettlementItem) {
+  return item.settledAt ?? item.createdAt;
+}
+
+function settlementMovementTitle(item: SettlementItem) {
+  return `${item.direction === "OWES_YOU" ? "Acerto recebido" : "Acerto pago"}: ${item.expenseName}`;
+}
+
+function settlementCounterpartyName(item: SettlementItem) {
+  return item.direction === "OWES_YOU" ? item.participantName : item.creatorName;
+}
+
+function isInMonth(iso: string, month: number, year: number): boolean {
+  const match = /^(\d{4})-(\d{2})/.exec(iso);
+  if (!match) return false;
+  return Number(match[1]) === year && Number(match[2]) === month;
 }
 
 function nextMonthPeriod(month: number, year: number) {
