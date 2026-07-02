@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 import { monthLabel } from "@/lib/format";
@@ -20,12 +20,13 @@ export function PeriodPicker({ month, year, onChange, className }: PeriodPickerP
   const [open, setOpen] = useState(false);
   const [visibleYear, setVisibleYear] = useState(year);
 
-  useEffect(() => {
-    if (open) setVisibleYear(year);
-  }, [open, year]);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) setVisibleYear(year);
+    setOpen(nextOpen);
+  };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button
           type="button"

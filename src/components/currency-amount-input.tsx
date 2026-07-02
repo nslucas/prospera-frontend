@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Input } from "@/components/ui/input";
 import { formatBRL } from "@/lib/format";
@@ -12,23 +12,20 @@ interface CurrencyAmountInputProps {
 export function CurrencyAmountInput({ value, onChange, disabled }: CurrencyAmountInputProps) {
   const numericValue = Number(value ?? 0);
   const [focused, setFocused] = useState(false);
-  const [text, setText] = useState(formatBRL(numericValue));
-
-  useEffect(() => {
-    if (!focused) setText(formatBRL(numericValue));
-  }, [focused, numericValue]);
+  const [draftText, setDraftText] = useState("");
+  const displayText = focused ? draftText : formatBRL(numericValue);
 
   const updateAmount = (nextText: string) => {
     const parsed = parseCurrencyAmount(nextText);
     const digits = nextText.replace(/\D/g, "");
 
     if (!digits) {
-      setText(nextText.trim().startsWith("-") ? "-" : "");
+      setDraftText(nextText.trim().startsWith("-") ? "-" : "");
       onChange(0);
       return;
     }
 
-    setText(formatCurrencyForEditing(parsed));
+    setDraftText(formatCurrencyForEditing(parsed));
     onChange(parsed);
   };
 
@@ -37,20 +34,19 @@ export function CurrencyAmountInput({ value, onChange, disabled }: CurrencyAmoun
       type="text"
       inputMode="decimal"
       className="tabular-nums"
-      value={text}
+      value={displayText}
       placeholder="0,00"
       disabled={disabled}
       onFocus={(event) => {
         const input = event.currentTarget;
         setFocused(true);
-        setText(numericValue ? formatCurrencyForEditing(numericValue) : "");
+        setDraftText(numericValue ? formatCurrencyForEditing(numericValue) : "");
         requestAnimationFrame(() => input.select());
       }}
       onBlur={(event) => {
         const parsed = parseCurrencyAmount(event.currentTarget.value);
         setFocused(false);
         onChange(parsed);
-        setText(formatBRL(parsed));
       }}
       onChange={(event) => updateAmount(event.target.value)}
     />

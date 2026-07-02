@@ -1,5 +1,5 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +29,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-
 const schema = z.object({
   name: z.string().min(1, "Informe um nome"),
   type: z.enum(["INCOME", "EXPENSE"]),
@@ -38,7 +36,10 @@ const schema = z.object({
 type Values = z.infer<typeof schema>;
 
 export default function CategoriesPage() {
-  const { data, isLoading, reload } = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
+  const { data, isLoading, reload } = useAsyncData(() => fetchCategories(), [], {
+    cacheKey: "categories",
+    staleMs: 60_000,
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Category | null>(null);
 
@@ -47,14 +48,28 @@ export default function CategoriesPage() {
     defaultValues: { type: "EXPENSE" },
   });
 
-  useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      form.reset({ name: editing.name, type: editing.type });
-    } else {
-      form.reset({ name: "", type: "EXPENSE" });
-    }
-  }, [editing, form, open]);
+  function resetCategoryForm(category: Category | null = null) {
+    form.reset(
+      category ? { name: category.name, type: category.type } : { name: "", type: "EXPENSE" },
+    );
+  }
+
+  function openCreateDialog() {
+    setEditing(null);
+    resetCategoryForm();
+    setOpen(true);
+  }
+
+  function openEditDialog(category: Category) {
+    setEditing(category);
+    resetCategoryForm(category);
+    setOpen(true);
+  }
+
+  function changeDialogOpen(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) setEditing(null);
+  }
 
   const create = useAsyncMutation({
     mutationFn: (v: Values) =>
@@ -93,18 +108,10 @@ export default function CategoriesPage() {
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Categorias</h1>
           <p className="text-sm text-muted-foreground">Organize receitas e despesas.</p>
         </div>
-        <Dialog
-          open={open}
-          onOpenChange={(next) => {
-            setOpen(next);
-            if (!next) setEditing(null);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4" /> Nova
-            </Button>
-          </DialogTrigger>
+        <Dialog open={open} onOpenChange={changeDialogOpen}>
+          <Button onClick={openCreateDialog}>
+            <Plus className="h-4 w-4" /> Nova
+          </Button>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editing ? "Editar categoria" : "Nova categoria"}</DialogTitle>
@@ -167,10 +174,7 @@ export default function CategoriesPage() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8"
-                            onClick={() => {
-                              setEditing(c);
-                              setOpen(true);
-                            }}
+                            onClick={() => openEditDialog(c)}
                           >
                             <Pencil className="h-4 w-4 text-muted-foreground" />
                           </Button>

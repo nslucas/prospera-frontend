@@ -1,5 +1,5 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,15 +26,24 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CurrencyAmountInput } from "@/components/currency-amount-input";
-
 
 const schema = z.object({
   bankName: z.string().min(1, "Informe o banco"),
   name: z.string().min(1, "Informe o apelido"),
   network: z.string().optional(),
-  lastFourDigits: z.string().regex(/^\d{4}$/, "4 digitos").optional().or(z.literal("")),
+  lastFourDigits: z
+    .string()
+    .regex(/^\d{4}$/, "4 digitos")
+    .optional()
+    .or(z.literal("")),
   creditLimit: z.coerce.number().positive("Limite deve ser > 0"),
   closingDay: z.coerce.number().int().min(1).max(31),
   dueDay: z.coerce.number().int().min(1).max(31),
@@ -50,11 +59,23 @@ const paymentSchema = z.object({
 type PaymentValues = z.infer<typeof paymentSchema>;
 
 const EMPTY_EXPENSES: Expense[] = [];
+const DEFAULT_CARD_VALUES: Values = {
+  bankName: "",
+  name: "",
+  network: "",
+  lastFourDigits: "",
+  closingDay: 1,
+  dueDay: 10,
+  creditLimit: 1000,
+};
 
 export default function CardsPage() {
   const { data, isLoading, reload } = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
   const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
-  const allExpenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
+  const allExpenses = useAsyncData(() => fetchExpenses({}), [], {
+    cacheKey: "expenses:all",
+    staleMs: 60_000,
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CardType | null>(null);
   const expensesByCard = useMemo(() => {
@@ -70,25 +91,41 @@ export default function CardsPage() {
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
-    defaultValues: { closingDay: 1, dueDay: 10, creditLimit: 1000 },
+    defaultValues: DEFAULT_CARD_VALUES,
   });
 
-  useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      form.reset({
-        bankName: editing.bankName,
-        name: editing.name,
-        network: editing.network ?? "",
-        lastFourDigits: editing.lastFourDigits ?? "",
-        creditLimit: editing.creditLimit,
-        closingDay: editing.closingDay,
-        dueDay: editing.dueDay,
-      });
-    } else {
-      form.reset({ bankName: "", name: "", network: "", lastFourDigits: "", closingDay: 1, dueDay: 10, creditLimit: 1000 });
-    }
-  }, [editing, form, open]);
+  function resetCardForm(card: CardType | null = null) {
+    form.reset(
+      card
+        ? {
+            bankName: card.bankName,
+            name: card.name,
+            network: card.network ?? "",
+            lastFourDigits: card.lastFourDigits ?? "",
+            creditLimit: card.creditLimit,
+            closingDay: card.closingDay,
+            dueDay: card.dueDay,
+          }
+        : DEFAULT_CARD_VALUES,
+    );
+  }
+
+  function openCreateDialog() {
+    setEditing(null);
+    resetCardForm();
+    setOpen(true);
+  }
+
+  function openEditDialog(card: CardType) {
+    setEditing(card);
+    resetCardForm(card);
+    setOpen(true);
+  }
+
+  function changeDialogOpen(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) setEditing(null);
+  }
 
   const reloadCardsData = () => {
     reload();
@@ -125,20 +162,14 @@ export default function CardsPage() {
       <div className="flex items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Cartões</h1>
-          <p className="text-sm text-muted-foreground">Acompanhe limite, fatura e vencimento de cada cartão.</p>
+          <p className="text-sm text-muted-foreground">
+            Acompanhe limite, fatura e vencimento de cada cartão.
+          </p>
         </div>
-        <Dialog
-          open={open}
-          onOpenChange={(next) => {
-            setOpen(next);
-            if (!next) setEditing(null);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4" /> Novo cartão
-            </Button>
-          </DialogTrigger>
+        <Dialog open={open} onOpenChange={changeDialogOpen}>
+          <Button onClick={openCreateDialog}>
+            <Plus className="h-4 w-4" /> Novo cartão
+          </Button>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editing ? "Editar cartão" : "Novo cartão"}</DialogTitle>
@@ -165,7 +196,12 @@ export default function CardsPage() {
                   <Label>Limite</Label>
                   <CurrencyAmountInput
                     value={form.watch("creditLimit")}
-                    onChange={(value) => form.setValue("creditLimit", value, { shouldDirty: true, shouldValidate: true })}
+                    onChange={(value) =>
+                      form.setValue("creditLimit", value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -204,10 +240,7 @@ export default function CardsPage() {
               card={card}
               accounts={accounts.data ?? []}
               cardExpenses={expensesByCard.get(card.id) ?? EMPTY_EXPENSES}
-              onEdit={() => {
-                setEditing(card);
-                setOpen(true);
-              }}
+              onEdit={() => openEditDialog(card)}
               onDelete={() => remove.mutate(card.id)}
               onRefresh={reloadCardsData}
             />
@@ -235,15 +268,25 @@ function CardItem({
 }) {
   const [period, setPeriod] = useState(() => currentOpenStatementPeriod(card));
   const [paymentOpen, setPaymentOpen] = useState(false);
-  const stmt = useAsyncData(() => fetchCardStatement(card.id, period.month, period.year), [card.id, period.month, period.year], {
-    cacheKey: `card-statement:${card.id}:${period.month}:${period.year}`,
-  });
+  const stmt = useAsyncData(
+    () => fetchCardStatement(card.id, period.month, period.year),
+    [card.id, period.month, period.year],
+    {
+      cacheKey: `card-statement:${card.id}:${period.month}:${period.year}`,
+    },
+  );
   const brand = useMemo(() => getSharedBankBrand(card.bankName), [card.bankName]);
-  const usedLimit = useMemo(() => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0), [cardExpenses]);
+  const usedLimit = useMemo(
+    () => cardExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0),
+    [cardExpenses],
+  );
   const fallbackAvailableLimit = Math.max(0, Number(card.creditLimit) - usedLimit);
-  const availableLimit = stmt.data ? Number(stmt.data.availableLimit ?? fallbackAvailableLimit) : fallbackAvailableLimit;
+  const availableLimit = stmt.data
+    ? Number(stmt.data.availableLimit ?? fallbackAvailableLimit)
+    : fallbackAvailableLimit;
   const displayedUsedLimit = Math.max(0, Number(card.creditLimit) - availableLimit);
-  const usedPct = card.creditLimit > 0 ? Math.min(100, (displayedUsedLimit / card.creditLimit) * 100) : 0;
+  const usedPct =
+    card.creditLimit > 0 ? Math.min(100, (displayedUsedLimit / card.creditLimit) * 100) : 0;
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
@@ -274,23 +317,40 @@ function CardItem({
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
       <CardContent className="p-0">
-        <div className={`relative min-h-56 overflow-hidden bg-gradient-to-br p-5 ${brand.className}`}>
-          <div className={`absolute -right-8 -top-10 h-36 w-36 rounded-full border ${brand.accentClassName}`} />
-          <div className={`absolute right-8 top-20 h-16 w-24 rounded-lg border shadow-inner ${brand.accentClassName}`} />
+        <div
+          className={`relative min-h-56 overflow-hidden bg-gradient-to-br p-5 ${brand.className}`}
+        >
+          <div
+            className={`absolute -right-8 -top-10 h-36 w-36 rounded-full border ${brand.accentClassName}`}
+          />
+          <div
+            className={`absolute right-8 top-20 h-16 w-24 rounded-lg border shadow-inner ${brand.accentClassName}`}
+          />
           <div className="relative flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex h-10 max-w-40 items-center">
                 {brand.logo ? (
-                  <img src={brand.logo} alt={`${brand.label} logo`} className={`max-h-8 max-w-36 object-contain ${brand.logoClassName}`} />
+                  <img
+                    src={brand.logo}
+                    alt={`${brand.label} logo`}
+                    className={`max-h-8 max-w-36 object-contain ${brand.logoClassName}`}
+                  />
                 ) : (
-                  <div className="text-sm font-semibold uppercase tracking-wide">{card.bankName}</div>
+                  <div className="text-sm font-semibold uppercase tracking-wide">
+                    {card.bankName}
+                  </div>
                 )}
               </div>
               <div className="mt-4 truncate text-2xl font-semibold tracking-tight">{card.name}</div>
               <div className="mt-1 text-xs font-medium opacity-75">{card.bankName}</div>
             </div>
             <div className="relative flex gap-1">
-              <Button variant="ghost" size="icon" className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100" onClick={onEdit}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
+                onClick={onEdit}
+              >
                 <Pencil className="h-4 w-4" />
               </Button>
               <ConfirmAction
@@ -300,7 +360,11 @@ function CardItem({
                 destructive
                 onConfirm={onDelete}
               >
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
+                >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </ConfirmAction>
@@ -309,19 +373,34 @@ function CardItem({
           <div className="relative mt-12 flex items-end justify-between gap-3">
             <div>
               <div className="text-xs font-medium uppercase opacity-60">Final</div>
-              <div className="font-mono text-xl tracking-widest opacity-90">**** {card.lastFourDigits ?? "0000"}</div>
+              <div className="font-mono text-xl tracking-widest opacity-90">
+                **** {card.lastFourDigits ?? "0000"}
+              </div>
             </div>
             <div className="text-right">
-              <div className="text-xs font-medium uppercase opacity-60">{card.network || "Cartão"}</div>
-              <div className="text-sm font-semibold tabular-nums">Limite {formatBRL(card.creditLimit)}</div>
+              <div className="text-xs font-medium uppercase opacity-60">
+                {card.network || "Cartão"}
+              </div>
+              <div className="text-sm font-semibold tabular-nums">
+                Limite {formatBRL(card.creditLimit)}
+              </div>
             </div>
           </div>
         </div>
         <div className="space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className="text-muted-foreground">Fatura</span>
-            <PeriodPicker month={period.month} year={period.year} onChange={setPeriod} className="h-10 min-w-[10rem] px-4 text-sm" />
-            {stmt.data && <Badge variant={stmt.data.status === "PAID" ? "secondary" : "outline"}>{stmt.data.status.replaceAll("_", " ")}</Badge>}
+            <PeriodPicker
+              month={period.month}
+              year={period.year}
+              onChange={setPeriod}
+              className="h-10 min-w-[10rem] px-4 text-sm"
+            />
+            {stmt.data && (
+              <Badge variant={stmt.data.status === "PAID" ? "secondary" : "outline"}>
+                {stmt.data.status.replaceAll("_", " ")}
+              </Badge>
+            )}
           </div>
           <div className="grid gap-3 sm:grid-cols-[1.2fr_0.8fr]">
             <div className="rounded-md border border-primary/25 bg-primary/5 p-3">
@@ -329,18 +408,24 @@ function CardItem({
               <div className="text-2xl font-semibold tabular-nums text-primary">
                 {stmt.isLoading && !stmt.data ? "..." : formatBRL(availableLimit)}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">de {formatBRL(card.creditLimit)}</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                de {formatBRL(card.creditLimit)}
+              </div>
             </div>
             <div className="rounded-md border border-border/70 bg-muted/20 p-3 sm:text-right">
               <div className="text-xs text-muted-foreground">A pagar na fatura</div>
-              <div className="text-xl font-semibold tabular-nums">{formatBRL(stmt.data?.remainingAmount ?? 0)}</div>
+              <div className="text-xl font-semibold tabular-nums">
+                {formatBRL(stmt.data?.remainingAmount ?? 0)}
+              </div>
             </div>
           </div>
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
               <span>Uso do limite</span>
               <span className="tabular-nums">
-                {stmt.isLoading && !stmt.data ? "..." : `${formatBRL(displayedUsedLimit)} (${usedPct.toFixed(0)}%)`}
+                {stmt.isLoading && !stmt.data
+                  ? "..."
+                  : `${formatBRL(displayedUsedLimit)} (${usedPct.toFixed(0)}%)`}
               </span>
             </div>
             <Progress value={usedPct} />
@@ -349,7 +434,9 @@ function CardItem({
             <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
               <span>Fecha {formatDate(stmt.data.closingDate)}</span>
               <span>Vence {formatDate(stmt.data.dueDate)}</span>
-              <span>Dia cadastro: fecha {card.closingDay}, vence {card.dueDay}</span>
+              <span>
+                Dia cadastro: fecha {card.closingDay}, vence {card.dueDay}
+              </span>
             </div>
           )}
 
@@ -376,10 +463,17 @@ function CardItem({
                 <DialogHeader>
                   <DialogTitle>Pagar fatura de {card.name}</DialogTitle>
                 </DialogHeader>
-                <form className="space-y-4" onSubmit={paymentForm.handleSubmit((v) => payStatement.mutate(v))}>
+                <form
+                  className="space-y-4"
+                  onSubmit={paymentForm.handleSubmit((v) => payStatement.mutate(v))}
+                >
                   <div className="space-y-1.5">
                     <Label>Conta de pagamento</Label>
-                    <Select onValueChange={(v) => paymentForm.setValue("accountId", Number(v), { shouldValidate: true })}>
+                    <Select
+                      onValueChange={(v) =>
+                        paymentForm.setValue("accountId", Number(v), { shouldValidate: true })
+                      }
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
@@ -397,7 +491,12 @@ function CardItem({
                       <Label>Valor</Label>
                       <CurrencyAmountInput
                         value={paymentForm.watch("amount")}
-                        onChange={(value) => paymentForm.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+                        onChange={(value) =>
+                          paymentForm.setValue("amount", value, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -451,4 +550,3 @@ function atConfiguredDay(year: number, zeroBasedMonth: number, day: number): Dat
   const lastDay = new Date(year, zeroBasedMonth + 1, 0).getDate();
   return new Date(year, zeroBasedMonth, Math.min(day, lastDay));
 }
-

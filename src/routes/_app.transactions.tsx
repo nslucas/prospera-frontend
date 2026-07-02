@@ -49,6 +49,7 @@ type MovementItem =
       kind: "transaction";
       id: number;
       title: string;
+      description?: string | null;
       amount: number;
       occurredAt: string;
       type: TransactionType;
@@ -365,8 +366,9 @@ export default function TransactionsPage() {
         });
       }
 
-      return api<Transaction>("/transactions", {
-        method: "POST",
+      const transactionId = editing?.kind === "transaction" ? editing.id : null;
+      return api<Transaction>(transactionId ? `/transactions/${transactionId}` : "/transactions", {
+        method: transactionId ? "PUT" : "POST",
         body: {
           type: values.kind,
           amount: values.amount,
@@ -503,6 +505,20 @@ export default function TransactionsPage() {
   };
 
   const openEdit = (item: MovementItem) => {
+    if (item.kind === "transaction" && isEditableTransactionType(item.type)) {
+      setEditing(item);
+      form.reset({
+        ...movementDefaults(item.type, month, year),
+        title: item.description?.trim() || item.title,
+        amount: item.type === "ADJUSTMENT" ? item.amount : Math.abs(item.amount),
+        occurredAt: item.occurredAt.slice(0, 16),
+        accountId: item.accountId,
+        categoryId: item.categoryId ?? undefined,
+      });
+      setOpen(true);
+      return;
+    }
+
     if (item.kind === "card-payment") {
       setEditing(item);
       form.reset({
@@ -579,7 +595,7 @@ export default function TransactionsPage() {
               }}
             >
             <DialogTrigger asChild>
-              <Button onClick={openNew} className="flex-1 sm:flex-none">
+              <Button onClick={openNew} className="flex-1 bg-[#080808] text-white hover:bg-[#080808]/90 sm:flex-none">
                 <Plus className="h-4 w-4" /> Novo
               </Button>
             </DialogTrigger>
@@ -1043,7 +1059,7 @@ export default function TransactionsPage() {
                         {formatBRL(Math.abs(item.amount))}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        {(item.kind === "card-expense" || item.kind === "card-payment") && (
+                        {canEditMovement(item, sharedItem) && (
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
                             <Pencil className="h-4 w-4 text-muted-foreground" />
                           </Button>
@@ -1133,6 +1149,7 @@ function mergeMovements(
         kind: "transaction",
         id: transaction.id,
         title: transactionTitle(transaction),
+        description: transaction.description,
         amount: transaction.amount,
         occurredAt: transaction.occurredAt,
         type: transaction.type,
@@ -1212,10 +1229,8 @@ function calculateCashFlowTotals(items: MovementItem[]) {
 
       if (item.kind === "settlement") {
         if (isPositiveMovement(item)) {
-          totals.inflow += amount;
           totals.settlementsInflow += amount;
         } else {
-          totals.accountOutflow += amount;
           totals.settlementsOutflow += amount;
         }
         return totals;
@@ -1237,7 +1252,7 @@ function calculateCashFlowTotals(items: MovementItem[]) {
     accountOutflow: roundMoney(totals.accountOutflow),
     cardPurchases: roundMoney(totals.cardPurchases),
     settlementsNet: roundMoney(totals.settlementsInflow - totals.settlementsOutflow),
-    net: roundMoney(totals.inflow - totals.accountOutflow),
+    net: roundMoney(totals.inflow - totals.accountOutflow + totals.settlementsInflow - totals.settlementsOutflow),
   };
 }
 
@@ -1327,6 +1342,17 @@ function formatSignedBRL(value: number) {
 
 function normalizeDateTime(value: string) {
   return value.includes("T") ? value : `${value}T00:00`;
+}
+
+function canEditMovement(item: MovementItem, sharedItem?: SettlementItem) {
+  if (item.kind === "card-expense") return sharedItem?.status !== "SETTLED";
+  if (item.kind === "card-payment") return true;
+  if (item.kind === "transaction") return isEditableTransactionType(item.type);
+  return false;
+}
+
+function isEditableTransactionType(type: TransactionType): type is Extract<MovementKind, "INCOME" | "EXPENSE" | "ADJUSTMENT"> {
+  return type === "INCOME" || type === "EXPENSE" || type === "ADJUSTMENT";
 }
 
 function canDeleteMovement(item: MovementItem, sharedItem?: SettlementItem) {

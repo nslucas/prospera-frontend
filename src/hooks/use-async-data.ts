@@ -36,14 +36,17 @@ export function useAsyncData<T>(
 ): AsyncDataState<T> {
   const enabled = options.enabled ?? true;
   const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
-  const [data, setData] = React.useState<T | undefined>(() => readFreshCache<T>(options.cacheKey, staleMs) ?? options.initialData);
+  const [data, setDataState] = React.useState<T | undefined>(
+    () => readFreshCache<T>(options.cacheKey, staleMs) ?? options.initialData,
+  );
   const [error, setError] = React.useState<Error | null>(null);
   const [isLoading, setIsLoading] = React.useState(enabled && data === undefined);
   const dataRef = React.useRef<T | undefined>(data);
 
-  React.useEffect(() => {
-    dataRef.current = data;
-  }, [data]);
+  const setData = React.useCallback((value: T | undefined) => {
+    dataRef.current = value;
+    setDataState(value);
+  }, []);
 
   const reload = React.useCallback(async () => {
     if (!enabled) {
@@ -65,7 +68,7 @@ export function useAsyncData<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, options.cacheKey, ...deps]);
+  }, [enabled, options.cacheKey, setData, ...deps]);
 
   React.useEffect(() => {
     if (!enabled) {
@@ -102,7 +105,7 @@ export function useAsyncData<T>(
     return () => {
       active = false;
     };
-  }, [enabled, options.cacheKey, staleMs, ...deps]);
+  }, [enabled, options.cacheKey, setData, staleMs, ...deps]);
 
   return { data, error, isLoading, reload };
 }

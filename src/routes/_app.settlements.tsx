@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ComponentType } from "react";
 import { CheckCircle2, HandCoins, ReceiptText, Scale } from "lucide-react";
 import { toast } from "sonner";
@@ -68,18 +68,15 @@ export default function SettlementsPage() {
     .filter((item) => item.direction === "YOU_OWE")
     .reduce((sum, item) => sum + Number(item.amount), 0);
 
-  useEffect(() => {
-    setSelectedShareIds((current) => {
-      const openIds = new Set(openItems.map((item) => item.shareId));
-      const next = new Set([...current].filter((shareId) => openIds.has(shareId)));
-      return next.size === current.size ? current : next;
-    });
-  }, [openItems]);
-
   const selectedTotal = selectedOpenItems.reduce(
     (sum, item) => sum + Number(item.participantAmount),
     0,
   );
+
+  function changeCounterparty(nextCounterparty: string) {
+    setCounterparty(nextCounterparty);
+    setSelectedShareIds(new Set());
+  }
 
   function toggleItemSelection(shareId: number, checked: boolean) {
     setSelectedShareIds((current) => {
@@ -136,7 +133,7 @@ export default function SettlementsPage() {
                 Saldos líquidos de compras ainda abertas.
               </p>
             </div>
-            <Select value={counterparty} onValueChange={setCounterparty}>
+            <Select value={counterparty} onValueChange={changeCounterparty}>
               <SelectTrigger className="w-full sm:w-64">
                 <SelectValue />
               </SelectTrigger>
@@ -167,7 +164,7 @@ export default function SettlementsPage() {
                   key={settlement.counterpartyUserId}
                   type="button"
                   className="rounded-lg border p-4 text-left transition-colors hover:bg-accent/50"
-                  onClick={() => setCounterparty(String(settlement.counterpartyUserId))}
+                  onClick={() => changeCounterparty(String(settlement.counterpartyUserId))}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>

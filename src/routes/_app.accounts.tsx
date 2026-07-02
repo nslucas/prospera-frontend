@@ -1,5 +1,5 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -18,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,7 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
 
 const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
   { value: "CHECKING", label: "Conta Corrente" },
@@ -56,7 +54,9 @@ const transferSchema = z.object({
 type TransferValues = z.infer<typeof transferSchema>;
 
 export default function AccountsPage() {
-  const { data, isLoading, reload } = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
+  const { data, isLoading, reload } = useAsyncData(() => fetchAccounts(), [], {
+    cacheKey: "accounts",
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Account | null>(null);
   const [transferSource, setTransferSource] = useState<Account | null>(null);
@@ -69,19 +69,35 @@ export default function AccountsPage() {
     defaultValues: { occurredAt: nowIsoDateTime() },
   });
 
-  useEffect(() => {
-    if (!open) return;
-    if (editing) {
-      form.reset({
-        name: editing.name,
-        type: editing.type,
-        balance: editing.balance,
-        currency: editing.currency || "BRL",
-      });
-    } else {
-      form.reset({ type: "CHECKING", currency: "BRL", balance: 0, name: "" });
-    }
-  }, [editing, form, open]);
+  function resetAccountForm(account: Account | null = null) {
+    form.reset(
+      account
+        ? {
+            name: account.name,
+            type: account.type,
+            balance: account.balance,
+            currency: account.currency || "BRL",
+          }
+        : { type: "CHECKING", currency: "BRL", balance: 0, name: "" },
+    );
+  }
+
+  function openCreateDialog() {
+    setEditing(null);
+    resetAccountForm();
+    setOpen(true);
+  }
+
+  function openEditDialog(account: Account) {
+    setEditing(account);
+    resetAccountForm(account);
+    setOpen(true);
+  }
+
+  function changeDialogOpen(nextOpen: boolean) {
+    setOpen(nextOpen);
+    if (!nextOpen) setEditing(null);
+  }
 
   const create = useAsyncMutation({
     mutationFn: (v: Values) =>
@@ -131,26 +147,15 @@ export default function AccountsPage() {
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Contas</h1>
           <p className="text-sm text-muted-foreground">Suas contas correntes, poupanças e mais.</p>
         </div>
-        <Dialog
-          open={open}
-          onOpenChange={(next) => {
-            setOpen(next);
-            if (!next) setEditing(null);
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4" /> Nova conta
-            </Button>
-          </DialogTrigger>
+        <Dialog open={open} onOpenChange={changeDialogOpen}>
+          <Button onClick={openCreateDialog}>
+            <Plus className="h-4 w-4" /> Nova conta
+          </Button>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editing ? "Editar conta" : "Nova conta"}</DialogTitle>
             </DialogHeader>
-            <form
-              className="space-y-4"
-              onSubmit={form.handleSubmit((v) => create.mutate(v))}
-            >
+            <form className="space-y-4" onSubmit={form.handleSubmit((v) => create.mutate(v))}>
               <div className="space-y-1.5">
                 <Label>Nome</Label>
                 <Input {...form.register("name")} placeholder="ex: Nubank" />
@@ -184,7 +189,9 @@ export default function AccountsPage() {
                 <CurrencyAmountInput
                   value={form.watch("balance")}
                   disabled={!!editing}
-                  onChange={(value) => form.setValue("balance", value, { shouldDirty: true, shouldValidate: true })}
+                  onChange={(value) =>
+                    form.setValue("balance", value, { shouldDirty: true, shouldValidate: true })
+                  }
                 />
               </div>
               <DialogFooter>
@@ -221,14 +228,7 @@ export default function AccountsPage() {
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => {
-                      setEditing(a);
-                      setOpen(true);
-                    }}
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(a)}>
                     <Pencil className="h-4 w-4 text-muted-foreground" />
                   </Button>
                   <Button
@@ -292,7 +292,12 @@ export default function AccountsPage() {
                 <Label>Valor</Label>
                 <CurrencyAmountInput
                   value={transferForm.watch("amount")}
-                  onChange={(value) => transferForm.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+                  onChange={(value) =>
+                    transferForm.setValue("amount", value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
                 />
               </div>
               <div className="space-y-1.5">

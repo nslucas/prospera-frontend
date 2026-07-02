@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
-} from "react";
+import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import { Link } from "react-router-dom";
 import { BellRing, Inbox, Save, Settings } from "lucide-react";
 import { toast } from "sonner";
@@ -77,10 +70,21 @@ export default function SettingsPage() {
     cacheKey: "categories",
     staleMs: 60_000,
   });
-  const [form, setForm] = useState<UserPreferences>(FALLBACK_PREFERENCES);
+  const loadedPreferences = useMemo(
+    () => (preferences.data ? normalizeUserPreferences(preferences.data) : FALLBACK_PREFERENCES),
+    [preferences.data],
+  );
+  const [draftForm, setDraftForm] = useState<UserPreferences | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() =>
     getBrowserNotificationPermission(),
   );
+  const form = draftForm ?? loadedPreferences;
+  const setForm: Dispatch<SetStateAction<UserPreferences>> = (nextForm) => {
+    setDraftForm((current) => {
+      const base = current ?? loadedPreferences;
+      return typeof nextForm === "function" ? nextForm(base) : nextForm;
+    });
+  };
 
   const activeAccounts = useMemo(
     () => (accounts.data ?? []).filter((account) => account.active),
@@ -97,10 +101,6 @@ export default function SettingsPage() {
       (categories.data ?? []).filter((category) => category.active && category.type === "INCOME"),
     [categories.data],
   );
-
-  useEffect(() => {
-    if (preferences.data) setForm(normalizeUserPreferences(preferences.data));
-  }, [preferences.data]);
 
   const save = useAsyncMutation({
     mutationFn: () =>
