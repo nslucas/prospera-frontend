@@ -155,16 +155,16 @@ export interface Category {
 
 export interface Budget {
   id: number;
-  categoryId: number;
-  month: number;
-  year: number;
+  categoryId: number | null;
+  month: number | null;
+  year: number | null;
   amount: number;
   active: boolean;
 }
 
 export interface BudgetProgress {
   budgetId: number;
-  categoryId: number;
+  categoryId: number | null;
   categoryName: string;
   month: number;
   year: number;

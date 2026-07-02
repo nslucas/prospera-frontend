@@ -68,8 +68,8 @@ export const fetchCurrentStatement = (cardId: number) =>
 export const fetchCardPayments = (cardId: number, month: number, year: number) =>
   api<CardPayment[]>(`/cards/${cardId}/payments`, { query: { month, year } });
 
-export const fetchBudgets = (month: number, year: number) =>
-  api<Budget[]>("/budgets", { query: { month, year } });
+export const fetchBudgets = (params: { month?: number; year?: number } = {}) =>
+  api<Budget[]>("/budgets", { query: params });
 
 export const fetchBudgetProgress = (month: number, year: number) =>
   api<BudgetProgress[]>("/budgets/progress", { query: { month, year } });
