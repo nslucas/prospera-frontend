@@ -595,7 +595,7 @@ export default function TransactionsPage() {
               }}
             >
             <DialogTrigger asChild>
-              <Button onClick={openNew} className="flex-1 bg-[#080808] text-white hover:bg-[#080808]/90 sm:flex-none">
+              <Button onClick={openNew} className="flex-1 sm:flex-none">
                 <Plus className="h-4 w-4" /> Novo
               </Button>
             </DialogTrigger>
