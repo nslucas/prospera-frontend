@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useAsyncData } from "@/hooks/use-async-data";
 import {
@@ -18,18 +18,21 @@ import {
 } from "recharts";
 import {
   fetchCardSummary,
+  fetchCategories,
   fetchCategorySummary,
+  fetchExpenses,
   fetchFixedVariableSummary,
   fetchForecast,
   fetchMonthlySummary,
   fetchTrends,
+  fetchTransactions,
   fetchUpcoming,
   fetchYearlySummary,
 } from "@/lib/queries";
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { cardStatementStatusLabel } from "@/lib/card-labels";
 import { recurrenceStatusLabel } from "@/lib/recurrence-labels";
-import type { CategorySummary } from "@/lib/types";
+import type { Category, CategorySummary, Expense, Transaction } from "@/lib/types";
 import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -72,6 +75,11 @@ export default function ReportsPage() {
   const categorySummary = useAsyncData(() => fetchCategorySummary(month, year), [month, year], {
     cacheKey: `summary-categories:${month}:${year}`,
   });
+  const transactions = useAsyncData(() => fetchTransactions({ month, year }), [month, year], {
+    cacheKey: `transactions:${month}:${year}`,
+  });
+  const expenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
+  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const cardSummary = useAsyncData(() => fetchCardSummary(cardStatementPeriod.month, cardStatementPeriod.year), [cardStatementPeriod.month, cardStatementPeriod.year], {
     cacheKey: `summary-cards:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
   });
@@ -99,7 +107,12 @@ export default function ReportsPage() {
       Liquido: item.netTotal,
     })) ?? [];
 
-  const categoryBreakdown = categorySummary.data ?? summary.data?.categoryBreakdown ?? [];
+  const localCategoryBreakdown = useMemo(() => {
+    if (!transactions.data || !expenses.data || !categories.data) return null;
+    return buildCategoryBreakdown(transactions.data, expenses.data, categories.data, month, year);
+  }, [categories.data, expenses.data, month, transactions.data, year]);
+
+  const categoryBreakdown = localCategoryBreakdown ?? categorySummary.data ?? summary.data?.categoryBreakdown ?? [];
   const pieData = categoryBreakdown
     .filter((item) => !item.categoryType || item.categoryType === "EXPENSE")
     .map((item) => ({
@@ -363,6 +376,62 @@ function getCategoryColor(key: string): string {
     hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   }
   return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
+}
+
+function buildCategoryBreakdown(
+  transactions: Transaction[],
+  expenses: Expense[],
+  categories: Category[],
+  month: number,
+  year: number,
+): CategorySummary[] {
+  const categoriesById = new Map(categories.map((category) => [category.id, category]));
+  const totalsByCategory = new Map<string, CategorySummary>();
+
+  const addAmount = (categoryId: number | null | undefined, amount: number) => {
+    const normalizedAmount = Math.abs(Number(amount));
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return;
+
+    const category = categoryId ? categoriesById.get(categoryId) : undefined;
+    const key = category ? String(category.id) : "uncategorized";
+    const current =
+      totalsByCategory.get(key) ??
+      ({
+        categoryId: category?.id ?? null,
+        categoryName: category?.name ?? "Sem categoria",
+        categoryType: "EXPENSE",
+        amount: 0,
+      } satisfies CategorySummary);
+
+    current.amount = roundMoney((current.amount ?? 0) + normalizedAmount);
+    totalsByCategory.set(key, current);
+  };
+
+  for (const transaction of transactions) {
+    if (transaction.type !== "EXPENSE") continue;
+    addAmount(transaction.categoryId, transaction.amount);
+  }
+
+  for (const expense of expenses) {
+    if (!isInMonth(expense.purchaseDate, month, year)) continue;
+    addAmount(expense.categoryId, expense.amount);
+  }
+
+  return Array.from(totalsByCategory.values()).sort((a, b) => {
+    if (!a.categoryId && b.categoryId) return 1;
+    if (a.categoryId && !b.categoryId) return -1;
+    return a.categoryName.localeCompare(b.categoryName, "pt-BR");
+  });
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function isInMonth(iso: string, month: number, year: number): boolean {
+  const match = /^(\d{4})-(\d{2})/.exec(iso);
+  if (!match) return false;
+  return Number(match[1]) === year && Number(match[2]) === month;
 }
 
 function nextMonthPeriod(month: number, year: number): { month: number; year: number } {
