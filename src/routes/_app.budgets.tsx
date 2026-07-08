@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import { api } from "@/lib/api";
 import { fetchBudgetProgress, fetchBudgets, fetchCategories } from "@/lib/queries";
 import type { Budget, BudgetProgress } from "@/lib/types";
@@ -105,6 +106,10 @@ export default function BudgetsPage() {
       await Promise.all([progress.reload(), budgets.reload()]);
     },
     onError: (e) => toast.error(e.message),
+  });
+  useFinanceUpdates(() => {
+    progress.reload();
+    budgets.reload();
   });
 
   const expenseCats = (categories.data ?? []).filter(

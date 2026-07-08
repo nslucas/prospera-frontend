@@ -23,6 +23,7 @@ import {
 import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchConnections, fetchExpenses, fetchSettlementItems, fetchTransactions, fetchUserPreferences } from "@/lib/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import type { Account, Card as CreditCardRecord, CardPayment, CardStatement, Category, Connection, Expense, MovementKind, SettlementItem, Transaction, TransactionType, UserPreferences } from "@/lib/types";
 import { cardPaymentTitle, transactionTitle } from "@/lib/movement-labels";
 import { currentMonthYear, formatBRL, formatDate, formatDateTime, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
@@ -43,6 +44,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CurrencyAmountInput } from "@/components/currency-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { PeriodPicker, monthName } from "@/components/period-picker";
+import { MovementEntryDialog } from "@/components/movement-entry-dialog";
 
 type MovementItem =
   | {
@@ -310,6 +312,7 @@ export default function TransactionsPage() {
     categories.reload();
     settlementItems.reload();
   };
+  useFinanceUpdates(reloadFinanceData);
 
   const save = useAsyncMutation({
     mutationFn: (values: Values): Promise<unknown> => {
@@ -587,6 +590,23 @@ export default function TransactionsPage() {
             >
               <Search className="h-5 w-5" />
             </Button>
+            <MovementEntryDialog
+              open={open}
+              onOpenChange={(next) => {
+                setOpen(next);
+                if (!next) setEditing(null);
+              }}
+              period={{ month, year }}
+              editing={editing?.kind === "transaction" || editing?.kind === "card-expense" || editing?.kind === "card-payment" ? editing : null}
+              editingExpense={editing?.kind === "card-expense" ? expensesById.get(editing.id) : null}
+              editingShare={editing?.kind === "card-expense" ? settlementItemByExpenseId.get(editing.id) : null}
+              trigger={
+                <Button type="button" onClick={openNew} className="flex-1 sm:flex-none">
+                  <Plus className="h-4 w-4" /> Novo
+                </Button>
+              }
+            />
+            {false && (
             <Dialog
               open={open}
               onOpenChange={(next) => {
@@ -879,6 +899,7 @@ export default function TransactionsPage() {
               </form>
             </DialogContent>
           </Dialog>
+            )}
           </div>
         </div>
 

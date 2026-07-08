@@ -1,4 +1,5 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -133,6 +134,7 @@ export default function CardsPage() {
     accounts.reload();
     allExpenses.reload();
   };
+  useFinanceUpdates(reloadCardsData);
 
   const save = useAsyncMutation({
     mutationFn: (v: Values) =>
@@ -313,6 +315,9 @@ function CardItem({
       paymentForm.reset({ paymentDate: todayIsoDate() });
     },
     onError: (e) => toast.error(e.message),
+  });
+  useFinanceUpdates(() => {
+    stmt.reload();
   });
 
   return (

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { useAsyncData } from "@/hooks/use-async-data";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import {
   Area,
   AreaChart,
@@ -85,6 +86,14 @@ export default function HomePage() {
       cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
     },
   );
+  useFinanceUpdates(() => {
+    summary.reload();
+    accounts.reload();
+    cards.reload();
+    openStatements.reload();
+    alerts.reload();
+    trends.reload();
+  });
 
   const s = summary.data;
   const trendData =

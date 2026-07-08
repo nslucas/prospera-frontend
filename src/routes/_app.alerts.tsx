@@ -1,4 +1,5 @@
 import { useAsyncData } from "@/hooks/use-async-data";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import { AlertTriangle, BellOff } from "lucide-react";
 import { fetchAlerts } from "@/lib/queries";
 import { alertMessage, alertSeverityLabel, alertTypeLabel } from "@/lib/alert-labels";
@@ -8,7 +9,8 @@ import { formatBRL, formatDate } from "@/lib/format";
 
 
 export default function AlertsPage() {
-  const { data, isLoading } = useAsyncData(() => fetchAlerts(), [], { cacheKey: "alerts" });
+  const { data, isLoading, reload } = useAsyncData(() => fetchAlerts(), [], { cacheKey: "alerts" });
+  useFinanceUpdates(reload);
 
   return (
     <div className="space-y-6">

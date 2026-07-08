@@ -17,10 +17,12 @@ import {
   MoreHorizontal,
   Settings,
   UsersRound,
+  Plus,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { BrandLogo, BrandMark } from "@/components/brand-logo";
+import { MovementEntryDialog } from "@/components/movement-entry-dialog";
 import { ThemeSelector } from "@/components/theme-selector";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { fetchPendingConnectionRequests } from "@/lib/queries";
@@ -54,6 +56,7 @@ export function AppShell() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const [mobileMenu, setMobileMenu] = React.useState(false);
+  const [movementEntryOpen, setMovementEntryOpen] = React.useState(false);
   const [isCollapsed, setIsCollapsed] = React.useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("sidebar-collapsed") === "true";
@@ -305,6 +308,8 @@ export function AppShell() {
         </div>
       )}
 
+      <MovementEntryDialog open={movementEntryOpen} onOpenChange={setMovementEntryOpen} />
+
       <main
         className={cn(
           "pb-32 md:pb-8 transition-all duration-300 ease-in-out",
@@ -315,6 +320,28 @@ export function AppShell() {
           <Outlet />
         </div>
       </main>
+
+      {!mobileMenu && !movementEntryOpen && (
+        <>
+          <button
+            type="button"
+            aria-label="Nova movimentação"
+            title="Nova movimentação"
+            onClick={() => setMovementEntryOpen(true)}
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.35rem)] right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95 md:hidden"
+          >
+            <Plus className="h-6 w-6" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMovementEntryOpen(true)}
+            className="fixed bottom-6 right-6 z-30 hidden h-12 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.02] active:scale-95 md:inline-flex"
+          >
+            <Plus className="h-4 w-4" />
+            Nova movimentação
+          </button>
+        </>
+      )}
 
       <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.55rem)] z-20 px-4 md:hidden">
         <div className="mx-auto grid max-w-sm grid-cols-5 gap-1 rounded-2xl border border-border/80 bg-card/92 p-1.5 shadow-[0_8px_24px_rgba(16,27,21,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/86">

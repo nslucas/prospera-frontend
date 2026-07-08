@@ -1,4 +1,5 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -139,6 +140,7 @@ export default function AccountsPage() {
     },
     onError: (e) => toast.error(e.message),
   });
+  useFinanceUpdates(reload);
 
   return (
     <div className="space-y-6">

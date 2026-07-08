@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { useAsyncData } from "@/hooks/use-async-data";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import {
   Bar,
   BarChart,
@@ -120,6 +121,21 @@ export default function ReportsPage() {
     cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
   });
   const forecast = useAsyncData(() => fetchForecast(6), [], { cacheKey: "summary-forecast:6" });
+  useFinanceUpdates(() => {
+    summary.reload();
+    categorySummary.reload();
+    transactions.reload();
+    expenses.reload();
+    categories.reload();
+    cards.reload();
+    cardStatements.reload();
+    cardSummary.reload();
+    fixedVariable.reload();
+    upcoming.reload();
+    yearly.reload();
+    trends.reload();
+    forecast.reload();
+  });
 
   const trendData =
     trends.data?.map((item) => ({
