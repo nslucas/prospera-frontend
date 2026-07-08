@@ -17,6 +17,8 @@ import {
   YAxis,
 } from "recharts";
 import {
+  fetchCards,
+  fetchCardStatement,
   fetchCardSummary,
   fetchCategories,
   fetchCategorySummary,
@@ -32,7 +34,7 @@ import {
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
 import { cardStatementStatusLabel } from "@/lib/card-labels";
 import { recurrenceStatusLabel } from "@/lib/recurrence-labels";
-import type { Category, CategorySummary, Expense, Transaction } from "@/lib/types";
+import type { CardStatement, Category, CategorySummary, Expense, Transaction } from "@/lib/types";
 import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -80,6 +82,26 @@ export default function ReportsPage() {
   });
   const expenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
   const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
+  const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards", staleMs: 60_000 });
+  const activeCards = (cards.data ?? []).filter((card) => card.active);
+  const activeCardsKey = activeCards.map((card) => card.id).join("|");
+  const cardsReady = !cards.isLoading && Boolean(cards.data);
+  const cardStatements = useAsyncData(
+    () =>
+      activeCards.length
+        ? Promise.all(
+            activeCards.map((card) =>
+              fetchCardStatement(card.id, cardStatementPeriod.month, cardStatementPeriod.year).catch(() => null),
+            ),
+          )
+        : Promise.resolve([]),
+    [activeCardsKey, cardStatementPeriod.month, cardStatementPeriod.year],
+    {
+      enabled: cardsReady,
+      initialData: [],
+      cacheKey: `reports-card-statements:${activeCardsKey}:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
+    },
+  );
   const cardSummary = useAsyncData(() => fetchCardSummary(cardStatementPeriod.month, cardStatementPeriod.year), [cardStatementPeriod.month, cardStatementPeriod.year], {
     cacheKey: `summary-cards:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
   });
@@ -108,9 +130,10 @@ export default function ReportsPage() {
     })) ?? [];
 
   const localCategoryBreakdown = useMemo(() => {
-    if (!transactions.data || !expenses.data || !categories.data) return null;
-    return buildCategoryBreakdown(transactions.data, expenses.data, categories.data, month, year);
-  }, [categories.data, expenses.data, month, transactions.data, year]);
+    if (!transactions.data || !expenses.data || !categories.data || !cardsReady || !cardStatements.data) return null;
+    if (activeCards.length > 0 && cardStatements.data.length !== activeCards.length) return null;
+    return buildCategoryBreakdown(transactions.data, cardStatements.data, expenses.data, categories.data);
+  }, [activeCards.length, cardStatements.data, cardsReady, categories.data, expenses.data, transactions.data]);
 
   const categoryBreakdown = localCategoryBreakdown ?? categorySummary.data ?? summary.data?.categoryBreakdown ?? [];
   const pieData = categoryBreakdown
@@ -380,12 +403,12 @@ function getCategoryColor(key: string): string {
 
 function buildCategoryBreakdown(
   transactions: Transaction[],
+  cardStatements: Array<CardStatement | null>,
   expenses: Expense[],
   categories: Category[],
-  month: number,
-  year: number,
 ): CategorySummary[] {
   const categoriesById = new Map(categories.map((category) => [category.id, category]));
+  const expensesById = new Map(expenses.map((expense) => [expense.id, expense]));
   const totalsByCategory = new Map<string, CategorySummary>();
 
   const addAmount = (categoryId: number | null | undefined, amount: number) => {
@@ -412,9 +435,13 @@ function buildCategoryBreakdown(
     addAmount(transaction.categoryId, transaction.amount);
   }
 
-  for (const expense of expenses) {
-    if (!isInMonth(expense.purchaseDate, month, year)) continue;
-    addAmount(expense.categoryId, expense.amount);
+  for (const statement of cardStatements) {
+    if (!statement) continue;
+
+    for (const installment of statement.installments) {
+      const expense = expensesById.get(installment.expenseId);
+      addAmount(expense?.categoryId, installment.amount);
+    }
   }
 
   return Array.from(totalsByCategory.values()).sort((a, b) => {
@@ -426,12 +453,6 @@ function buildCategoryBreakdown(
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
-}
-
-function isInMonth(iso: string, month: number, year: number): boolean {
-  const match = /^(\d{4})-(\d{2})/.exec(iso);
-  if (!match) return false;
-  return Number(match[1]) === year && Number(match[2]) === month;
 }
 
 function nextMonthPeriod(month: number, year: number): { month: number; year: number } {
