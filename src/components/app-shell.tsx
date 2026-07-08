@@ -36,7 +36,7 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/home", label: "Início", icon: LayoutDashboard, bottom: true },
-  { to: "/transactions", label: "Mov.", icon: ArrowLeftRight, bottom: true },
+  { to: "/transactions", label: "Movimentações", icon: ArrowLeftRight, bottom: true },
   { to: "/cards", label: "Cartões", icon: CreditCard, bottom: true },
   { to: "/reports", label: "Relatórios", icon: BarChart3, bottom: true },
   { to: "/accounts", label: "Contas", icon: Wallet },
