@@ -30,8 +30,9 @@ import {
   fetchYearlySummary,
 } from "@/lib/queries";
 import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
+import { cardStatementStatusLabel } from "@/lib/card-labels";
 import { recurrenceStatusLabel } from "@/lib/recurrence-labels";
-import type { CardStatementStatus, Category, CategorySummary, Expense, Transaction } from "@/lib/types";
+import type { Category, CategorySummary, Expense, Transaction } from "@/lib/types";
 import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -47,13 +48,6 @@ const CATEGORY_PALETTE = [
   "var(--category-chart-7)",
   "var(--category-chart-8)",
 ];
-
-const CARD_STATUS_LABELS: Record<CardStatementStatus, string> = {
-  OPEN: "Aberta",
-  PARTIALLY_PAID: "Parcialmente paga",
-  PAID: "Paga",
-  OVERPAID: "Paga acima do total",
-};
 
 const tooltipContentStyle: CSSProperties = {
   background: "var(--popover)",
@@ -278,7 +272,7 @@ export default function ReportsPage() {
                     </div>
                     <Progress value={card.totalAmount ? Math.min(100, (card.paidAmount / card.totalAmount) * 100) : 0} />
                     <div className="text-xs text-muted-foreground">
-                      Restante {formatBRL(card.remainingAmount)} - pago {formatBRL(card.paidAmount)} - {CARD_STATUS_LABELS[card.status]}
+                      Restante {formatBRL(card.remainingAmount)} - pago {formatBRL(card.paidAmount)} - {cardStatementStatusLabel(card.status)}
                     </div>
                   </div>
                 ))

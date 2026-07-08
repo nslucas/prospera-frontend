@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { Calendar, Check, Pencil, Plus, RotateCcw, Trash2, X } from "lucide-react";
 import { fetchAccounts, fetchCards, fetchCategories, fetchOccurrences, fetchRecurrences } from "@/lib/queries";
 import { api } from "@/lib/api";
-import type { Recurrence } from "@/lib/types";
+import type { Recurrence, RecurrenceOccurrence } from "@/lib/types";
 import { addDaysIso, formatBRL, formatDate, todayIsoDate } from "@/lib/format";
 import {
   recurrenceClassificationLabel,
@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -66,6 +67,9 @@ const schema = z
     }
   });
 type Values = z.infer<typeof schema>;
+type MaterializeInput =
+  | { id: number; date: string; classification: "FIXED" }
+  | { id: number; date: string; classification: "VARIABLE"; amount: number };
 
 export default function RecurrencesPage() {
   const today = todayIsoDate();
@@ -79,6 +83,8 @@ export default function RecurrencesPage() {
   const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Recurrence | null>(null);
+  const [materializingOccurrence, setMaterializingOccurrence] = useState<RecurrenceOccurrence | null>(null);
+  const [materializeAmount, setMaterializeAmount] = useState(0);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -123,12 +129,20 @@ export default function RecurrencesPage() {
   });
 
   const materialize = useAsyncMutation({
-    mutationFn: ({ id, date }: { id: number; date: string }) =>
-      api(`/recurrences/${id}/occurrences`, { method: "POST", body: { occurrenceDate: date } }),
+    mutationFn: (input: MaterializeInput) =>
+      api(`/recurrences/${input.id}/occurrences`, {
+        method: "POST",
+        body:
+          input.classification === "VARIABLE"
+            ? { occurrenceDate: input.date, amount: input.amount }
+            : { occurrenceDate: input.date },
+      }),
     onSuccess: () => {
-      toast.success("Lancado");
+      toast.success("Lançado");
       list.reload();
       occ.reload();
+      setMaterializingOccurrence(null);
+      setMaterializeAmount(0);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -137,7 +151,7 @@ export default function RecurrencesPage() {
     mutationFn: ({ id, date }: { id: number; date: string }) =>
       api(`/recurrences/${id}/occurrences/skip`, { method: "POST", body: { occurrenceDate: date } }),
     onSuccess: () => {
-      toast.success("Ocorrencia pulada");
+      toast.success("Ocorrência pulada");
       list.reload();
       occ.reload();
     },
@@ -148,7 +162,7 @@ export default function RecurrencesPage() {
     mutationFn: ({ id, date }: { id: number; date: string }) =>
       api(`/recurrences/${id}/occurrences/revert`, { method: "POST", body: { occurrenceDate: date } }),
     onSuccess: () => {
-      toast.success("Ocorrencia revertida");
+      toast.success("Ocorrência revertida");
       list.reload();
       occ.reload();
     },
@@ -205,6 +219,31 @@ export default function RecurrencesPage() {
       classification: recurrence.classification,
     });
     setOpen(true);
+  };
+
+  const materializeOccurrence = (item: RecurrenceOccurrence) => {
+    if (item.classification !== "VARIABLE") {
+      materialize.mutate({ id: item.recurrenceId, date: item.occurrenceDate, classification: item.classification });
+      return;
+    }
+
+    setMaterializeAmount(item.amount);
+    setMaterializingOccurrence(item);
+  };
+
+  const submitVariableMaterialization = () => {
+    if (!materializingOccurrence) return;
+    if (materializeAmount <= 0) {
+      toast.error("Valor deve ser > 0");
+      return;
+    }
+
+    materialize.mutate({
+      id: materializingOccurrence.recurrenceId,
+      date: materializingOccurrence.occurrenceDate,
+      classification: "VARIABLE",
+      amount: materializeAmount,
+    });
   };
 
   return (
@@ -288,7 +327,7 @@ export default function RecurrencesPage() {
                         variant="outline"
                         className="h-8 w-8"
                         disabled={materialize.isPending}
-                        onClick={() => materialize.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
+                        onClick={() => materializeOccurrence(item)}
                       >
                         <Check className="h-4 w-4" />
                       </Button>
@@ -359,6 +398,59 @@ export default function RecurrencesPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={!!materializingOccurrence}
+        onOpenChange={(next) => {
+          if (!next) {
+            setMaterializingOccurrence(null);
+            setMaterializeAmount(0);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Materializar ocorrencia</DialogTitle>
+            {materializingOccurrence && (
+              <DialogDescription>
+                {materializingOccurrence.recurrenceName} - {formatDate(materializingOccurrence.occurrenceDate)}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitVariableMaterialization();
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label>Valor</Label>
+              <CurrencyAmountInput
+                value={materializeAmount}
+                disabled={materialize.isPending}
+                onChange={setMaterializeAmount}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="ghost"
+                disabled={materialize.isPending}
+                onClick={() => {
+                  setMaterializingOccurrence(null);
+                  setMaterializeAmount(0);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={materialize.isPending}>
+                {materialize.isPending ? "Lançando..." : "Lançar"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

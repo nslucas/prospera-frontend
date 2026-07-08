@@ -8,6 +8,7 @@ import { CreditCard as CardIcon, Pencil, Plus, Trash2, WalletCards } from "lucid
 import { fetchAccounts, fetchCardStatement, fetchCards, fetchExpenses } from "@/lib/queries";
 import { api } from "@/lib/api";
 import { getBankBrand as getSharedBankBrand } from "@/lib/bank-brand";
+import { cardStatementStatusLabel } from "@/lib/card-labels";
 import type { Account, Card as CardType, Expense } from "@/lib/types";
 import { formatBRL, formatDate, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
@@ -398,7 +399,7 @@ function CardItem({
             />
             {stmt.data && (
               <Badge variant={stmt.data.status === "PAID" ? "secondary" : "outline"}>
-                {stmt.data.status.replaceAll("_", " ")}
+                {cardStatementStatusLabel(stmt.data.status)}
               </Badge>
             )}
           </div>

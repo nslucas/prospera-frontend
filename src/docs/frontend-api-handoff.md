@@ -56,7 +56,7 @@ Response:
 ```json
 {
   "token": "jwt-token",
-  "userId": 1,
+  "id": 1,
   "email": "user@example.com"
 }
 ```
@@ -64,7 +64,6 @@ Response:
 Particularities:
 
 - Store the `token` and send it as `Authorization: Bearer <token>`.
-- The frontend also accepts optional `name`, `lastName`, and `displayName` fields for user-facing greetings. When those fields are absent, it derives a generic label from `email`.
 - Invalid credentials return `401` with a plain text body.
 
 ### `POST /auth/register`
@@ -340,6 +339,7 @@ Particularities:
 - `amount` and `installmentCount` must be greater than zero.
 - Card expense installments follow card closing/due-day billing rules.
 - Updating an expense regenerates its installments.
+- Shared expenses can include an optional `share` object when the users have an accepted connection. See `docs/expense-sharing-frontend-handoff.md` for the full connection, shared-expense, and `Acertos` contract.
 
 Legacy compatibility endpoints:
 
@@ -471,9 +471,17 @@ Endpoints:
 - `GET /recurrences/occurrences?from=&to=`
 - `POST /recurrences/{recurrenceId}/occurrences`
 - `POST /recurrences/{recurrenceId}/occurrences/skip`
-- `POST /recurrences/{recurrenceId}/occurrences/revert`
 
-Occurrence materialize/skip/revert request:
+Occurrence materialize request:
+
+```json
+{
+  "occurrenceDate": "2026-07-05",
+  "amount": 350
+}
+```
+
+Occurrence skip request:
 
 ```json
 {
@@ -510,11 +518,10 @@ Particularities:
 - Card recurrences create expenses and installments; `installmentCount` defaults to `1`.
 - Monthly recurrences use `dayOfMonth`; annual recurrences use `monthOfYear` plus `dayOfMonth`.
 - Invalid month days are clamped to the last valid day.
+- Materialization can send `amount` only when `classification` is `VARIABLE`; fixed recurrences reject custom occurrence amounts.
+- Occurrence responses show the materialized occurrence amount when present; otherwise they fall back to the recurrence amount.
 - Duplicate materialization for the same recurrence/date is rejected.
-- Materialized occurrences can be reverted with `/revert`; the generated `transaction` or `expense` is removed, `transactionId` and `expenseId` become `null`, and the occurrence returns to `PENDING`.
-- Reverted occurrences can be materialized again for the same recurrence/date.
 - Skipped occurrences cannot be materialized later in the current API.
-- Revert returns `400` when the occurrence is missing, is `PENDING`/`SKIPPED`, or the date is outside the recurrence schedule.
 - `DELETE` soft-deactivates the recurrence.
 
 ## Alerts
@@ -694,6 +701,12 @@ Frontend guidance:
 
 - Most finance screens should not depend on `/users`; use JWT-owned endpoints.
 - Keep user administration separate from personal finance flows.
+
+## User Preferences
+
+Movement-entry defaults are managed through `GET /me/preferences` and `PUT /me/preferences`.
+
+See `docs/user-preferences-frontend-handoff.md` for the full contract.
 
 ## Frontend Implementation Notes
 
