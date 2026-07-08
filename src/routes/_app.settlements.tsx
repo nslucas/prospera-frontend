@@ -26,6 +26,7 @@ const ALL_COUNTERPARTIES = "_all";
 export default function SettlementsPage() {
   const [counterparty, setCounterparty] = useState<string>(ALL_COUNTERPARTIES);
   const [selectedShareIds, setSelectedShareIds] = useState<Set<number>>(() => new Set());
+  const [showSettledItems, setShowSettledItems] = useState(false);
   const counterpartyUserId = counterparty === ALL_COUNTERPARTIES ? undefined : Number(counterparty);
   const settlements = useAsyncData(() => fetchSettlements(), [], { cacheKey: "settlements" });
   const items = useAsyncData(
@@ -52,10 +53,10 @@ export default function SettlementsPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  const openItems = useMemo(
-    () => (items.data ?? []).filter((item) => item.status === "OPEN"),
-    [items.data],
-  );
+  const allItems = items.data ?? [];
+  const openItems = useMemo(() => allItems.filter((item) => item.status === "OPEN"), [allItems]);
+  const visibleItems = showSettledItems ? allItems : openItems;
+  const settledItemsCount = allItems.length - openItems.length;
   const selectedOpenItems = useMemo(
     () => openItems.filter((item) => selectedShareIds.has(item.shareId)),
     [openItems, selectedShareIds],
@@ -196,27 +197,37 @@ export default function SettlementsPage() {
                 Detalhes das compras usadas para calcular os acertos.
               </p>
             </div>
-            <ConfirmAction
-              title="Quitar acertos selecionados?"
-              description="Os itens selecionados sairão dos acertos em aberto e nenhuma movimentação bancária será criada."
-              confirmLabel="Quitar selecionados"
-              onConfirm={() =>
-                settleSelectedItems.mutate(selectedOpenItems.map((item) => item.shareId))
-              }
-            >
-              <Button
-                type="button"
-                disabled={!selectedOpenItems.length || settleSelectedItems.isPending}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <label className="flex h-9 items-center gap-2 rounded-lg border border-border/80 bg-muted/30 px-3 text-sm font-medium">
+                <Checkbox
+                  checked={showSettledItems}
+                  disabled={!settledItemsCount}
+                  onCheckedChange={(checked) => setShowSettledItems(checked === true)}
+                />
+                Mostrar quitados
+              </label>
+              <ConfirmAction
+                title="Quitar acertos selecionados?"
+                description="Os itens selecionados sairão dos acertos em aberto e nenhuma movimentação bancária será criada."
+                confirmLabel="Quitar selecionados"
+                onConfirm={() =>
+                  settleSelectedItems.mutate(selectedOpenItems.map((item) => item.shareId))
+                }
               >
-                <CheckCircle2 className="h-4 w-4" />
-                {selectedOpenItems.length ? `Quitar ${selectedOpenItems.length}` : "Quitar"}
-              </Button>
-            </ConfirmAction>
+                <Button
+                  type="button"
+                  disabled={!selectedOpenItems.length || settleSelectedItems.isPending}
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {selectedOpenItems.length ? `Quitar ${selectedOpenItems.length}` : "Quitar"}
+                </Button>
+              </ConfirmAction>
+            </div>
           </div>
 
           {items.isLoading ? (
             <p className="text-sm text-muted-foreground">Carregando...</p>
-          ) : !items.data?.length ? (
+          ) : !allItems.length ? (
             <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
               Nenhum item encontrado para o filtro atual.
             </p>
@@ -242,47 +253,53 @@ export default function SettlementsPage() {
                   - {formatBRL(selectedTotal)}
                 </span>
               </div>
-              <ul className="divide-y divide-border">
-                {items.data.map((item) => (
-                  <li
-                    key={item.shareId}
-                    className="flex flex-wrap items-center gap-3 py-4 first:pt-0 last:pb-0"
-                  >
-                    {item.status === "OPEN" && (
-                      <Checkbox
-                        checked={selectedShareIds.has(item.shareId)}
-                        disabled={settleSelectedItems.isPending}
-                        aria-label={`Selecionar ${item.expenseName}`}
-                        onCheckedChange={(checked) =>
-                          toggleItemSelection(item.shareId, checked === true)
-                        }
-                      />
-                    )}
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent">
-                      <ReceiptText className="h-5 w-5 text-primary" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{item.expenseName}</p>
-                        <Badge variant={item.status === "SETTLED" ? "secondary" : "outline"}>
-                          {item.status === "SETTLED" ? "Quitado" : "Aberto"}
-                        </Badge>
+              {!visibleItems.length ? (
+                <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
+                  Nenhum item em aberto. Marque "Mostrar quitados" para ver o histórico.
+                </p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {visibleItems.map((item) => (
+                    <li
+                      key={item.shareId}
+                      className="flex flex-wrap items-center gap-3 py-4 first:pt-0 last:pb-0"
+                    >
+                      {item.status === "OPEN" && (
+                        <Checkbox
+                          checked={selectedShareIds.has(item.shareId)}
+                          disabled={settleSelectedItems.isPending}
+                          aria-label={`Selecionar ${item.expenseName}`}
+                          onCheckedChange={(checked) =>
+                            toggleItemSelection(item.shareId, checked === true)
+                          }
+                        />
+                      )}
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent">
+                        <ReceiptText className="h-5 w-5 text-primary" />
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        {itemDescription(item)} • criado em {formatDateTime(item.createdAt)}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold tabular-nums">
-                        {formatBRL(item.participantAmount)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        de {formatBRL(item.expenseAmount)}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">{item.expenseName}</p>
+                          <Badge variant={item.status === "SETTLED" ? "secondary" : "outline"}>
+                            {item.status === "SETTLED" ? "Quitado" : "Aberto"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {itemDescription(item)} • criado em {formatDateTime(item.createdAt)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold tabular-nums">
+                          {formatBRL(item.participantAmount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          de {formatBRL(item.expenseAmount)}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           )}
         </CardContent>

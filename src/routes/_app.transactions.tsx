@@ -240,7 +240,6 @@ export default function TransactionsPage() {
   const preferences = useAsyncData(() => fetchUserPreferences(), [], { cacheKey: "user-preferences", staleMs: 60_000 });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   const form = useForm<Values>({
@@ -576,21 +575,27 @@ export default function TransactionsPage() {
             <h1 className="text-3xl font-semibold leading-tight tracking-tight md:text-4xl">Todos os lançamentos</h1>
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
-            <Button
-              type="button"
-              variant={searchOpen ? "secondary" : "ghost"}
-              size="icon"
-              aria-label={searchOpen ? "Fechar busca" : "Buscar movimentação"}
-              aria-pressed={searchOpen}
-              className="h-12 w-auto flex-1 rounded-2xl px-4 sm:h-10 sm:w-10 sm:flex-none sm:px-0"
-              onClick={() => {
-                setSearchOpen((open) => !open);
-                if (searchOpen) setSearchQuery("");
-              }}
-            >
-              <Search className="h-5 w-5" />
-              <span className="sm:hidden">{searchOpen ? "Fechar busca" : "Buscar"}</span>
-            </Button>
+            <div className="relative min-w-0 flex-1 sm:w-80 sm:flex-none lg:w-96">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Buscar movimentação"
+                aria-label="Buscar movimentação"
+                autoComplete="off"
+                className="h-12 rounded-2xl bg-card pl-10 pr-10 text-base shadow-sm sm:h-10 md:text-sm"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Limpar busca"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
             <MovementEntryDialog
               open={open}
               onOpenChange={(next) => {
@@ -903,29 +908,6 @@ export default function TransactionsPage() {
             )}
           </div>
         </div>
-
-        {searchOpen && (
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Buscar por descrição, categoria, conta, cartão, data ou valor"
-              className="h-12 rounded-2xl bg-card pl-10 pr-10 text-base shadow-sm md:text-sm"
-              autoFocus
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                aria-label="Limpar busca"
-                onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-        )}
 
         <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 rounded-2xl bg-card/80 p-2 shadow-sm ring-1 ring-border/70 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <Button
