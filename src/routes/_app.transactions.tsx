@@ -582,13 +582,14 @@ export default function TransactionsPage() {
               size="icon"
               aria-label={searchOpen ? "Fechar busca" : "Buscar movimentação"}
               aria-pressed={searchOpen}
-              className="h-10 w-10 rounded-2xl"
+              className="h-12 w-auto flex-1 rounded-2xl px-4 sm:h-10 sm:w-10 sm:flex-none sm:px-0"
               onClick={() => {
                 setSearchOpen((open) => !open);
                 if (searchOpen) setSearchQuery("");
               }}
             >
               <Search className="h-5 w-5" />
+              <span className="sm:hidden">{searchOpen ? "Fechar busca" : "Buscar"}</span>
             </Button>
             <MovementEntryDialog
               open={open}
@@ -601,7 +602,7 @@ export default function TransactionsPage() {
               editingExpense={editing?.kind === "card-expense" ? expensesById.get(editing.id) : null}
               editingShare={editing?.kind === "card-expense" ? settlementItemByExpenseId.get(editing.id) : null}
               trigger={
-                <Button type="button" onClick={openNew} className="flex-1 sm:flex-none">
+                <Button type="button" onClick={openNew} className="hidden sm:inline-flex sm:flex-none">
                   <Plus className="h-4 w-4" /> Novo
                 </Button>
               }
