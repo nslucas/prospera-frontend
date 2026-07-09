@@ -6,12 +6,9 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   Line,
   LineChart,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -41,16 +38,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
 
-const CATEGORY_PALETTE = [
-  "var(--category-chart-1)",
-  "var(--category-chart-2)",
-  "var(--category-chart-3)",
-  "var(--category-chart-4)",
-  "var(--category-chart-5)",
-  "var(--category-chart-6)",
-  "var(--category-chart-7)",
-  "var(--category-chart-8)",
-];
+const CATEGORY_CHART_LIMIT = 6;
 
 const tooltipContentStyle: CSSProperties = {
   background: "var(--popover)",
@@ -152,14 +140,7 @@ export default function ReportsPage() {
   }, [activeCards.length, cardStatements.data, cardsReady, categories.data, expenses.data, transactions.data]);
 
   const categoryBreakdown = localCategoryBreakdown ?? categorySummary.data ?? summary.data?.categoryBreakdown ?? [];
-  const pieData = categoryBreakdown
-    .filter((item) => !item.categoryType || item.categoryType === "EXPENSE")
-    .map((item) => ({
-      colorKey: String(item.categoryId ?? item.categoryName),
-      name: item.categoryName,
-      value: getCategoryAmount(item),
-    }))
-    .filter((item) => item.value > 0);
+  const categoryChart = buildCategoryChartData(categoryBreakdown);
 
   const forecastData =
     forecast.data?.forecast.map((item) => ({
@@ -229,40 +210,52 @@ export default function ReportsPage() {
         <Card>
           <CardContent className="p-4 md:p-6">
             <h2 className="text-xl font-semibold tracking-tight">Despesas por categoria</h2>
-            <div className="mt-4 h-64">
-              {pieData.length === 0 ? (
+            {categoryChart.items.length === 0 ? (
+              <div className="mt-4 h-64">
                 <p className="grid h-full place-items-center text-sm text-muted-foreground">Sem dados.</p>
-              ) : (
-                <ResponsiveContainer>
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={50}
-                      outerRadius={90}
-                      paddingAngle={1.5}
-                      stroke="var(--card)"
-                      strokeWidth={2}
-                    >
-                      {pieData.map((item) => (
-                        <Cell key={item.colorKey} fill={getCategoryColor(item.colorKey)} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={tooltipContentStyle}
-                      itemStyle={tooltipTextStyle}
-                      labelStyle={tooltipTextStyle}
-                      formatter={(value: number) => formatBRL(value)}
-                    />
-                    <Legend
-                      wrapperStyle={{ fontSize: 11 }}
-                      formatter={(value) => <span style={legendTextStyle}>{value}</span>}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="mt-1 flex items-baseline justify-between gap-3">
+                  <span className="text-xs text-muted-foreground">Total no mês</span>
+                  <span className="text-sm font-semibold tabular-nums">{formatBRL(categoryChart.total)}</span>
+                </div>
+                <div className="flex min-h-64 flex-col justify-center">
+                  <div
+                    className="space-y-3"
+                    role="list"
+                    aria-label={`Distribuição das despesas por categoria. Total ${formatBRL(categoryChart.total)}`}
+                  >
+                    {categoryChart.items.map((item) => {
+                      const percentageLabel = formatCategoryPercentage(item.percentage);
+                      return (
+                        <div
+                          key={item.key}
+                          role="listitem"
+                          aria-label={`${item.name}: ${formatBRL(item.value)}, ${percentageLabel} do total`}
+                        >
+                          <div className="flex min-w-0 items-baseline justify-between gap-3 text-sm">
+                            <span className="truncate font-medium" title={item.name}>
+                              {item.name}
+                            </span>
+                            <span className="shrink-0 tabular-nums">
+                              {formatBRL(item.value)}
+                              <span className="ml-1 text-xs text-muted-foreground">({percentageLabel})</span>
+                            </span>
+                          </div>
+                          <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                            <div
+                              className={`h-full rounded-full ${item.isOther ? "bg-primary/50" : "bg-primary"}`}
+                              style={{ width: `max(2px, ${Math.min(100, item.percentage)}%)` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -409,12 +402,44 @@ function getCategoryAmount(item: CategorySummary): number {
   return Number.isFinite(amount) ? amount : 0;
 }
 
-function getCategoryColor(key: string): string {
-  let hash = 0;
-  for (let i = 0; i < key.length; i += 1) {
-    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+function buildCategoryChartData(categoryBreakdown: CategorySummary[]) {
+  const rankedItems = categoryBreakdown
+    .filter((item) => !item.categoryType || item.categoryType === "EXPENSE")
+    .map((item) => ({
+      key: String(item.categoryId ?? item.categoryName),
+      name: item.categoryName,
+      value: getCategoryAmount(item),
+      isOther: false,
+    }))
+    .filter((item) => item.value > 0)
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "pt-BR"));
+
+  const total = roundMoney(rankedItems.reduce((sum, item) => sum + item.value, 0));
+  const visibleItems = rankedItems.slice(0, CATEGORY_CHART_LIMIT);
+
+  if (rankedItems.length > CATEGORY_CHART_LIMIT) {
+    visibleItems.push({
+      key: "other-categories",
+      name: "Outras",
+      value: roundMoney(
+        rankedItems.slice(CATEGORY_CHART_LIMIT).reduce((sum, item) => sum + item.value, 0),
+      ),
+      isOther: true,
+    });
   }
-  return CATEGORY_PALETTE[hash % CATEGORY_PALETTE.length];
+
+  return {
+    total,
+    items: visibleItems.map((item) => ({
+      ...item,
+      percentage: total > 0 ? (item.value / total) * 100 : 0,
+    })),
+  };
+}
+
+function formatCategoryPercentage(percentage: number): string {
+  if (percentage > 0 && percentage < 1) return "<1%";
+  return `${Math.round(percentage)}%`;
 }
 
 function buildCategoryBreakdown(
