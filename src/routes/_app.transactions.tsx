@@ -8,6 +8,7 @@ import {
   ArrowDownRight,
   ArrowLeftRight,
   ArrowUpRight,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CreditCard,
@@ -43,6 +44,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CurrencyAmountInput } from "@/components/currency-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PeriodPicker, monthName } from "@/components/period-picker";
 import { MovementEntryDialog } from "@/components/movement-entry-dialog";
 
@@ -241,6 +243,7 @@ export default function TransactionsPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [flowDetailsOpen, setFlowDetailsOpen] = useState(false);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -452,6 +455,7 @@ export default function TransactionsPage() {
   const cashFlowTotals = calculateCashFlowTotals(items);
   const statementSummaries = (cardStatements.data ?? []).filter((statement): statement is CardStatement => Boolean(statement));
   const statementTotals = calculateStatementTotals(statementSummaries);
+  const selectedPeriodLabel = `${monthName(month, year)} de ${year}`;
   const normalizedSearchQuery = normalizeSearch(searchQuery);
   const filteredItems = normalizedSearchQuery
     ? items.filter((item) =>
@@ -570,8 +574,7 @@ export default function TransactionsPage() {
     <div className="space-y-5">
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0 space-y-1">
-            <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
+          <div className="min-w-0">
             <h1 className="text-3xl font-semibold leading-tight tracking-tight md:text-4xl">Todos os lançamentos</h1>
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
@@ -935,72 +938,118 @@ export default function TransactionsPage() {
           </Button>
         </div>
 
-        <div className="rounded-2xl bg-card/70 px-4 py-3 shadow-sm ring-1 ring-border/70">
-          <div className="grid gap-4 md:grid-cols-[minmax(8rem,1.1fr)_minmax(0,1.7fr)_minmax(12rem,1.2fr)] md:items-center">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="text-xs text-muted-foreground">Fluxo do mês</p>
-              </div>
-              <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">{formatBRL(cashFlowTotals.net)}</p>
-            </div>
+        <Collapsible
+          open={flowDetailsOpen}
+          onOpenChange={setFlowDetailsOpen}
+          className="rounded-2xl bg-card/70 px-4 py-3 shadow-sm ring-1 ring-border/70"
+        >
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground">{selectedPeriodLabel}</span>
+              {": "}
+              <span className="font-semibold tabular-nums text-[var(--success)]">
+                {formatBRL(cashFlowTotals.net)}
+              </span>{" "}
+              de entradas <span aria-hidden="true">·</span>{" "}
+              <span className="font-semibold tabular-nums text-foreground">
+                {formatBRL(cashFlowTotals.accountOutflow)}
+              </span>{" "}
+              em saídas <span aria-hidden="true">·</span>{" "}
+              <span className="font-semibold tabular-nums text-primary">
+                {formatBRL(statementTotals.total)}
+              </span>{" "}
+              em cartões
+            </p>
 
-            <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Entradas</p>
-                <p className="truncate font-semibold tabular-nums text-[var(--success)]">{formatBRL(cashFlowTotals.inflow)}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Saídas conta</p>
-                <p className="truncate font-semibold tabular-nums">{formatBRL(cashFlowTotals.accountOutflow)}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Cartão</p>
-                <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(cashFlowTotals.cardPurchases)}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Acertos</p>
-                <p className={`truncate font-semibold tabular-nums ${cashFlowTotals.settlementsNet > 0 ? "text-[var(--success)]" : ""}`}>
-                  {formatSignedBRL(cashFlowTotals.settlementsNet)}
-                </p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Aberto</p>
-                <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.remaining)}</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/20 px-3 py-2 text-sm">
-              <div className="col-span-2 min-w-0">
-                <p className="text-[11px] text-muted-foreground">Fatura</p>
-                <p className="truncate font-semibold capitalize">{monthName(cardStatementPeriod.month, cardStatementPeriod.year)}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Total</p>
-                <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(statementTotals.total)}</p>
-              </div>
-              <div className="min-w-0">
-                <p className="text-[11px] text-muted-foreground">Pago</p>
-                <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.paid)}</p>
-              </div>
-            </div>
+            <CollapsibleTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 self-start text-muted-foreground hover:text-foreground sm:self-auto"
+                aria-label={flowDetailsOpen ? "Ocultar detalhes do fluxo mensal" : "Ver detalhes do fluxo mensal"}
+              >
+                {flowDetailsOpen ? "Ocultar detalhes" : "Ver detalhes"}
+                <ChevronDown
+                  className={`transition-transform duration-200 ${flowDetailsOpen ? "rotate-180" : ""}`}
+                />
+              </Button>
+            </CollapsibleTrigger>
           </div>
 
-          {cardStatements.isLoading && !statementSummaries.length ? (
-            <p className="mt-2 text-xs text-muted-foreground">Carregando faturas...</p>
-          ) : statementSummaries.length ? (
-            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-              {statementSummaries.map((statement) => (
-                <div key={`${statement.cardId}-${statement.month}-${statement.year}`} className="flex min-w-40 items-center justify-between gap-3 rounded-lg bg-muted/20 px-3 py-2 text-xs">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{statement.cardName}</p>
-                    <p className="truncate text-muted-foreground">Vence {formatDate(statement.dueDate)}</p>
+          <CollapsibleContent>
+            <div className="mt-3 border-t border-border/70 pt-3">
+              <div className="grid gap-4 md:grid-cols-[minmax(8rem,1.1fr)_minmax(0,1.7fr)_minmax(12rem,1.2fr)] md:items-center">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">Fluxo do mês</p>
                   </div>
-                  <p className="shrink-0 font-semibold tabular-nums">{formatBRL(statement.remainingAmount)}</p>
+                  <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">
+                    {formatBRL(cashFlowTotals.net)}
+                  </p>
                 </div>
-              ))}
+
+                <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Entradas</p>
+                    <p className="truncate font-semibold tabular-nums text-[var(--success)]">
+                      {formatBRL(cashFlowTotals.inflow)}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Saídas conta</p>
+                    <p className="truncate font-semibold tabular-nums">{formatBRL(cashFlowTotals.accountOutflow)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Cartão</p>
+                    <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(cashFlowTotals.cardPurchases)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Acertos</p>
+                    <p className={`truncate font-semibold tabular-nums ${cashFlowTotals.settlementsNet > 0 ? "text-[var(--success)]" : ""}`}>
+                      {formatSignedBRL(cashFlowTotals.settlementsNet)}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Aberto</p>
+                    <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.remaining)}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/20 px-3 py-2 text-sm">
+                  <div className="col-span-2 min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Fatura</p>
+                    <p className="truncate font-semibold capitalize">{monthName(cardStatementPeriod.month, cardStatementPeriod.year)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Total</p>
+                    <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(statementTotals.total)}</p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[11px] text-muted-foreground">Pago</p>
+                    <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.paid)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {cardStatements.isLoading && !statementSummaries.length ? (
+                <p className="mt-2 text-xs text-muted-foreground">Carregando faturas...</p>
+              ) : statementSummaries.length ? (
+                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                  {statementSummaries.map((statement) => (
+                    <div key={`${statement.cardId}-${statement.month}-${statement.year}`} className="flex min-w-40 items-center justify-between gap-3 rounded-lg bg-muted/20 px-3 py-2 text-xs">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">{statement.cardName}</p>
+                        <p className="truncate text-muted-foreground">Vence {formatDate(statement.dueDate)}</p>
+                      </div>
+                      <p className="shrink-0 font-semibold tabular-nums">{formatBRL(statement.remainingAmount)}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       <Card>
