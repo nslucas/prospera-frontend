@@ -461,12 +461,11 @@ function MobileBottomNav({
           type="button"
           aria-label="Nova movimentação"
           onClick={onAdd}
-          className="flex min-h-14 flex-col items-center justify-end text-[9px] font-bold text-foreground"
+          className="flex min-h-14 items-center justify-center"
         >
-          <span className="grid h-12 w-12 -translate-y-1 place-items-center rounded-2xl bg-[#c9ff5b] text-[#0b2e24] shadow-[0_12px_28px_rgba(11,46,36,0.28)] ring-4 ring-background transition active:scale-95">
+          <span className="grid h-12 w-12 -translate-y-1 place-items-center rounded-2xl bg-[#c9ff5b] text-[#0b2e24] shadow-[0_12px_28px_rgba(11,46,36,0.28)] transition active:scale-95">
             <Plus className="h-5 w-5 stroke-[2.6]" />
           </span>
-          <span className="-mt-0.5">Adicionar</span>
         </button>
 
         <MobileBottomLink
@@ -480,7 +479,7 @@ function MobileBottomNav({
           aria-label="Abrir mais opções"
           onClick={onMore}
           className={cn(
-            "relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-[1.05rem] px-1 text-[9px] font-semibold transition",
+            "relative flex min-h-14 items-center justify-center rounded-[1.05rem] px-1 transition",
             moreActive
               ? "bg-[#0b2e24] text-[#c9ff5b] dark:bg-[#c9ff5b] dark:text-[#0b2e24]"
               : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -492,7 +491,6 @@ function MobileBottomNav({
               <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-[#ef6a57] ring-2 ring-card" />
             )}
           </span>
-          <span>Mais</span>
         </button>
       </div>
     </nav>
@@ -513,16 +511,16 @@ function MobileBottomLink({
   return (
     <Link
       to={to}
+      aria-label={label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-14 flex-col items-center justify-center gap-1 rounded-[1.05rem] px-1 text-[9px] font-semibold transition",
+        "flex min-h-14 items-center justify-center rounded-[1.05rem] px-1 transition",
         active
           ? "bg-[#0b2e24] text-[#c9ff5b] dark:bg-[#c9ff5b] dark:text-[#0b2e24]"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <Icon className={cn("h-5 w-5", active && "stroke-[2.4]")} />
-      <span>{label}</span>
     </Link>
   );
 }
