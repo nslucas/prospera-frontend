@@ -129,8 +129,8 @@ export default function HomePage() {
         </div>
       </header>
 
-      <section className="grid gap-5 xl:grid-cols-[1.25fr_0.75fr]">
-        <div className="reveal-in relative min-h-[22rem] overflow-hidden rounded-[1.75rem] bg-[#0b2e24] p-6 text-white shadow-[0_24px_60px_rgba(11,46,36,0.18)] sm:p-8">
+      <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
+        <div className="reveal-in order-2 relative min-h-[22rem] overflow-hidden rounded-[1.75rem] bg-[#0b2e24] p-6 text-white shadow-[0_24px_60px_rgba(11,46,36,0.18)] sm:p-8">
           <div className="absolute -right-28 -top-28 hidden h-80 w-80 rounded-full border-[52px] border-[#c9ff5b]/10 sm:block" />
           <div className="absolute -bottom-24 right-28 h-56 w-56 rounded-full bg-[#c9ff5b]/10 blur-3xl" />
           <div className="relative flex h-full flex-col justify-between gap-10">
@@ -187,7 +187,7 @@ export default function HomePage() {
           </div>
         </div>
 
-        <Card className="reveal-in overflow-hidden">
+        <Card className="reveal-in order-1 overflow-hidden">
           <CardContent className="flex h-full flex-col p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
               <div>
