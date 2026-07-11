@@ -1,55 +1,95 @@
 import * as React from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
-  LayoutDashboard,
-  Wallet,
-  CreditCard,
   ArrowLeftRight,
-  PiggyBank,
-  Bell,
   BarChart3,
-  Tag,
-  RotateCw,
+  Bell,
+  ChevronRight,
+  CreditCard,
   HandCoins,
+  LayoutDashboard,
   LogOut,
   Menu,
-  X,
   MoreHorizontal,
-  Settings,
-  UsersRound,
+  PiggyBank,
   Plus,
+  RotateCw,
+  Settings,
+  Tags,
+  UsersRound,
+  Wallet,
+  X,
 } from "lucide-react";
-import { useAuth } from "@/lib/auth";
-import { cn } from "@/lib/utils";
-import { BrandLogo, BrandMark } from "@/components/brand-logo";
+
+import { BrandLogo } from "@/components/brand-logo";
 import { MovementEntryDialog } from "@/components/movement-entry-dialog";
 import { ThemeSelector } from "@/components/theme-selector";
 import { useAsyncData } from "@/hooks/use-async-data";
-import { fetchPendingConnectionRequests } from "@/lib/queries";
+import { useAuth } from "@/lib/auth";
 import { fetchUnreadNotificationCount } from "@/lib/notifications";
+import { fetchPendingConnectionRequests } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 
 interface NavItem {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  bottom?: boolean;
   activePaths?: string[];
 }
 
-const NAV: NavItem[] = [
-  { to: "/home", label: "Início", icon: LayoutDashboard, bottom: true },
-  { to: "/transactions", label: "Movimentações", icon: ArrowLeftRight, bottom: true },
-  { to: "/cards", label: "Cartões", icon: CreditCard, bottom: true },
-  { to: "/reports", label: "Relatórios", icon: BarChart3, bottom: true },
-  { to: "/accounts", label: "Contas", icon: Wallet },
-  { to: "/budgets", label: "Orçamentos", icon: PiggyBank },
-  { to: "/categories", label: "Categorias", icon: Tag },
-  { to: "/connections", label: "Conexões", icon: UsersRound },
-  { to: "/settlements", label: "Acertos", icon: HandCoins },
-  { to: "/recurrences", label: "Recorrências", icon: RotateCw },
-  { to: "/alerts", label: "Alertas", icon: Bell },
-  { to: "/settings", label: "Config.", icon: Settings, activePaths: ["/notifications"] },
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: "Seu dinheiro",
+    items: [
+      { to: "/home", label: "Visão geral", icon: LayoutDashboard },
+      { to: "/transactions", label: "Movimentações", icon: ArrowLeftRight },
+      { to: "/accounts", label: "Contas", icon: Wallet },
+      { to: "/cards", label: "Cartões", icon: CreditCard },
+    ],
+  },
+  {
+    label: "Planejamento",
+    items: [
+      { to: "/budgets", label: "Orçamentos", icon: PiggyBank },
+      { to: "/reports", label: "Relatórios", icon: BarChart3 },
+      { to: "/recurrences", label: "Recorrências", icon: RotateCw },
+    ],
+  },
+  {
+    label: "Compartilhar",
+    items: [
+      { to: "/connections", label: "Conexões", icon: UsersRound },
+      { to: "/settlements", label: "Acertos", icon: HandCoins },
+    ],
+  },
 ];
+
+const UTILITY_NAV: NavItem[] = [
+  { to: "/categories", label: "Categorias", icon: Tags },
+  { to: "/alerts", label: "Alertas", icon: Bell },
+  { to: "/settings", label: "Configurações", icon: Settings, activePaths: ["/notifications"] },
+];
+
+const PAGE_META: Record<string, { eyebrow: string; title: string }> = {
+  "/home": { eyebrow: "Visão geral", title: "Meu panorama" },
+  "/transactions": { eyebrow: "Seu dinheiro", title: "Movimentações" },
+  "/accounts": { eyebrow: "Seu dinheiro", title: "Contas" },
+  "/cards": { eyebrow: "Seu dinheiro", title: "Cartões" },
+  "/budgets": { eyebrow: "Planejamento", title: "Orçamentos" },
+  "/reports": { eyebrow: "Planejamento", title: "Relatórios" },
+  "/recurrences": { eyebrow: "Planejamento", title: "Recorrências" },
+  "/connections": { eyebrow: "Compartilhar", title: "Conexões" },
+  "/settlements": { eyebrow: "Compartilhar", title: "Acertos" },
+  "/categories": { eyebrow: "Organização", title: "Categorias" },
+  "/alerts": { eyebrow: "Organização", title: "Alertas" },
+  "/notifications": { eyebrow: "Conta", title: "Notificações" },
+  "/settings": { eyebrow: "Conta", title: "Configurações" },
+};
 
 export function AppShell() {
   const { user, loading, logout } = useAuth();
@@ -57,329 +97,450 @@ export function AppShell() {
   const { pathname } = useLocation();
   const [mobileMenu, setMobileMenu] = React.useState(false);
   const [movementEntryOpen, setMovementEntryOpen] = React.useState(false);
-  const [isCollapsed, setIsCollapsed] = React.useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("sidebar-collapsed") === "true";
-    }
-    return false;
-  });
   const pendingRequests = useAsyncData(() => fetchPendingConnectionRequests(), [], {
     enabled: !loading && !!user,
     initialData: [],
     cacheKey: "connection-requests-pending",
   });
-  const pendingConnectionCount = pendingRequests.data?.length ?? 0;
   const unreadNotifications = useAsyncData(() => fetchUnreadNotificationCount(), [], {
     enabled: !loading && !!user,
     initialData: { count: 0 },
     cacheKey: "notifications:unread-count",
   });
-  const unreadNotificationCount = unreadNotifications.data?.count ?? 0;
   const reloadPendingRequests = pendingRequests.reload;
   const reloadUnreadNotifications = unreadNotifications.reload;
-
-  const toggleSidebar = () => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem("sidebar-collapsed", String(next));
-      return next;
-    });
-  };
 
   React.useEffect(() => {
     if (!loading && !user) navigate("/auth/login");
   }, [loading, user, navigate]);
 
-  React.useEffect(() => {
-    setMobileMenu(false);
-  }, [pathname]);
+  React.useEffect(() => setMobileMenu(false), [pathname]);
 
   React.useEffect(() => {
-    const handleConnectionsUpdated = () => {
-      reloadPendingRequests();
+    const refreshConnections = () => reloadPendingRequests();
+    const refreshNotifications = () => reloadUnreadNotifications();
+    window.addEventListener("prospera:connections-updated", refreshConnections);
+    window.addEventListener("prospera:notifications-updated", refreshNotifications);
+    return () => {
+      window.removeEventListener("prospera:connections-updated", refreshConnections);
+      window.removeEventListener("prospera:notifications-updated", refreshNotifications);
     };
-    window.addEventListener("prospera:connections-updated", handleConnectionsUpdated);
-    return () =>
-      window.removeEventListener("prospera:connections-updated", handleConnectionsUpdated);
-  }, [reloadPendingRequests]);
-
-  React.useEffect(() => {
-    const handleNotificationsUpdated = () => {
-      reloadUnreadNotifications();
-    };
-    window.addEventListener("prospera:notifications-updated", handleNotificationsUpdated);
-    return () =>
-      window.removeEventListener("prospera:notifications-updated", handleNotificationsUpdated);
-  }, [reloadUnreadNotifications]);
+  }, [reloadPendingRequests, reloadUnreadNotifications]);
 
   if (loading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="grid min-h-screen place-items-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }
 
-  const isActivePath = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
-  const isNavItemActive = (item: NavItem) =>
-    isActivePath(item.to) || (item.activePaths?.some((path) => isActivePath(path)) ?? false);
-  const bottomItems = NAV.filter((item) => item.bottom);
-  const moreItems = NAV.filter((item) => !item.bottom);
-  const getBadgeCount = (item: NavItem) => {
-    if (item.to === "/connections") return pendingConnectionCount;
-    if (item.to === "/settings") return unreadNotificationCount;
-    return 0;
-  };
+  const isActive = (item: NavItem) =>
+    pathname === item.to ||
+    pathname.startsWith(`${item.to}/`) ||
+    (item.activePaths?.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ??
+      false);
+  const pageMeta =
+    Object.entries(PAGE_META).find(
+      ([path]) => pathname === path || pathname.startsWith(`${path}/`),
+    )?.[1] ?? PAGE_META["/home"];
+  const pendingConnectionCount = pendingRequests.data?.length ?? 0;
+  const notificationCount = unreadNotifications.data?.count ?? 0;
+
+  const badgeFor = (item: NavItem) => (item.to === "/connections" ? pendingConnectionCount : 0);
 
   return (
-    <div className="soft-grid min-h-screen text-foreground">
-      <aside
-        className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden flex-col border-r border-sidebar-border bg-sidebar p-3 md:flex transition-all duration-300 ease-in-out",
-          isCollapsed ? "w-16 px-2" : "w-64",
-        )}
-      >
-        <div
-          className={cn(
-            "mb-5 flex items-center justify-between transition-all duration-300 gap-2",
-            isCollapsed ? "flex-col justify-center px-0 gap-4" : "flex-row px-1.5",
-          )}
-        >
-          {isCollapsed ? (
-            <>
-              <div className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-300"
-                  title="Expandir menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
-                <ThemeSelector className="border-transparent shadow-none" />
-              </div>
-              <BrandMark />
-            </>
-          ) : (
-            <>
-              <Link to="/transactions" className="flex min-w-0 flex-1 items-center gap-3 rounded-lg py-1">
-                <BrandMark />
-                <div className="min-w-0">
-                  <div className="truncate font-display text-lg font-bold leading-none tracking-tight">
-                    Prospera
-                  </div>
-                  <div className="truncate text-xs text-muted-foreground">Finanças pessoais</div>
-                </div>
-              </Link>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <ThemeSelector />
-                <button
-                  type="button"
-                  onClick={toggleSidebar}
-                  className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-all duration-300"
-                  title="Recolher menu"
-                >
-                  <Menu className="h-5 w-5" />
-                </button>
-              </div>
-            </>
-          )}
+    <div className="min-h-screen bg-background text-foreground">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[17rem] flex-col overflow-hidden bg-[#0b2e24] text-white lg:flex">
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#c9ff5b]/10 blur-3xl" />
+        <div className="relative flex h-24 items-center px-6">
+          <Link
+            to="/home"
+            className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9ff5b]"
+          >
+            <BrandLogo
+              markSize="sm"
+              textClassName="text-xl !text-white"
+              className="[&>span:first-child]:shadow-none"
+            />
+          </Link>
         </div>
-        <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((item) => {
-            const active = isNavItemActive(item);
-            const badgeCount = getBadgeCount(item);
 
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                title={isCollapsed ? item.label : undefined}
-                className={cn(
-                  "group relative flex items-center rounded-lg py-2 text-sm transition-all duration-200 ease-in-out",
-                  isCollapsed ? "px-2 justify-center" : "px-3 gap-3",
-                  active
-                    ? "bg-accent text-sidebar-accent-foreground font-medium ring-1 ring-sidebar-border/70"
-                    : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
-                )}
-              >
-                <item.icon
-                  className={cn(
-                    "h-4 w-4 transition-colors shrink-0",
-                    active ? "text-primary" : "text-muted-foreground group-hover:text-primary",
-                  )}
-                />
-                {!isCollapsed && <span className="truncate">{item.label}</span>}
-                {badgeCount > 0 && (
-                  <span
-                    className={cn(
-                      "ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground",
-                      isCollapsed && "absolute right-1 top-1 h-2 min-w-2 p-0 text-[0px]",
-                    )}
-                  >
-                    {badgeCount}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+        <div className="relative px-4">
+          <button
+            type="button"
+            onClick={() => setMovementEntryOpen(true)}
+            className="group flex h-12 w-full items-center justify-between rounded-2xl bg-[#c9ff5b] px-4 text-sm font-bold text-[#0b2e24] shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:bg-[#d7ff81]"
+          >
+            <span className="flex items-center gap-2.5">
+              <Plus className="h-4 w-4" /> Nova movimentação
+            </span>
+            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </div>
+
+        <nav className="relative mt-6 flex-1 overflow-y-auto px-4 pb-4">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="mb-5">
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">
+                {group.label}
+              </p>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    item={item}
+                    active={isActive(item)}
+                    badge={badgeFor(item)}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="my-4 h-px bg-white/8" />
+          <div className="space-y-1">
+            {UTILITY_NAV.map((item) => (
+              <NavLink key={item.to} item={item} active={isActive(item)} badge={badgeFor(item)} />
+            ))}
+          </div>
         </nav>
 
-        {isCollapsed ? (
-          <div className="mt-4 flex flex-col items-center py-2 border-t border-sidebar-border/40">
+        <div className="relative m-4 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#c9ff5b] text-xs font-extrabold text-[#0b2e24]">
+              {getInitials(user.name, user.email)}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold">{user.name || "Minha conta"}</p>
+              <p className="truncate text-[11px] text-white/45">{user.email}</p>
+            </div>
             <button
+              type="button"
               onClick={logout}
-              title={`Sair (${user.email})`}
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors duration-300"
+              aria-label="Sair"
+              title="Sair"
+              className="grid h-8 w-8 place-items-center rounded-lg text-white/45 transition hover:bg-white/10 hover:text-white"
             >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
-        ) : (
-          <div className="mt-3 rounded-lg border border-sidebar-border bg-card/60 p-2.5 transition-all duration-300">
-            <div className="truncate text-xs text-muted-foreground">{user.email}</div>
-            <button
-              onClick={logout}
-              className="mt-2 inline-flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <LogOut className="h-3.5 w-3.5" /> Sair
-            </button>
-          </div>
-        )}
+        </div>
       </aside>
 
-      <header className="sticky top-0 z-20 flex items-center justify-between bg-gradient-to-b from-background via-background/95 to-background/70 px-4 pb-4 pt-3 backdrop-blur md:hidden">
-        <Link to="/transactions" className="flex items-center gap-2">
-          <BrandLogo markSize="sm" textClassName="text-lg" />
-        </Link>
-        <div className="flex items-center gap-2">
-          <ThemeSelector />
-          <button
-            aria-label="Abrir menu"
-            onClick={() => setMobileMenu((open) => !open)}
-            className="grid h-9 w-9 place-items-center rounded-lg border border-border bg-card shadow-sm"
-          >
-            {mobileMenu ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
-          </button>
-        </div>
-      </header>
+      <div className="lg:pl-[17rem]">
+        <header className="sticky top-0 z-30 border-b border-border/70 bg-background/88 backdrop-blur-xl">
+          <div className="flex h-[4.5rem] items-center justify-between px-4 sm:px-6 lg:px-9">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setMobileMenu(true)}
+                aria-label="Abrir menu"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-card text-foreground shadow-sm lg:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <Link to="/home" className="lg:hidden">
+                <BrandLogo markSize="sm" textClassName="text-base" />
+              </Link>
+              <div className="hidden min-w-0 sm:block">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+                  {pageMeta.eyebrow}
+                </p>
+                <p className="truncate text-base font-semibold tracking-tight">{pageMeta.title}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="mr-2 hidden text-xs font-medium text-muted-foreground xl:inline">
+                {formatHeaderDate()}
+              </span>
+              <ThemeSelector className="h-10 w-10 rounded-xl bg-card" />
+              <Link
+                to="/notifications"
+                aria-label="Notificações"
+                className="relative grid h-10 w-10 place-items-center rounded-xl border border-border bg-card text-muted-foreground shadow-sm transition hover:-translate-y-0.5 hover:text-foreground"
+              >
+                <Bell className="h-4 w-4" />
+                {notificationCount > 0 && (
+                  <span className="absolute -right-1 -top-1 grid h-5 min-w-5 place-items-center rounded-full bg-[#ef6a57] px-1 text-[9px] font-bold text-white ring-2 ring-background">
+                    {notificationCount > 9 ? "9+" : notificationCount}
+                  </span>
+                )}
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMovementEntryOpen(true)}
+                className="ml-1 hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_rgba(16,91,68,0.18)] transition hover:-translate-y-0.5 sm:inline-flex lg:hidden"
+              >
+                <Plus className="h-4 w-4" /> Adicionar
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="min-h-[calc(100vh-4.5rem)] pb-28 lg:pb-10">
+          <div className="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 sm:py-8 lg:px-9">
+            <Outlet />
+          </div>
+        </main>
+      </div>
 
       {mobileMenu && (
-        <div className="fixed inset-0 z-30 md:hidden" onClick={() => setMobileMenu(false)}>
-          <div className="absolute inset-0 bg-foreground/20 backdrop-blur-sm" />
-          <div
-            className="absolute right-0 top-0 h-full w-64 bg-card p-4 shadow-xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-4 truncate text-xs text-muted-foreground">{user.email}</div>
-            <nav className="flex flex-col gap-1">
-              {moreItems.map((item) => {
-                const badgeCount = getBadgeCount(item);
-
-                return (
-                  <Link
-                    key={item.to}
-                    to={item.to}
-                    className={cn(
-                      "flex items-center gap-3 rounded-lg px-3 py-2 text-sm",
-                      isNavItemActive(item)
-                        ? "bg-accent text-sidebar-accent-foreground font-medium"
-                        : "text-muted-foreground hover:bg-muted/70",
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                    {badgeCount > 0 && (
-                      <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
-                        {badgeCount}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-              <button
-                onClick={logout}
-                className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-destructive hover:bg-destructive/10"
-              >
-                <LogOut className="h-4 w-4" /> Sair
-              </button>
-            </nav>
-          </div>
-        </div>
+        <MobileMenu
+          user={user}
+          activePath={pathname}
+          pendingConnections={pendingConnectionCount}
+          onClose={() => setMobileMenu(false)}
+          onAdd={() => {
+            setMobileMenu(false);
+            setMovementEntryOpen(true);
+          }}
+          onLogout={logout}
+        />
       )}
 
       <MovementEntryDialog open={movementEntryOpen} onOpenChange={setMovementEntryOpen} />
 
-      <main
-        className={cn(
-          "pb-32 md:pb-8 transition-all duration-300 ease-in-out",
-          isCollapsed ? "md:ml-16" : "md:ml-64",
-        )}
-      >
-        <div className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-10">
-          <Outlet />
-        </div>
-      </main>
-
       {!mobileMenu && !movementEntryOpen && (
-        <>
-          <button
-            type="button"
-            aria-label="Nova movimentação"
-            title="Nova movimentação"
-            onClick={() => setMovementEntryOpen(true)}
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.35rem)] right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground transition-transform hover:scale-105 active:scale-95 md:hidden"
-          >
-            <Plus className="h-6 w-6" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setMovementEntryOpen(true)}
-            className="fixed bottom-6 right-6 z-30 hidden h-12 items-center gap-2 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.02] active:scale-95 md:inline-flex"
-          >
-            <Plus className="h-4 w-4" />
-            Nova movimentação
-          </button>
-        </>
+        <MobileBottomNav
+          pathname={pathname}
+          badgeCount={pendingConnectionCount + notificationCount}
+          onAdd={() => setMovementEntryOpen(true)}
+          onMore={() => setMobileMenu(true)}
+        />
       )}
-
-      <nav className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.55rem)] z-20 px-4 md:hidden">
-        <div className="mx-auto grid max-w-sm grid-cols-5 gap-1 rounded-2xl border border-border/80 bg-card/92 p-1.5 shadow-[0_8px_24px_rgba(16,27,21,0.14)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/86">
-          {bottomItems.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              aria-label={item.label}
-              title={item.label}
-              className={cn(
-                "flex min-h-12 items-center justify-center rounded-xl px-1 text-[11px] font-medium leading-none transition-all",
-                isNavItemActive(item)
-                  ? "bg-accent text-primary ring-1 ring-primary/15"
-                  : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
-              )}
-            >
-              <item.icon className={cn("h-5 w-5", isNavItemActive(item) && "stroke-[2.4]")} />
-            </Link>
-          ))}
-          <button
-            type="button"
-            aria-label="Abrir mais opções"
-            title="Mais"
-            onClick={() => setMobileMenu(true)}
-            className={cn(
-              "relative flex min-h-12 items-center justify-center rounded-xl px-1 text-[11px] font-medium leading-none transition-all",
-              moreItems.some((item) => isNavItemActive(item))
-                ? "bg-accent text-primary ring-1 ring-primary/15"
-                : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
-            )}
-          >
-            <MoreHorizontal className="h-5 w-5" />
-            {moreItems.some((item) => getBadgeCount(item) > 0) && (
-              <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-primary" />
-            )}
-          </button>
-        </div>
-      </nav>
     </div>
   );
+}
+
+function NavLink({ item, active, badge = 0 }: { item: NavItem; active: boolean; badge?: number }) {
+  return (
+    <Link
+      to={item.to}
+      className={cn(
+        "group flex min-h-10 items-center gap-3 rounded-xl px-3 text-[13px] font-medium transition",
+        active
+          ? "bg-white/[0.11] text-white"
+          : "text-white/85 hover:bg-white/[0.06] hover:text-white",
+      )}
+    >
+      <item.icon
+        className={cn(
+          "h-4 w-4",
+          active ? "text-[#c9ff5b]" : "text-white/65 group-hover:text-white/90",
+        )}
+      />
+      <span className="flex-1">{item.label}</span>
+      {badge > 0 && (
+        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#c9ff5b] px-1 text-[9px] font-extrabold text-[#0b2e24]">
+          {badge > 9 ? "9+" : badge}
+        </span>
+      )}
+      {active && !badge && <span className="h-1.5 w-1.5 rounded-full bg-[#c9ff5b]" />}
+    </Link>
+  );
+}
+
+function MobileMenu({
+  user,
+  activePath,
+  pendingConnections,
+  onClose,
+  onAdd,
+  onLogout,
+}: {
+  user: { name?: string | null; email?: string | null };
+  activePath: string;
+  pendingConnections: number;
+  onClose: () => void;
+  onAdd: () => void;
+  onLogout: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 lg:hidden">
+      <button
+        className="absolute inset-0 bg-[#061a14]/55 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Fechar menu"
+      />
+      <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,21rem)] flex-col overflow-y-auto bg-[#0b2e24] p-4 text-white shadow-2xl">
+        <div className="mb-5 flex items-center justify-between px-1 py-2">
+          <BrandLogo markSize="sm" textClassName="!text-white text-xl" />
+          <button
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-xl bg-white/10"
+            aria-label="Fechar menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <button
+          onClick={onAdd}
+          className="mb-6 flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#c9ff5b] text-sm font-bold text-[#0b2e24]"
+        >
+          <Plus className="h-4 w-4" /> Nova movimentação
+        </button>
+        <nav className="flex-1">
+          {NAV_GROUPS.map((group) => (
+            <div key={group.label} className="mb-5">
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">
+                {group.label}
+              </p>
+              <div className="space-y-1">
+                {group.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    item={item}
+                    active={activePath === item.to || activePath.startsWith(`${item.to}/`)}
+                    badge={item.to === "/connections" ? pendingConnections : 0}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+          <div className="my-4 h-px bg-white/10" />
+          {UTILITY_NAV.map((item) => (
+            <NavLink key={item.to} item={item} active={activePath === item.to} />
+          ))}
+        </nav>
+        <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#c9ff5b] text-xs font-bold text-[#0b2e24]">
+            {getInitials(user.name, user.email)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{user.name || "Minha conta"}</p>
+            <p className="truncate text-[11px] text-white/45">{user.email}</p>
+          </div>
+          <button
+            onClick={onLogout}
+            className="grid h-9 w-9 place-items-center rounded-xl text-white/50 hover:bg-white/10 hover:text-white"
+            aria-label="Sair"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+function MobileBottomNav({
+  pathname,
+  badgeCount,
+  onAdd,
+  onMore,
+}: {
+  pathname: string;
+  badgeCount: number;
+  onAdd: () => void;
+  onMore: () => void;
+}) {
+  const isPathActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`);
+  const moreActive = !["/home", "/transactions", "/cards"].some(isPathActive);
+
+  return (
+    <nav
+      aria-label="Navegação principal móvel"
+      className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] md:hidden"
+    >
+      <div className="mx-auto grid max-w-md grid-cols-5 items-end rounded-[1.4rem] border border-border/90 bg-card/94 p-1.5 shadow-[0_18px_48px_rgba(11,46,36,0.2)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/88">
+        <MobileBottomLink
+          to="/home"
+          label="Início"
+          icon={LayoutDashboard}
+          active={isPathActive("/home")}
+        />
+        <MobileBottomLink
+          to="/transactions"
+          label="Movimentos"
+          icon={ArrowLeftRight}
+          active={isPathActive("/transactions")}
+        />
+
+        <button
+          type="button"
+          aria-label="Nova movimentação"
+          onClick={onAdd}
+          className="flex min-h-14 flex-col items-center justify-end text-[9px] font-bold text-foreground"
+        >
+          <span className="grid h-12 w-12 -translate-y-1 place-items-center rounded-2xl bg-[#c9ff5b] text-[#0b2e24] shadow-[0_12px_28px_rgba(11,46,36,0.28)] ring-4 ring-background transition active:scale-95">
+            <Plus className="h-5 w-5 stroke-[2.6]" />
+          </span>
+          <span className="-mt-0.5">Adicionar</span>
+        </button>
+
+        <MobileBottomLink
+          to="/cards"
+          label="Cartões"
+          icon={CreditCard}
+          active={isPathActive("/cards")}
+        />
+        <button
+          type="button"
+          aria-label="Abrir mais opções"
+          onClick={onMore}
+          className={cn(
+            "relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-[1.05rem] px-1 text-[9px] font-semibold transition",
+            moreActive
+              ? "bg-[#0b2e24] text-[#c9ff5b] dark:bg-[#c9ff5b] dark:text-[#0b2e24]"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          )}
+        >
+          <span className="relative">
+            <MoreHorizontal className="h-5 w-5" />
+            {badgeCount > 0 && (
+              <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-[#ef6a57] ring-2 ring-card" />
+            )}
+          </span>
+          <span>Mais</span>
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+function MobileBottomLink({
+  to,
+  label,
+  icon: Icon,
+  active,
+}: {
+  to: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  active: boolean;
+}) {
+  return (
+    <Link
+      to={to}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex min-h-14 flex-col items-center justify-center gap-1 rounded-[1.05rem] px-1 text-[9px] font-semibold transition",
+        active
+          ? "bg-[#0b2e24] text-[#c9ff5b] dark:bg-[#c9ff5b] dark:text-[#0b2e24]"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+      )}
+    >
+      <Icon className={cn("h-5 w-5", active && "stroke-[2.4]")} />
+      <span>{label}</span>
+    </Link>
+  );
+}
+
+function getInitials(name?: string | null, email?: string | null) {
+  const source = name?.trim() || email?.split("@")[0] || "Prospera";
+  return source
+    .split(/[\s._-]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+}
+
+function formatHeaderDate() {
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+  }).format(new Date());
 }

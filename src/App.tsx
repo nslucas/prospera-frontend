@@ -76,7 +76,7 @@ function AppRoutes() {
 function HomeRedirect() {
   const { user, loading } = useAuth();
   if (loading) return <FullPageSpinner />;
-  return <Navigate to={user ? "/transactions" : "/auth/login"} replace />;
+  return <Navigate to={user ? "/home" : "/auth/login"} replace />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {

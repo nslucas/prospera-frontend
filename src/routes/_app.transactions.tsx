@@ -21,13 +21,45 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
-import { fetchAccounts, fetchCardPayments, fetchCards, fetchCardStatement, fetchCategories, fetchConnections, fetchExpenses, fetchSettlementItems, fetchTransactions, fetchUserPreferences } from "@/lib/queries";
+import {
+  fetchAccounts,
+  fetchCardPayments,
+  fetchCards,
+  fetchCardStatement,
+  fetchCategories,
+  fetchConnections,
+  fetchExpenses,
+  fetchSettlementItems,
+  fetchTransactions,
+  fetchUserPreferences,
+} from "@/lib/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useFinanceUpdates } from "@/hooks/use-finance-updates";
-import type { Account, Card as CreditCardRecord, CardPayment, CardStatement, Category, Connection, Expense, MovementKind, SettlementItem, Transaction, TransactionType, UserPreferences } from "@/lib/types";
+import type {
+  Account,
+  Card as CreditCardRecord,
+  CardPayment,
+  CardStatement,
+  Category,
+  Connection,
+  Expense,
+  MovementKind,
+  SettlementItem,
+  Transaction,
+  TransactionType,
+  UserPreferences,
+} from "@/lib/types";
 import { cardPaymentTitle, transactionTitle } from "@/lib/movement-labels";
-import { currentMonthYear, formatBRL, formatDate, formatDateTime, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
+import {
+  currentMonthYear,
+  formatBRL,
+  formatDate,
+  formatDateTime,
+  monthLabel,
+  nowIsoDateTime,
+  todayIsoDate,
+} from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +73,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { CurrencyAmountInput } from "@/components/currency-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -99,6 +137,17 @@ type MovementItem =
       counterpartyName: string;
     };
 
+type MovementFilter = "ALL" | "INFLOW" | "OUTFLOW" | "CARD" | "TRANSFER" | "SETTLEMENT";
+
+const MOVEMENT_FILTERS: Array<{ value: MovementFilter; label: string }> = [
+  { value: "ALL", label: "Tudo" },
+  { value: "INFLOW", label: "Entradas" },
+  { value: "OUTFLOW", label: "Saídas" },
+  { value: "CARD", label: "Cartões" },
+  { value: "TRANSFER", label: "Transferências" },
+  { value: "SETTLEMENT", label: "Acertos" },
+];
+
 const schema = z
   .object({
     kind: z.enum(["INCOME", "EXPENSE", "CARD_EXPENSE", "ADJUSTMENT", "TRANSFER", "CARD_PAYMENT"]),
@@ -118,68 +167,140 @@ const schema = z
   })
   .superRefine((values, ctx) => {
     const title = values.title?.trim();
-    const requiresTitle = values.kind === "INCOME" || values.kind === "EXPENSE" || values.kind === "CARD_EXPENSE" || values.kind === "ADJUSTMENT";
+    const requiresTitle =
+      values.kind === "INCOME" ||
+      values.kind === "EXPENSE" ||
+      values.kind === "CARD_EXPENSE" ||
+      values.kind === "ADJUSTMENT";
 
     if (requiresTitle && !title) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["title"], message: "Informe uma descrição" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["title"],
+        message: "Informe uma descrição",
+      });
     }
     if (values.kind === "ADJUSTMENT" && values.amount === 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amount"], message: "Ajuste não pode ser zero" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["amount"],
+        message: "Ajuste não pode ser zero",
+      });
     }
     if (values.kind !== "ADJUSTMENT" && values.amount <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amount"], message: "Valor deve ser > 0" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["amount"],
+        message: "Valor deve ser > 0",
+      });
     }
     if (values.kind === "CARD_EXPENSE") {
       if (!values.cardId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartão" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["cardId"],
+          message: "Selecione um cartão",
+        });
       }
       if (!values.installmentCount) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["installmentCount"], message: "Informe as parcelas" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["installmentCount"],
+          message: "Informe as parcelas",
+        });
       }
       if (values.shareEnabled) {
         if (!values.participantUserId) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantUserId"], message: "Selecione uma conexão" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantUserId"],
+            message: "Selecione uma conexão",
+          });
         }
         if (!values.participantAmount || values.participantAmount <= 0) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "Valor da outra pessoa deve ser maior que zero" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantAmount"],
+            message: "Valor da outra pessoa deve ser maior que zero",
+          });
         }
         if (values.participantAmount && values.participantAmount > values.amount) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "Valor da outra pessoa não pode passar do total" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantAmount"],
+            message: "Valor da outra pessoa não pode passar do total",
+          });
         }
         const creatorAmount = roundMoney(values.amount - Number(values.participantAmount ?? 0));
         const participantAmount = roundMoney(Number(values.participantAmount ?? 0));
         if (roundMoney(creatorAmount + participantAmount) !== roundMoney(values.amount)) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "A divisão precisa fechar com o valor total" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantAmount"],
+            message: "A divisão precisa fechar com o valor total",
+          });
         }
       }
       return;
     }
     if (values.kind === "TRANSFER") {
       if (!values.accountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione a conta de origem" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["accountId"],
+          message: "Selecione a conta de origem",
+        });
       }
       if (!values.targetAccountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAccountId"], message: "Selecione a conta de destino" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetAccountId"],
+          message: "Selecione a conta de destino",
+        });
       }
-      if (values.accountId && values.targetAccountId && values.accountId === values.targetAccountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAccountId"], message: "Destino deve ser diferente da origem" });
+      if (
+        values.accountId &&
+        values.targetAccountId &&
+        values.accountId === values.targetAccountId
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetAccountId"],
+          message: "Destino deve ser diferente da origem",
+        });
       }
       return;
     }
     if (values.kind === "CARD_PAYMENT") {
       if (!values.cardId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartão" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["cardId"],
+          message: "Selecione um cartão",
+        });
       }
       if (!values.accountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione uma conta" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["accountId"],
+          message: "Selecione uma conta",
+        });
       }
       if (!values.paymentMonth || !values.paymentYear) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["paymentMonth"], message: "Selecione a fatura" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["paymentMonth"],
+          message: "Selecione a fatura",
+        });
       }
       return;
     }
     if (!values.accountId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione uma conta" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["accountId"],
+        message: "Selecione uma conta",
+      });
     }
   });
 type Values = z.infer<typeof schema>;
@@ -188,11 +309,10 @@ export default function TransactionsPage() {
   const { user } = useAuth();
   const [{ month, year }, setPeriod] = useState(currentMonthYear);
   const cardStatementPeriod = nextMonthPeriod(month, year);
-  const cardPaymentPeriods = uniquePeriods([
-    { month, year },
-    cardStatementPeriod,
-  ]);
-  const cardPaymentPeriodKey = cardPaymentPeriods.map((period) => `${period.month}-${period.year}`).join("|");
+  const cardPaymentPeriods = uniquePeriods([{ month, year }, cardStatementPeriod]);
+  const cardPaymentPeriodKey = cardPaymentPeriods
+    .map((period) => `${period.month}-${period.year}`)
+    .join("|");
   const tx = useAsyncData(() => fetchTransactions({ month, year }), [month, year], {
     cacheKey: `transactions:${month}:${year}`,
   });
@@ -206,7 +326,11 @@ export default function TransactionsPage() {
       activeCards.length
         ? Promise.all(
             activeCards.map((card) =>
-              fetchCardStatement(card.id, cardStatementPeriod.month, cardStatementPeriod.year).catch(() => null),
+              fetchCardStatement(
+                card.id,
+                cardStatementPeriod.month,
+                cardStatementPeriod.year,
+              ).catch(() => null),
             ),
           )
         : Promise.resolve([]),
@@ -223,7 +347,9 @@ export default function TransactionsPage() {
         ? Promise.all(
             activeCards.flatMap((card) =>
               cardPaymentPeriods.map((period) =>
-                fetchCardPayments(card.id, period.month, period.year).catch(() => [] as CardPayment[]),
+                fetchCardPayments(card.id, period.month, period.year).catch(
+                  () => [] as CardPayment[],
+                ),
               ),
             ),
           ).then((paymentGroups) => paymentGroups.flat())
@@ -235,15 +361,32 @@ export default function TransactionsPage() {
       cacheKey: `transaction-card-payments:${activeCardsKey}:${cardPaymentPeriodKey}`,
     },
   );
-  const expenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
-  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
-  const connections = useAsyncData(() => fetchConnections(), [], { cacheKey: "connections", staleMs: 60_000 });
-  const settlementItems = useAsyncData(() => fetchSettlementItems(), [], { cacheKey: "settlement-items:all", staleMs: 30_000 });
-  const preferences = useAsyncData(() => fetchUserPreferences(), [], { cacheKey: "user-preferences", staleMs: 60_000 });
+  const expenses = useAsyncData(() => fetchExpenses({}), [], {
+    cacheKey: "expenses:all",
+    staleMs: 60_000,
+  });
+  const categories = useAsyncData(() => fetchCategories(), [], {
+    cacheKey: "categories",
+    staleMs: 60_000,
+  });
+  const connections = useAsyncData(() => fetchConnections(), [], {
+    cacheKey: "connections",
+    staleMs: 60_000,
+  });
+  const settlementItems = useAsyncData(() => fetchSettlementItems(), [], {
+    cacheKey: "settlement-items:all",
+    staleMs: 30_000,
+  });
+  const preferences = useAsyncData(() => fetchUserPreferences(), [], {
+    cacheKey: "user-preferences",
+    staleMs: 60_000,
+  });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MovementItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [flowDetailsOpen, setFlowDetailsOpen] = useState(false);
+  const [movementFilter, setMovementFilter] = useState<MovementFilter>("ALL");
+  const legacyDialogEnabled = false;
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -265,10 +408,16 @@ export default function TransactionsPage() {
     form.setValue("kind", nextKind, { shouldDirty: true, shouldValidate: true });
 
     if (nextKind === "CARD_PAYMENT" && occurredAt?.includes("T")) {
-      form.setValue("occurredAt", occurredAt.slice(0, 10), { shouldDirty: true, shouldValidate: true });
+      form.setValue("occurredAt", occurredAt.slice(0, 10), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
     if (nextKind !== "CARD_PAYMENT" && occurredAt && !occurredAt.includes("T")) {
-      form.setValue("occurredAt", `${occurredAt}T00:00`, { shouldDirty: true, shouldValidate: true });
+      form.setValue("occurredAt", `${occurredAt}T00:00`, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
     if (nextKind === "CARD_EXPENSE" && !form.getValues("installmentCount")) {
       form.setValue("installmentCount", 1, { shouldDirty: true, shouldValidate: true });
@@ -276,7 +425,10 @@ export default function TransactionsPage() {
     if (nextKind === "CARD_EXPENSE") {
       form.setValue("cardId", defaults.cardId, { shouldDirty: true, shouldValidate: true });
       form.setValue("categoryId", defaults.categoryId, { shouldDirty: true, shouldValidate: true });
-      form.setValue("installmentCount", defaults.installmentCount, { shouldDirty: true, shouldValidate: true });
+      form.setValue("installmentCount", defaults.installmentCount, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
     if (nextKind === "EXPENSE" || nextKind === "INCOME") {
       form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
@@ -288,7 +440,10 @@ export default function TransactionsPage() {
     }
     if (nextKind === "TRANSFER") {
       form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
-      form.setValue("targetAccountId", defaults.targetAccountId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("targetAccountId", defaults.targetAccountId, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       form.setValue("categoryId", undefined, { shouldDirty: true, shouldValidate: true });
     }
     if (nextKind === "CARD_PAYMENT") {
@@ -296,10 +451,16 @@ export default function TransactionsPage() {
       form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
       form.setValue("categoryId", undefined, { shouldDirty: true, shouldValidate: true });
       if (!form.getValues("paymentMonth")) {
-        form.setValue("paymentMonth", cardStatementPeriod.month, { shouldDirty: true, shouldValidate: true });
+        form.setValue("paymentMonth", cardStatementPeriod.month, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
       if (!form.getValues("paymentYear")) {
-        form.setValue("paymentYear", cardStatementPeriod.year, { shouldDirty: true, shouldValidate: true });
+        form.setValue("paymentYear", cardStatementPeriod.year, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
     }
   };
@@ -321,25 +482,28 @@ export default function TransactionsPage() {
       if (values.kind === "CARD_EXPENSE") {
         const participantAmount = roundMoney(Number(values.participantAmount ?? 0));
         const creatorAmount = roundMoney(values.amount - participantAmount);
-        return api<Expense>(editing?.kind === "card-expense" ? `/expenses/${editing.id}` : "/expenses", {
-          method: editing?.kind === "card-expense" ? "PUT" : "POST",
-          body: {
-            name: values.title?.trim(),
-            amount: values.amount,
-            installmentCount: values.installmentCount || 1,
-            purchaseDate: normalizeDateTime(values.occurredAt),
-            description: null,
-            cardId: values.cardId,
-            categoryId: values.categoryId || null,
-            share: values.shareEnabled
-              ? {
-                  participantUserId: values.participantUserId,
-                  creatorAmount,
-                  participantAmount,
-                }
-              : undefined,
+        return api<Expense>(
+          editing?.kind === "card-expense" ? `/expenses/${editing.id}` : "/expenses",
+          {
+            method: editing?.kind === "card-expense" ? "PUT" : "POST",
+            body: {
+              name: values.title?.trim(),
+              amount: values.amount,
+              installmentCount: values.installmentCount || 1,
+              purchaseDate: normalizeDateTime(values.occurredAt),
+              description: null,
+              cardId: values.cardId,
+              categoryId: values.categoryId || null,
+              share: values.shareEnabled
+                ? {
+                    participantUserId: values.participantUserId,
+                    creatorAmount,
+                    participantAmount,
+                  }
+                : undefined,
+            },
           },
-        });
+        );
       }
 
       if (values.kind === "TRANSFER") {
@@ -389,11 +553,19 @@ export default function TransactionsPage() {
       reloadFinanceData();
       setOpen(false);
       setEditing(null);
-      form.reset(movementDefaults(preferences.data?.defaultMovementKind ?? "CARD_EXPENSE", month, year, preferences.data, {
-        accounts: accounts.data,
-        cards: cards.data,
-        categories: categories.data,
-      }));
+      form.reset(
+        movementDefaults(
+          preferences.data?.defaultMovementKind ?? "CARD_EXPENSE",
+          month,
+          year,
+          preferences.data,
+          {
+            accounts: accounts.data,
+            cards: cards.data,
+            categories: categories.data,
+          },
+        ),
+      );
     },
     onError: (e) => toast.error(e.message),
   });
@@ -437,8 +609,10 @@ export default function TransactionsPage() {
     if (kind === "INCOME") return category.type === "INCOME";
     return category.type === "EXPENSE";
   });
-  const accountName = (id: number) => accounts.data?.find((account) => account.id === id)?.name ?? `Conta #${id}`;
-  const cardName = (id?: number | null) => cards.data?.find((card) => card.id === id)?.name ?? `Cartão #${id ?? ""}`;
+  const accountName = (id: number) =>
+    accounts.data?.find((account) => account.id === id)?.name ?? `Conta #${id}`;
+  const cardName = (id?: number | null) =>
+    cards.data?.find((card) => card.id === id)?.name ?? `Cartão #${id ?? ""}`;
   const categoryName = (id?: number | null) => {
     if (!id) return "Sem categoria";
     return categories.data?.find((category) => category.id === id)?.name ?? `Categoria #${id}`;
@@ -451,13 +625,23 @@ export default function TransactionsPage() {
     }
     return map;
   }, [settlementItems.data]);
-  const items = mergeMovements(tx.data ?? [], cardStatements.data ?? [], expensesById, cardPayments.data ?? [], settlementItems.data ?? [], month, year);
+  const items = mergeMovements(
+    tx.data ?? [],
+    cardStatements.data ?? [],
+    expensesById,
+    cardPayments.data ?? [],
+    settlementItems.data ?? [],
+    month,
+    year,
+  );
   const cashFlowTotals = calculateCashFlowTotals(items);
-  const statementSummaries = (cardStatements.data ?? []).filter((statement): statement is CardStatement => Boolean(statement));
+  const statementSummaries = (cardStatements.data ?? []).filter(
+    (statement): statement is CardStatement => Boolean(statement),
+  );
   const statementTotals = calculateStatementTotals(statementSummaries);
   const selectedPeriodLabel = `${monthName(month, year)} de ${year}`;
   const normalizedSearchQuery = normalizeSearch(searchQuery);
-  const filteredItems = normalizedSearchQuery
+  const searchedItems = normalizedSearchQuery
     ? items.filter((item) =>
         normalizeSearch(
           [
@@ -471,10 +655,19 @@ export default function TransactionsPage() {
         ).includes(normalizedSearchQuery),
       )
     : items;
+  const filteredItems = searchedItems.filter((item) => matchesMovementFilter(item, movementFilter));
+  const movementGroups = groupMovementsByDay(filteredItems);
   const movementsLoading = tx.isLoading || cards.isLoading;
-  const supplementalLoading = cardStatements.isLoading || cardPayments.isLoading || expenses.isLoading || settlementItems.isLoading;
+  const supplementalLoading =
+    cardStatements.isLoading ||
+    cardPayments.isLoading ||
+    expenses.isLoading ||
+    settlementItems.isLoading;
   const deleteMovement = (item: MovementItem) => {
-    if (item.kind === "card-expense" && settlementItemByExpenseId.get(item.id)?.status === "SETTLED") {
+    if (
+      item.kind === "card-expense" &&
+      settlementItemByExpenseId.get(item.id)?.status === "SETTLED"
+    ) {
       toast.error("Compras compartilhadas já quitadas não podem ser removidas.");
       return;
     }
@@ -494,7 +687,8 @@ export default function TransactionsPage() {
     return "Remover lançamento?";
   };
   const deleteMovementDescription = (item: MovementItem) => {
-    if (item.kind === "card-expense") return "A compra inteira será removida, incluindo as demais parcelas.";
+    if (item.kind === "card-expense")
+      return "A compra inteira será removida, incluindo as demais parcelas.";
     if (item.kind === "card-payment") return "Este pagamento de fatura será removido.";
     return "Este lançamento será removido.";
   };
@@ -502,11 +696,13 @@ export default function TransactionsPage() {
   const openNew = () => {
     const defaultKind = preferences.data?.defaultMovementKind ?? "CARD_EXPENSE";
     setEditing(null);
-    form.reset(movementDefaults(defaultKind, month, year, preferences.data, {
-      accounts: accounts.data,
-      cards: cards.data,
-      categories: categories.data,
-    }));
+    form.reset(
+      movementDefaults(defaultKind, month, year, preferences.data, {
+        accounts: accounts.data,
+        cards: cards.data,
+        categories: categories.data,
+      }),
+    );
     setOpen(true);
   };
 
@@ -571,22 +767,30 @@ export default function TransactionsPage() {
   };
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="space-y-6">
+      <div className="space-y-5">
+        <header className="reveal-in flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="min-w-0">
-            <h1 className="text-3xl font-semibold leading-tight tracking-tight md:text-4xl">Todos os lançamentos</h1>
+            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
+              Extrato inteligente
+            </p>
+            <h1 className="font-display text-3xl font-extrabold leading-tight tracking-[-0.045em] md:text-[2.6rem]">
+              Movimentações
+            </h1>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+              Acompanhe cada entrada, saída e compromisso sem perder o contexto.
+            </p>
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
-            <div className="relative min-w-0 flex-1 sm:w-80 sm:flex-none lg:w-96">
+            <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none lg:w-80">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Buscar movimentação"
+                placeholder="Buscar no extrato"
                 aria-label="Buscar movimentação"
                 autoComplete="off"
-                className="h-12 rounded-2xl bg-card pl-10 pr-10 text-base shadow-sm sm:h-10 md:text-sm"
+                className="h-11 rounded-xl border-border bg-card pl-10 pr-10 text-sm shadow-sm"
               />
               {searchQuery && (
                 <button
@@ -606,334 +810,450 @@ export default function TransactionsPage() {
                 if (!next) setEditing(null);
               }}
               period={{ month, year }}
-              editing={editing?.kind === "transaction" || editing?.kind === "card-expense" || editing?.kind === "card-payment" ? editing : null}
-              editingExpense={editing?.kind === "card-expense" ? expensesById.get(editing.id) : null}
-              editingShare={editing?.kind === "card-expense" ? settlementItemByExpenseId.get(editing.id) : null}
+              editing={
+                editing?.kind === "transaction" ||
+                editing?.kind === "card-expense" ||
+                editing?.kind === "card-payment"
+                  ? editing
+                  : null
+              }
+              editingExpense={
+                editing?.kind === "card-expense" ? expensesById.get(editing.id) : null
+              }
+              editingShare={
+                editing?.kind === "card-expense" ? settlementItemByExpenseId.get(editing.id) : null
+              }
               trigger={
-                <Button type="button" onClick={openNew} className="hidden sm:inline-flex sm:flex-none">
-                  <Plus className="h-4 w-4" /> Novo
+                <Button
+                  type="button"
+                  onClick={openNew}
+                  className="hidden h-11 sm:inline-flex sm:flex-none"
+                >
+                  <Plus className="h-4 w-4" /> Nova movimentação
                 </Button>
               }
             />
-            {false && (
-            <Dialog
-              open={open}
-              onOpenChange={(next) => {
-                setOpen(next);
-                if (!next) setEditing(null);
-              }}
-            >
-            <DialogTrigger asChild>
-              <Button onClick={openNew} className="flex-1 sm:flex-none">
-                <Plus className="h-4 w-4" /> Novo
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-xl">
-              <DialogHeader>
-                <DialogTitle>{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
-              </DialogHeader>
-              <form
-                className="space-y-4"
-                onSubmit={form.handleSubmit(
-                  (values) => save.mutate(values),
-                  () => toast.error("Confira os campos obrigatórios antes de salvar."),
-                )}
+            {legacyDialogEnabled && (
+              <Dialog
+                open={open}
+                onOpenChange={(next) => {
+                  setOpen(next);
+                  if (!next) setEditing(null);
+                }}
               >
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Tipo</Label>
-                    <Select
-                      value={kind}
-                      disabled={!!editing}
-                      onValueChange={(value) => {
-                        const nextKind = value as MovementKind;
-                        switchMovementKind(nextKind);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="EXPENSE">Despesa em conta</SelectItem>
-                        <SelectItem value="CARD_EXPENSE">Compra no cartão</SelectItem>
-                        <SelectItem value="INCOME">Receita</SelectItem>
-                        <SelectItem value="ADJUSTMENT">Ajuste</SelectItem>
-                        <SelectItem value="TRANSFER">Transferência</SelectItem>
-                        <SelectItem value="CARD_PAYMENT">Pagamento de fatura</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Valor</Label>
-                    <CurrencyAmountInput
-                      value={form.watch("amount")}
-                      onChange={(value) => form.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
-                    />
-                    <FieldError message={errors.amount?.message} />
-                  </div>
-                  <div className="col-span-2 space-y-1.5">
-                    <Label>Descricao{kind === "TRANSFER" || kind === "CARD_PAYMENT" ? " (opcional)" : ""}</Label>
-                    <Input {...form.register("title")} placeholder="ex: Mercado, salario, farmacia" />
-                    <FieldError message={errors.title?.message} />
-                  </div>
-                  <div className="col-span-2 space-y-1.5">
-                    <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
-                    <Input type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"} {...form.register("occurredAt")} />
-                    <FieldError message={errors.occurredAt?.message} />
-                  </div>
-
-                  {kind === "CARD_EXPENSE" && (
-                    <>
+                <DialogTrigger asChild>
+                  <Button onClick={openNew} className="flex-1 sm:flex-none">
+                    <Plus className="h-4 w-4" /> Novo
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-xl">
+                  <DialogHeader>
+                    <DialogTitle>{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
+                  </DialogHeader>
+                  <form
+                    className="space-y-4"
+                    onSubmit={form.handleSubmit(
+                      (values) => save.mutate(values),
+                      () => toast.error("Confira os campos obrigatórios antes de salvar."),
+                    )}
+                  >
+                    <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <Label>Cartão</Label>
+                        <Label>Tipo</Label>
                         <Select
-                          value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
-                          disabled={editing?.kind === "card-payment"}
-                          onValueChange={(value) => form.setValue("cardId", Number(value), { shouldDirty: true, shouldValidate: true })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {activeCards.map((card) => (
-                              <SelectItem key={card.id} value={String(card.id)}>
-                                {card.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FieldError message={errors.cardId?.message} />
-                        {!activeCards.length && <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>}
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Parcelas</Label>
-                        <Input type="number" min={1} {...form.register("installmentCount")} />
-                        <FieldError message={errors.installmentCount?.message} />
-                      </div>
-                      <div className="col-span-2 rounded-lg border bg-muted/20 p-3">
-                        <label className="flex cursor-pointer items-start gap-3">
-                          <Checkbox
-                            checked={!!shareEnabled}
-                            onCheckedChange={(checked) => {
-                              const enabled = checked === true;
-                              form.setValue("shareEnabled", enabled, { shouldDirty: true, shouldValidate: true });
-                              if (!enabled) {
-                                form.setValue("participantUserId", undefined, { shouldDirty: true, shouldValidate: true });
-                                form.setValue("participantAmount", undefined, { shouldDirty: true, shouldValidate: true });
-                              }
-                            }}
-                          />
-                          <span>
-                            <span className="block text-sm font-medium">Dividir compra</span>
-                            <span className="block text-xs text-muted-foreground">
-                              A compra fica no seu cartão e a outra pessoa aparece em Acertos.
-                            </span>
-                          </span>
-                        </label>
-
-                        {shareEnabled && (
-                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <Label>Conexão</Label>
-                              <Select
-                                value={form.watch("participantUserId") ? String(form.watch("participantUserId")) : undefined}
-                                onValueChange={(value) =>
-                                  form.setValue("participantUserId", Number(value), { shouldDirty: true, shouldValidate: true })
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecione" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {activeConnections.map((connection) => {
-                                    const person = getConnectionPerson(connection, user?.id);
-                                    return (
-                                      <SelectItem key={connection.id} value={String(person.id)}>
-                                        {person.name}
-                                      </SelectItem>
-                                    );
-                                  })}
-                                </SelectContent>
-                              </Select>
-                              <FieldError message={errors.participantUserId?.message} />
-                              {!activeConnections.length && <ResourceHint>Nenhuma conexão aceita disponível.</ResourceHint>}
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label>Valor da outra pessoa</Label>
-                              <CurrencyAmountInput
-                                value={form.watch("participantAmount")}
-                                onChange={(value) =>
-                                  form.setValue("participantAmount", value, { shouldDirty: true, shouldValidate: true })
-                                }
-                              />
-                              <FieldError message={errors.participantAmount?.message} />
-                              <p className="text-xs text-muted-foreground">
-                                Sua parte: {formatBRL(Math.max(0, creatorShareAmount))}
-                              </p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </>
-                  )}
-
-                  {kind === "TRANSFER" && (
-                    <>
-                      <div className="space-y-1.5">
-                        <Label>Conta de origem</Label>
-                        <AccountSelect
-                          value={form.watch("accountId")}
-                          accounts={activeAccounts}
-                          onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
-                        />
-                        <FieldError message={errors.accountId?.message} />
-                        {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Conta de destino</Label>
-                        <AccountSelect
-                          value={form.watch("targetAccountId")}
-                          accounts={activeAccounts.filter((account) => account.id !== form.watch("accountId"))}
-                          onChange={(value) => form.setValue("targetAccountId", value, { shouldDirty: true, shouldValidate: true })}
-                        />
-                        <FieldError message={errors.targetAccountId?.message} />
-                      </div>
-                    </>
-                  )}
-
-                  {kind === "CARD_PAYMENT" && (
-                    <>
-                      <div className="space-y-1.5">
-                        <Label>Cartão</Label>
-                        <Select
-                          value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
-                          onValueChange={(value) => form.setValue("cardId", Number(value), { shouldDirty: true, shouldValidate: true })}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {activeCards.map((card) => (
-                              <SelectItem key={card.id} value={String(card.id)}>
-                                {card.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FieldError message={errors.cardId?.message} />
-                        {!activeCards.length && <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>}
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Conta de pagamento</Label>
-                        <AccountSelect
-                          value={form.watch("accountId")}
-                          accounts={activeAccounts}
-                          onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
-                        />
-                        <FieldError message={errors.accountId?.message} />
-                        {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <Label>Fatura</Label>
-                        <Select
-                          value={`${form.watch("paymentMonth") ?? month}-${form.watch("paymentYear") ?? year}`}
+                          value={kind}
+                          disabled={!!editing}
                           onValueChange={(value) => {
-                            const [paymentMonth, paymentYear] = value.split("-").map(Number);
-                            form.setValue("paymentMonth", paymentMonth, { shouldDirty: true, shouldValidate: true });
-                            form.setValue("paymentYear", paymentYear, { shouldDirty: true, shouldValidate: true });
+                            const nextKind = value as MovementKind;
+                            switchMovementKind(nextKind);
                           }}
                         >
                           <SelectTrigger>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {monthOptions.map((option) => (
-                              <SelectItem key={option.key} value={option.key}>
-                                {option.label}
-                              </SelectItem>
-                            ))}
+                            <SelectItem value="EXPENSE">Despesa em conta</SelectItem>
+                            <SelectItem value="CARD_EXPENSE">Compra no cartão</SelectItem>
+                            <SelectItem value="INCOME">Receita</SelectItem>
+                            <SelectItem value="ADJUSTMENT">Ajuste</SelectItem>
+                            <SelectItem value="TRANSFER">Transferência</SelectItem>
+                            <SelectItem value="CARD_PAYMENT">Pagamento de fatura</SelectItem>
                           </SelectContent>
                         </Select>
-                        <FieldError message={errors.paymentMonth?.message} />
                       </div>
-                    </>
-                  )}
+                      <div className="space-y-1.5">
+                        <Label>Valor</Label>
+                        <CurrencyAmountInput
+                          value={form.watch("amount")}
+                          onChange={(value) =>
+                            form.setValue("amount", value, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
+                        />
+                        <FieldError message={errors.amount?.message} />
+                      </div>
+                      <div className="col-span-2 space-y-1.5">
+                        <Label>
+                          Descricao
+                          {kind === "TRANSFER" || kind === "CARD_PAYMENT" ? " (opcional)" : ""}
+                        </Label>
+                        <Input
+                          {...form.register("title")}
+                          placeholder="ex: Mercado, salario, farmacia"
+                        />
+                        <FieldError message={errors.title?.message} />
+                      </div>
+                      <div className="col-span-2 space-y-1.5">
+                        <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
+                        <Input
+                          type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"}
+                          {...form.register("occurredAt")}
+                        />
+                        <FieldError message={errors.occurredAt?.message} />
+                      </div>
 
-                  {(kind === "INCOME" || kind === "EXPENSE" || kind === "ADJUSTMENT") && (
-                    <div className="space-y-1.5">
-                      <Label>Conta</Label>
-                      <AccountSelect
-                        value={form.watch("accountId")}
-                        accounts={activeAccounts}
-                        onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
-                      />
-                      <FieldError message={errors.accountId?.message} />
-                      {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
+                      {kind === "CARD_EXPENSE" && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label>Cartão</Label>
+                            <Select
+                              value={
+                                form.watch("cardId") ? String(form.watch("cardId")) : undefined
+                              }
+                              disabled={editing?.kind === "card-payment"}
+                              onValueChange={(value) =>
+                                form.setValue("cardId", Number(value), {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activeCards.map((card) => (
+                                  <SelectItem key={card.id} value={String(card.id)}>
+                                    {card.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FieldError message={errors.cardId?.message} />
+                            {!activeCards.length && (
+                              <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
+                            )}
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Parcelas</Label>
+                            <Input type="number" min={1} {...form.register("installmentCount")} />
+                            <FieldError message={errors.installmentCount?.message} />
+                          </div>
+                          <div className="col-span-2 rounded-lg border bg-muted/20 p-3">
+                            <label className="flex cursor-pointer items-start gap-3">
+                              <Checkbox
+                                checked={!!shareEnabled}
+                                onCheckedChange={(checked) => {
+                                  const enabled = checked === true;
+                                  form.setValue("shareEnabled", enabled, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  });
+                                  if (!enabled) {
+                                    form.setValue("participantUserId", undefined, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    });
+                                    form.setValue("participantAmount", undefined, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    });
+                                  }
+                                }}
+                              />
+                              <span>
+                                <span className="block text-sm font-medium">Dividir compra</span>
+                                <span className="block text-xs text-muted-foreground">
+                                  A compra fica no seu cartão e a outra pessoa aparece em Acertos.
+                                </span>
+                              </span>
+                            </label>
+
+                            {shareEnabled && (
+                              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <Label>Conexão</Label>
+                                  <Select
+                                    value={
+                                      form.watch("participantUserId")
+                                        ? String(form.watch("participantUserId"))
+                                        : undefined
+                                    }
+                                    onValueChange={(value) =>
+                                      form.setValue("participantUserId", Number(value), {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecione" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {activeConnections.map((connection) => {
+                                        const person = getConnectionPerson(connection, user?.id);
+                                        return (
+                                          <SelectItem key={connection.id} value={String(person.id)}>
+                                            {person.name}
+                                          </SelectItem>
+                                        );
+                                      })}
+                                    </SelectContent>
+                                  </Select>
+                                  <FieldError message={errors.participantUserId?.message} />
+                                  {!activeConnections.length && (
+                                    <ResourceHint>Nenhuma conexão aceita disponível.</ResourceHint>
+                                  )}
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label>Valor da outra pessoa</Label>
+                                  <CurrencyAmountInput
+                                    value={form.watch("participantAmount")}
+                                    onChange={(value) =>
+                                      form.setValue("participantAmount", value, {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      })
+                                    }
+                                  />
+                                  <FieldError message={errors.participantAmount?.message} />
+                                  <p className="text-xs text-muted-foreground">
+                                    Sua parte: {formatBRL(Math.max(0, creatorShareAmount))}
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      {kind === "TRANSFER" && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label>Conta de origem</Label>
+                            <AccountSelect
+                              value={form.watch("accountId")}
+                              accounts={activeAccounts}
+                              onChange={(value) =>
+                                form.setValue("accountId", value, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            />
+                            <FieldError message={errors.accountId?.message} />
+                            {!activeAccounts.length && (
+                              <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                            )}
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Conta de destino</Label>
+                            <AccountSelect
+                              value={form.watch("targetAccountId")}
+                              accounts={activeAccounts.filter(
+                                (account) => account.id !== form.watch("accountId"),
+                              )}
+                              onChange={(value) =>
+                                form.setValue("targetAccountId", value, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            />
+                            <FieldError message={errors.targetAccountId?.message} />
+                          </div>
+                        </>
+                      )}
+
+                      {kind === "CARD_PAYMENT" && (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label>Cartão</Label>
+                            <Select
+                              value={
+                                form.watch("cardId") ? String(form.watch("cardId")) : undefined
+                              }
+                              onValueChange={(value) =>
+                                form.setValue("cardId", Number(value), {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {activeCards.map((card) => (
+                                  <SelectItem key={card.id} value={String(card.id)}>
+                                    {card.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FieldError message={errors.cardId?.message} />
+                            {!activeCards.length && (
+                              <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
+                            )}
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label>Conta de pagamento</Label>
+                            <AccountSelect
+                              value={form.watch("accountId")}
+                              accounts={activeAccounts}
+                              onChange={(value) =>
+                                form.setValue("accountId", value, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            />
+                            <FieldError message={errors.accountId?.message} />
+                            {!activeAccounts.length && (
+                              <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                            )}
+                          </div>
+                          <div className="col-span-2 space-y-1.5">
+                            <Label>Fatura</Label>
+                            <Select
+                              value={`${form.watch("paymentMonth") ?? month}-${form.watch("paymentYear") ?? year}`}
+                              onValueChange={(value) => {
+                                const [paymentMonth, paymentYear] = value.split("-").map(Number);
+                                form.setValue("paymentMonth", paymentMonth, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                                form.setValue("paymentYear", paymentYear, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {monthOptions.map((option) => (
+                                  <SelectItem key={option.key} value={option.key}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FieldError message={errors.paymentMonth?.message} />
+                          </div>
+                        </>
+                      )}
+
+                      {(kind === "INCOME" || kind === "EXPENSE" || kind === "ADJUSTMENT") && (
+                        <div className="space-y-1.5">
+                          <Label>Conta</Label>
+                          <AccountSelect
+                            value={form.watch("accountId")}
+                            accounts={activeAccounts}
+                            onChange={(value) =>
+                              form.setValue("accountId", value, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                            }
+                          />
+                          <FieldError message={errors.accountId?.message} />
+                          {!activeAccounts.length && (
+                            <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                          )}
+                        </div>
+                      )}
+
+                      {showsCategory && (
+                        <div className="space-y-1.5">
+                          <Label>Categoria</Label>
+                          <Select
+                            value={
+                              form.watch("categoryId") ? String(form.watch("categoryId")) : "_none"
+                            }
+                            onValueChange={(value) =>
+                              form.setValue(
+                                "categoryId",
+                                value === "_none" ? undefined : Number(value),
+                                { shouldDirty: true },
+                              )
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none">Sem categoria</SelectItem>
+                              {filteredCategories.map((category) => (
+                                <SelectItem key={category.id} value={String(category.id)}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
                     </div>
-                  )}
-
-                  {showsCategory && (
-                    <div className="space-y-1.5">
-                      <Label>Categoria</Label>
-                      <Select
-                        value={form.watch("categoryId") ? String(form.watch("categoryId")) : "_none"}
-                        onValueChange={(value) =>
-                          form.setValue("categoryId", value === "_none" ? undefined : Number(value), { shouldDirty: true })
-                        }
+                    <DialogFooter>
+                      <Button
+                        type="submit"
+                        disabled={save.isPending}
+                        className="h-11 w-full rounded-2xl shadow-[0_14px_34px_rgba(24,201,87,0.24)] sm:w-auto sm:min-w-32"
                       >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="_none">Sem categoria</SelectItem>
-                          {filteredCategories.map((category) => (
-                            <SelectItem key={category.id} value={String(category.id)}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button
-                    type="submit"
-                    disabled={save.isPending}
-                    className="h-11 w-full rounded-2xl shadow-[0_14px_34px_rgba(24,201,87,0.24)] sm:w-auto sm:min-w-32"
-                  >
-                    {save.isPending ? "Salvando..." : "Salvar"}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+                        {save.isPending ? "Salvando..." : "Salvar"}
+                      </Button>
+                    </DialogFooter>
+                  </form>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
-        </div>
+        </header>
 
-        <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 rounded-2xl bg-card/80 p-2 shadow-sm ring-1 ring-border/70 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 rounded-[1.25rem] border border-border/80 bg-card p-2 shadow-[0_10px_35px_rgba(20,36,30,0.045)] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <Button
             type="button"
             variant="ghost"
-            className="h-12 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-start sm:px-2 md:px-3"
+            className="h-11 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-start sm:px-2 md:px-3"
             onClick={() => setPeriod(previousPeriod)}
             aria-label={`Ir para ${monthName(previousPeriod.month, previousPeriod.year)}`}
           >
             <ChevronLeft className="h-5 w-5" />
-            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">{monthName(previousPeriod.month, previousPeriod.year)}</span>
+            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">
+              {monthName(previousPeriod.month, previousPeriod.year)}
+            </span>
           </Button>
 
-          <PeriodPicker month={month} year={year} onChange={setPeriod} className="w-full min-w-0 px-3" />
+          <PeriodPicker
+            month={month}
+            year={year}
+            onChange={setPeriod}
+            className="w-full min-w-0 px-3"
+          />
 
           <Button
             type="button"
             variant="ghost"
-            className="h-12 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-end sm:px-2 md:px-3"
+            className="h-11 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-end sm:px-2 md:px-3"
             onClick={() => setPeriod(nextPeriod)}
             aria-label={`Ir para ${monthName(nextPeriod.month, nextPeriod.year)}`}
           >
-            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">{monthName(nextPeriod.month, nextPeriod.year)}</span>
+            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">
+              {monthName(nextPeriod.month, nextPeriod.year)}
+            </span>
             <ChevronRight className="h-5 w-5" />
           </Button>
         </div>
@@ -941,44 +1261,67 @@ export default function TransactionsPage() {
         <Collapsible
           open={flowDetailsOpen}
           onOpenChange={setFlowDetailsOpen}
-          className="rounded-2xl bg-card/70 px-4 py-3 shadow-sm ring-1 ring-border/70"
+          className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card shadow-[0_10px_35px_rgba(20,36,30,0.045)]"
         >
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">
-              <span className="font-semibold text-foreground">{selectedPeriodLabel}</span>
-              {": "}
-              <span className="font-semibold tabular-nums text-[var(--success)]">
-                {formatBRL(cashFlowTotals.net)}
-              </span>{" "}
-              de entradas <span aria-hidden="true">·</span>{" "}
-              <span className="font-semibold tabular-nums text-foreground">
-                {formatBRL(cashFlowTotals.accountOutflow)}
-              </span>{" "}
-              em saídas <span aria-hidden="true">·</span>{" "}
-              <span className="font-semibold tabular-nums text-primary">
-                {formatBRL(statementTotals.total)}
-              </span>{" "}
-              em cartões
-            </p>
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-accent text-primary">
+                  <ArrowLeftRight className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                    Fluxo de caixa
+                  </p>
+                  <h2 className="mt-0.5 truncate text-base font-bold tracking-tight">
+                    Resumo de {selectedPeriodLabel}
+                  </h2>
+                </div>
+              </div>
 
-            <CollapsibleTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="shrink-0 self-start text-muted-foreground hover:text-foreground sm:self-auto"
-                aria-label={flowDetailsOpen ? "Ocultar detalhes do fluxo mensal" : "Ver detalhes do fluxo mensal"}
-              >
-                {flowDetailsOpen ? "Ocultar detalhes" : "Ver detalhes"}
-                <ChevronDown
-                  className={`transition-transform duration-200 ${flowDetailsOpen ? "rotate-180" : ""}`}
-                />
-              </Button>
-            </CollapsibleTrigger>
+              <CollapsibleTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+                  aria-label={
+                    flowDetailsOpen
+                      ? "Ocultar detalhes do fluxo mensal"
+                      : "Ver detalhes do fluxo mensal"
+                  }
+                >
+                  {flowDetailsOpen ? "Fechar" : "Detalhes"}
+                  <ChevronDown
+                    className={`transition-transform duration-200 ${flowDetailsOpen ? "rotate-180" : ""}`}
+                  />
+                </Button>
+              </CollapsibleTrigger>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
+              <div className="col-span-2 bg-muted/65 p-4 sm:col-span-1">
+                <p className="text-[10px] font-semibold text-muted-foreground">Saldo do mês</p>
+                <p
+                  className={`mt-1 truncate font-display text-xl font-extrabold tracking-[-0.035em] tabular-nums ${
+                    cashFlowTotals.net >= 0 ? "text-[var(--success)]" : "text-destructive"
+                  }`}
+                >
+                  {formatSignedBRL(cashFlowTotals.net)}
+                </p>
+              </div>
+              <FlowMetric label="Entradas" value={cashFlowTotals.inflow} tone="positive" />
+              <FlowMetric label="Saídas da conta" value={cashFlowTotals.accountOutflow} />
+              <FlowMetric
+                label="Compras no cartão"
+                value={cashFlowTotals.cardPurchases}
+                tone="card"
+              />
+            </div>
           </div>
 
           <CollapsibleContent>
-            <div className="mt-3 border-t border-border/70 pt-3">
+            <div className="border-t border-border bg-muted/30 p-5 sm:p-6">
               <div className="grid gap-4 md:grid-cols-[minmax(8rem,1.1fr)_minmax(0,1.7fr)_minmax(12rem,1.2fr)] md:items-center">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
@@ -998,36 +1341,50 @@ export default function TransactionsPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] text-muted-foreground">Saídas conta</p>
-                    <p className="truncate font-semibold tabular-nums">{formatBRL(cashFlowTotals.accountOutflow)}</p>
+                    <p className="truncate font-semibold tabular-nums">
+                      {formatBRL(cashFlowTotals.accountOutflow)}
+                    </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] text-muted-foreground">Cartão</p>
-                    <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(cashFlowTotals.cardPurchases)}</p>
+                    <p className="truncate font-semibold tabular-nums text-primary">
+                      {formatBRL(cashFlowTotals.cardPurchases)}
+                    </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] text-muted-foreground">Acertos</p>
-                    <p className={`truncate font-semibold tabular-nums ${cashFlowTotals.settlementsNet > 0 ? "text-[var(--success)]" : ""}`}>
+                    <p
+                      className={`truncate font-semibold tabular-nums ${cashFlowTotals.settlementsNet > 0 ? "text-[var(--success)]" : ""}`}
+                    >
                       {formatSignedBRL(cashFlowTotals.settlementsNet)}
                     </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] text-muted-foreground">Aberto</p>
-                    <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.remaining)}</p>
+                    <p className="truncate font-semibold tabular-nums">
+                      {formatBRL(statementTotals.remaining)}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 rounded-xl bg-muted/20 px-3 py-2 text-sm">
+                <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm">
                   <div className="col-span-2 min-w-0">
                     <p className="text-[11px] text-muted-foreground">Fatura</p>
-                    <p className="truncate font-semibold capitalize">{monthName(cardStatementPeriod.month, cardStatementPeriod.year)}</p>
+                    <p className="truncate font-semibold capitalize">
+                      {monthName(cardStatementPeriod.month, cardStatementPeriod.year)}
+                    </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] text-muted-foreground">Total</p>
-                    <p className="truncate font-semibold tabular-nums text-primary">{formatBRL(statementTotals.total)}</p>
+                    <p className="truncate font-semibold tabular-nums text-primary">
+                      {formatBRL(statementTotals.total)}
+                    </p>
                   </div>
                   <div className="min-w-0">
                     <p className="text-[11px] text-muted-foreground">Pago</p>
-                    <p className="truncate font-semibold tabular-nums">{formatBRL(statementTotals.paid)}</p>
+                    <p className="truncate font-semibold tabular-nums">
+                      {formatBRL(statementTotals.paid)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1037,12 +1394,19 @@ export default function TransactionsPage() {
               ) : statementSummaries.length ? (
                 <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
                   {statementSummaries.map((statement) => (
-                    <div key={`${statement.cardId}-${statement.month}-${statement.year}`} className="flex min-w-40 items-center justify-between gap-3 rounded-lg bg-muted/20 px-3 py-2 text-xs">
+                    <div
+                      key={`${statement.cardId}-${statement.month}-${statement.year}`}
+                      className="flex min-w-40 items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-xs"
+                    >
                       <div className="min-w-0">
                         <p className="truncate font-medium">{statement.cardName}</p>
-                        <p className="truncate text-muted-foreground">Vence {formatDate(statement.dueDate)}</p>
+                        <p className="truncate text-muted-foreground">
+                          Vence {formatDate(statement.dueDate)}
+                        </p>
                       </div>
-                      <p className="shrink-0 font-semibold tabular-nums">{formatBRL(statement.remainingAmount)}</p>
+                      <p className="shrink-0 font-semibold tabular-nums">
+                        {formatBRL(statement.remainingAmount)}
+                      </p>
                     </div>
                   ))}
                 </div>
@@ -1052,19 +1416,57 @@ export default function TransactionsPage() {
         </Collapsible>
       </div>
 
-      <Card>
+      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+            Histórico
+          </p>
+          <h2 className="mt-1 font-display text-2xl font-extrabold tracking-[-0.035em]">
+            Extrato do mês
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {filteredItems.length} movimentaç{filteredItems.length === 1 ? "ão" : "ões"}
+            {movementFilter !== "ALL" || searchQuery ? " neste recorte" : " no período"}
+          </p>
+        </div>
+        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+          {MOVEMENT_FILTERS.map((filter) => (
+            <button
+              key={filter.value}
+              type="button"
+              onClick={() => setMovementFilter(filter.value)}
+              className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
+                movementFilter === filter.value
+                  ? "border-[#0b2e24] bg-[#0b2e24] text-[#c9ff5b] shadow-sm dark:border-[#c9ff5b]"
+                  : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
+              }`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
           {movementsLoading ? (
-            <p className="p-6 text-sm text-muted-foreground">Carregando...</p>
+            <div className="space-y-3 p-5 sm:p-6">
+              {[0, 1, 2, 3].map((item) => (
+                <div key={item} className="h-16 animate-pulse rounded-2xl bg-muted" />
+              ))}
+            </div>
           ) : !items.length ? (
             <div className="grid min-h-[18rem] place-items-center p-6 text-center">
               <div>
                 <p className="text-xl font-semibold tracking-tight">
-                  {supplementalLoading ? "Carregando faturas e pagamentos..." : "Nenhum lançamento no período"}
+                  {supplementalLoading
+                    ? "Carregando faturas e pagamentos..."
+                    : "Nenhum lançamento no período"}
                 </p>
                 {!supplementalLoading && (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Toque em <span className="font-semibold text-primary">+</span> para adicionar um lançamento.
+                    Toque em <span className="font-semibold text-primary">+</span> para adicionar um
+                    lançamento.
                   </p>
                 )}
               </div>
@@ -1073,75 +1475,256 @@ export default function TransactionsPage() {
             <div className="grid min-h-[16rem] place-items-center p-6 text-center">
               <div>
                 <p className="text-xl font-semibold tracking-tight">Nenhum lançamento encontrado</p>
-                <p className="mt-2 text-sm text-muted-foreground">Tente buscar por descrição, conta, cartão, data ou valor.</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Tente buscar por descrição, conta, cartão, data ou valor.
+                </p>
               </div>
             </div>
           ) : (
             <>
               {supplementalLoading && (
-                <div className="border-b border-border px-4 py-2 text-xs text-muted-foreground">
+                <div className="border-b border-border bg-muted/40 px-5 py-2.5 text-xs text-muted-foreground">
                   Atualizando faturas e pagamentos...
                 </div>
               )}
-              <ul className="divide-y divide-border">
-              {filteredItems.map((item) => {
-                const sharedItem = item.kind === "card-expense" ? settlementItemByExpenseId.get(item.id) : undefined;
-                const isSettledSharedExpense = sharedItem?.status === "SETTLED";
-                return (
-                  <li key={movementKey(item)} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 p-4 sm:flex sm:items-center sm:gap-3">
-                    <div className={`grid h-9 w-9 shrink-0 place-items-center self-start rounded-full sm:self-center ${movementIconBackground(item)}`}>
-                      {movementIcon(item)}
+              <div className="divide-y divide-border/80">
+                {movementGroups.map((group) => (
+                  <section key={group.key}>
+                    <div className="flex items-center justify-between bg-muted/35 px-4 py-2.5 sm:px-6">
+                      <div className="flex items-baseline gap-2">
+                        <h3 className="text-xs font-bold text-foreground">{group.label}</h3>
+                        <span className="text-[10px] text-muted-foreground">
+                          {group.items.length} {group.items.length === 1 ? "item" : "itens"}
+                        </span>
+                      </div>
+                      <span
+                        className={`text-[11px] font-bold tabular-nums ${
+                          group.net > 0 ? "text-[var(--success)]" : "text-muted-foreground"
+                        }`}
+                      >
+                        {formatSignedBRL(group.net)}
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-wrap items-center gap-2">
-                        <div className="min-w-0 max-w-full flex-1 break-words text-sm font-medium leading-snug sm:truncate">{item.title}</div>
-                        {sharedItem && (
-                          <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                            <UsersRound className="h-3 w-3" />
-                            {isSettledSharedExpense ? "Quitada" : "Dividida"}
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-1 text-xs leading-relaxed text-muted-foreground sm:truncate">
-                        {movementDate(item)} - {movementMeta(item, accountName, cardName)}
-                      </div>
-                    </div>
-                    <div className="col-start-2 flex min-w-0 items-center justify-between gap-3 sm:col-start-auto sm:shrink-0 sm:justify-end">
-                      <div className={`shrink-0 whitespace-nowrap text-base font-semibold tabular-nums sm:text-sm ${movementAmountClass(item)}`}>
-                        {movementAmountPrefix(item)}
-                        {formatBRL(Math.abs(item.amount))}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        {canEditMovement(item, sharedItem) && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                            <Pencil className="h-4 w-4 text-muted-foreground" />
-                          </Button>
-                        )}
-                        {canDeleteMovement(item, sharedItem) && (
-                          <ConfirmAction
-                            title={deleteMovementTitle(item)}
-                            description={deleteMovementDescription(item)}
-                            confirmLabel="Remover"
-                            destructive
-                            onConfirm={() => deleteMovement(item)}
+                    <ul className="divide-y divide-border/60 px-3 sm:px-4">
+                      {group.items.map((item) => {
+                        const sharedItem =
+                          item.kind === "card-expense"
+                            ? settlementItemByExpenseId.get(item.id)
+                            : undefined;
+                        const isSettledSharedExpense = sharedItem?.status === "SETTLED";
+                        const category = movementCategoryName(item, categoryName);
+                        return (
+                          <li
+                            key={movementKey(item)}
+                            className="group grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-3 py-3.5 sm:py-4"
                           >
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <Trash2 className="h-4 w-4 text-muted-foreground" />
-                            </Button>
-                          </ConfirmAction>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
-              </ul>
+                            <div
+                              className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${movementIconBackground(item)}`}
+                            >
+                              {movementIcon(item)}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <p className="truncate text-sm font-semibold leading-snug">
+                                  {item.title}
+                                </p>
+                                {sharedItem && (
+                                  <span className="hidden shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] font-bold text-primary sm:inline-flex">
+                                    <UsersRound className="h-3 w-3" />
+                                    {isSettledSharedExpense ? "Quitada" : "Dividida"}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                                {movementTimeLabel(item) && (
+                                  <span className="shrink-0">{movementTimeLabel(item)}</span>
+                                )}
+                                {movementTimeLabel(item) && <span aria-hidden="true">·</span>}
+                                <span className="truncate">
+                                  {movementMeta(item, accountName, cardName)}
+                                </span>
+                                {category && category !== "Sem categoria" && (
+                                  <>
+                                    <span className="hidden sm:inline" aria-hidden="true">
+                                      ·
+                                    </span>
+                                    <span className="hidden shrink-0 sm:inline">{category}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-end gap-1 sm:gap-2">
+                              <div className="text-right">
+                                <p
+                                  className={`whitespace-nowrap text-sm font-bold tabular-nums sm:text-[15px] ${movementAmountClass(item)}`}
+                                >
+                                  {movementAmountPrefix(item)}
+                                  {formatBRL(Math.abs(item.amount))}
+                                </p>
+                                <p className="mt-0.5 hidden text-[10px] text-muted-foreground sm:block">
+                                  {movementKindLabel(item)}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center sm:opacity-0 sm:transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                                {canEditMovement(item, sharedItem) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Editar ${item.title}`}
+                                    className="h-8 w-8 rounded-xl"
+                                    onClick={() => openEdit(item)}
+                                  >
+                                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                                  </Button>
+                                )}
+                                {canDeleteMovement(item, sharedItem) && (
+                                  <ConfirmAction
+                                    title={deleteMovementTitle(item)}
+                                    description={deleteMovementDescription(item)}
+                                    confirmLabel="Remover"
+                                    destructive
+                                    onConfirm={() => deleteMovement(item)}
+                                  >
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      aria-label={`Remover ${item.title}`}
+                                      className="h-8 w-8 rounded-xl"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </Button>
+                                  </ConfirmAction>
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </div>
             </>
           )}
         </CardContent>
       </Card>
     </div>
   );
+}
+
+function FlowMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone?: "positive" | "card";
+}) {
+  return (
+    <div className="min-w-0 bg-card p-4 last:col-span-2 sm:last:col-span-1">
+      <p className="truncate text-[10px] font-semibold text-muted-foreground">{label}</p>
+      <p
+        className={`mt-1 truncate text-sm font-bold tabular-nums ${
+          tone === "positive"
+            ? "text-[var(--success)]"
+            : tone === "card"
+              ? "text-[#df5a48] dark:text-[#ff9a8a]"
+              : "text-foreground"
+        }`}
+      >
+        {formatBRL(value)}
+      </p>
+    </div>
+  );
+}
+
+function matchesMovementFilter(item: MovementItem, filter: MovementFilter) {
+  if (filter === "ALL") return true;
+  if (filter === "INFLOW") return isPositiveMovement(item);
+  if (filter === "OUTFLOW") return !isPositiveMovement(item);
+  if (filter === "CARD") {
+    return (
+      item.kind === "card-expense" ||
+      item.kind === "card-payment" ||
+      (item.kind === "transaction" && item.type === "CARD_PAYMENT")
+    );
+  }
+  if (filter === "TRANSFER") {
+    return (
+      item.kind === "transaction" && (item.type === "TRANSFER_IN" || item.type === "TRANSFER_OUT")
+    );
+  }
+  return item.kind === "settlement";
+}
+
+function groupMovementsByDay(items: MovementItem[]) {
+  const groups = new Map<
+    string,
+    { key: string; label: string; net: number; items: MovementItem[] }
+  >();
+
+  for (const item of items) {
+    const key = item.occurredAt.slice(0, 10);
+    const group = groups.get(key) ?? {
+      key,
+      label: movementDayLabel(key),
+      net: 0,
+      items: [],
+    };
+    group.items.push(item);
+    group.net = roundMoney(
+      group.net + (isPositiveMovement(item) ? Math.abs(item.amount) : -Math.abs(item.amount)),
+    );
+    groups.set(key, group);
+  }
+
+  return Array.from(groups.values());
+}
+
+function movementDayLabel(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  const today = new Date();
+  const todayKey = localDateKey(today);
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (value === todayKey) return "Hoje";
+  if (value === localDateKey(yesterday)) return "Ontem";
+
+  const label = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+  })
+    .format(date)
+    .replace(".", "");
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function localDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function movementTimeLabel(item: MovementItem) {
+  if (!item.occurredAt.includes("T")) return "";
+  const date = new Date(item.occurredAt);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function movementKindLabel(item: MovementItem) {
+  if (item.kind === "card-expense") return "Compra no cartão";
+  if (item.kind === "card-payment") return "Pagamento de fatura";
+  if (item.kind === "settlement") return "Acerto compartilhado";
+  if (item.type === "INCOME") return "Receita";
+  if (item.type === "EXPENSE") return "Despesa";
+  if (item.type === "ADJUSTMENT") return "Ajuste";
+  if (item.type === "TRANSFER_IN" || item.type === "TRANSFER_OUT") return "Transferência";
+  return "Movimentação";
 }
 
 function AccountSelect({
@@ -1154,7 +1737,10 @@ function AccountSelect({
   onChange: (value: number) => void;
 }) {
   return (
-    <Select value={value ? String(value) : undefined} onValueChange={(next) => onChange(Number(next))}>
+    <Select
+      value={value ? String(value) : undefined}
+      onValueChange={(next) => onChange(Number(next))}
+    >
       <SelectTrigger>
         <SelectValue placeholder="Selecione" />
       </SelectTrigger>
@@ -1187,8 +1773,12 @@ function mergeMovements(
   month: number,
   year: number,
 ): MovementItem[] {
-  const transactionsById = new Map(transactions.map((transaction) => [transaction.id, transaction]));
-  const uniqueCardPayments = Array.from(new Map(cardPayments.map((payment) => [`${payment.cardId}-${payment.id}`, payment])).values());
+  const transactionsById = new Map(
+    transactions.map((transaction) => [transaction.id, transaction]),
+  );
+  const uniqueCardPayments = Array.from(
+    new Map(cardPayments.map((payment) => [`${payment.cardId}-${payment.id}`, payment])).values(),
+  );
   const resolvedPaymentTransactionIds = new Set(
     uniqueCardPayments
       .map((payment) => payment.transactionId)
@@ -1197,7 +1787,10 @@ function mergeMovements(
 
   return [
     ...transactions
-      .filter((transaction) => transaction.type !== "CARD_PAYMENT" || !resolvedPaymentTransactionIds.has(transaction.id))
+      .filter(
+        (transaction) =>
+          transaction.type !== "CARD_PAYMENT" || !resolvedPaymentTransactionIds.has(transaction.id),
+      )
       .map((transaction): MovementItem => ({
         kind: "transaction",
         id: transaction.id,
@@ -1213,7 +1806,10 @@ function mergeMovements(
       if (!statement) return [];
       return statement.installments.map((installment): MovementItem => {
         const expense = expensesById.get(installment.expenseId);
-        const totalInstallments = installment.totalInstallments ?? expense?.installmentCount ?? installment.installmentNumber;
+        const totalInstallments =
+          installment.totalInstallments ??
+          expense?.installmentCount ??
+          installment.installmentNumber;
         return {
           kind: "card-expense",
           key: `card-expense-${statement.cardId}-${installment.expenseId}-${installment.installmentNumber}-${statement.month}-${statement.year}`,
@@ -1232,7 +1828,9 @@ function mergeMovements(
       });
     }),
     ...uniqueCardPayments.map((payment): MovementItem => {
-      const paymentTransaction = payment.transactionId ? transactionsById.get(payment.transactionId) : undefined;
+      const paymentTransaction = payment.transactionId
+        ? transactionsById.get(payment.transactionId)
+        : undefined;
       return {
         kind: "card-payment",
         id: payment.id,
@@ -1305,7 +1903,9 @@ function calculateCashFlowTotals(items: MovementItem[]) {
     accountOutflow: roundMoney(totals.accountOutflow),
     cardPurchases: roundMoney(totals.cardPurchases),
     settlementsNet: roundMoney(totals.settlementsInflow - totals.settlementsOutflow),
-    net: roundMoney(totals.inflow - totals.accountOutflow + totals.settlementsInflow - totals.settlementsOutflow),
+    net: roundMoney(
+      totals.inflow - totals.accountOutflow + totals.settlementsInflow - totals.settlementsOutflow,
+    ),
   };
 }
 
@@ -1330,10 +1930,21 @@ function movementDefaults(
 ): Values {
   const paymentPeriod = kind === "CARD_PAYMENT" ? nextMonthPeriod(month, year) : { month, year };
   const defaultAccountId = validActiveId(preferences?.defaultAccountId, resources.accounts);
-  const defaultTargetAccountId = validActiveId(preferences?.defaultTargetAccountId, resources.accounts);
+  const defaultTargetAccountId = validActiveId(
+    preferences?.defaultTargetAccountId,
+    resources.accounts,
+  );
   const defaultCardId = validActiveId(preferences?.defaultCardId, resources.cards);
-  const defaultExpenseCategoryId = validCategoryId(preferences?.defaultExpenseCategoryId, resources.categories, "EXPENSE");
-  const defaultIncomeCategoryId = validCategoryId(preferences?.defaultIncomeCategoryId, resources.categories, "INCOME");
+  const defaultExpenseCategoryId = validCategoryId(
+    preferences?.defaultExpenseCategoryId,
+    resources.categories,
+    "EXPENSE",
+  );
+  const defaultIncomeCategoryId = validCategoryId(
+    preferences?.defaultIncomeCategoryId,
+    resources.categories,
+    "INCOME",
+  );
   const defaults: Values = {
     kind,
     title: "",
@@ -1372,13 +1983,23 @@ function movementDefaults(
   return defaults;
 }
 
-function validActiveId<T extends { id: number; active: boolean }>(id: number | null | undefined, items?: T[]) {
+function validActiveId<T extends { id: number; active: boolean }>(
+  id: number | null | undefined,
+  items?: T[],
+) {
   if (!id || !items?.some((item) => item.id === id && item.active)) return undefined;
   return id;
 }
 
-function validCategoryId(id: number | null | undefined, categories: Category[] | undefined, type: "INCOME" | "EXPENSE") {
-  if (!id || !categories?.some((category) => category.id === id && category.active && category.type === type)) {
+function validCategoryId(
+  id: number | null | undefined,
+  categories: Category[] | undefined,
+  type: "INCOME" | "EXPENSE",
+) {
+  if (
+    !id ||
+    !categories?.some((category) => category.id === id && category.active && category.type === type)
+  ) {
     return undefined;
   }
   return id;
@@ -1404,7 +2025,9 @@ function canEditMovement(item: MovementItem, sharedItem?: SettlementItem) {
   return false;
 }
 
-function isEditableTransactionType(type: TransactionType): type is Extract<MovementKind, "INCOME" | "EXPENSE" | "ADJUSTMENT"> {
+function isEditableTransactionType(
+  type: TransactionType,
+): type is Extract<MovementKind, "INCOME" | "EXPENSE" | "ADJUSTMENT"> {
   return type === "INCOME" || type === "EXPENSE" || type === "ADJUSTMENT";
 }
 
@@ -1429,9 +2052,18 @@ function movementKey(item: MovementItem) {
 }
 
 function movementDate(item: MovementItem) {
-  if (item.kind === "card-payment") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
-  if (item.kind === "card-expense") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
-  if (item.kind === "settlement") return item.occurredAt.includes("T") ? formatDateTime(item.occurredAt) : formatDate(item.occurredAt);
+  if (item.kind === "card-payment")
+    return item.occurredAt.includes("T")
+      ? formatDateTime(item.occurredAt)
+      : formatDate(item.occurredAt);
+  if (item.kind === "card-expense")
+    return item.occurredAt.includes("T")
+      ? formatDateTime(item.occurredAt)
+      : formatDate(item.occurredAt);
+  if (item.kind === "settlement")
+    return item.occurredAt.includes("T")
+      ? formatDateTime(item.occurredAt)
+      : formatDate(item.occurredAt);
   return formatDateTime(item.occurredAt);
 }
 
@@ -1454,20 +2086,32 @@ function movementAmountClass(item: MovementItem) {
 }
 
 function movementIconBackground(item: MovementItem) {
-  return isPositiveMovement(item) ? "bg-[color-mix(in_oklab,var(--success)_15%,transparent)]" : "bg-accent";
+  return isPositiveMovement(item)
+    ? "bg-[color-mix(in_oklab,var(--success)_15%,transparent)]"
+    : "bg-accent";
 }
 
 function movementIcon(item: MovementItem) {
   if (item.kind === "card-expense") return <CreditCard className="h-4 w-4 text-primary" />;
   if (item.kind === "card-payment") return <WalletCards className="h-4 w-4 text-primary" />;
-  if (item.kind === "settlement") return <HandCoins className={`h-4 w-4 ${isPositiveMovement(item) ? "text-[var(--success)]" : "text-primary"}`} />;
+  if (item.kind === "settlement")
+    return (
+      <HandCoins
+        className={`h-4 w-4 ${isPositiveMovement(item) ? "text-[var(--success)]" : "text-primary"}`}
+      />
+    );
   if (item.type === "CARD_PAYMENT") return <WalletCards className="h-4 w-4 text-primary" />;
-  if (item.type === "TRANSFER_IN" || item.type === "TRANSFER_OUT") return <ArrowLeftRight className="h-4 w-4 text-primary" />;
+  if (item.type === "TRANSFER_IN" || item.type === "TRANSFER_OUT")
+    return <ArrowLeftRight className="h-4 w-4 text-primary" />;
   if (isPositiveMovement(item)) return <ArrowDownRight className="h-4 w-4 text-[var(--success)]" />;
   return <ArrowUpRight className="h-4 w-4 text-primary" />;
 }
 
-function movementMeta(item: MovementItem, accountName: (id: number) => string, cardName: (id?: number | null) => string) {
+function movementMeta(
+  item: MovementItem,
+  accountName: (id: number) => string,
+  cardName: (id?: number | null) => string,
+) {
   if (item.kind === "card-expense") {
     return `${cardName(item.cardId)} - parcela ${item.installmentNumber}/${item.installmentCount} - fatura ${monthLabel(item.statementMonth, item.statementYear)}`;
   }
@@ -1485,7 +2129,7 @@ function movementCategoryName(item: MovementItem, categoryName: (id?: number | n
 }
 
 function settlementOccurredAt(item: SettlementItem) {
-  return item.status === "SETTLED" ? item.settledAt ?? item.createdAt : item.createdAt;
+  return item.status === "SETTLED" ? (item.settledAt ?? item.createdAt) : item.createdAt;
 }
 
 function settlementMovementTitle(item: SettlementItem) {
@@ -1501,7 +2145,9 @@ function settlementCounterpartyName(item: SettlementItem) {
 
 function settlementMovementMeta(item: Extract<MovementItem, { kind: "settlement" }>) {
   if (item.status === "SETTLED") {
-    return item.direction === "OWES_YOU" ? `Acerto recebido - ${item.counterpartyName}` : `Acerto pago - ${item.counterpartyName}`;
+    return item.direction === "OWES_YOU"
+      ? `Acerto recebido - ${item.counterpartyName}`
+      : `Acerto pago - ${item.counterpartyName}`;
   }
   if (item.direction === "OWES_YOU") {
     return `Acerto a receber - ${item.counterpartyName}`;
@@ -1526,7 +2172,9 @@ function addMonthsToPeriod(month: number, year: number, amount: number) {
 }
 
 function uniquePeriods(periods: Array<{ month: number; year: number }>) {
-  return Array.from(new Map(periods.map((period) => [`${period.month}-${period.year}`, period])).values());
+  return Array.from(
+    new Map(periods.map((period) => [`${period.month}-${period.year}`, period])).values(),
+  );
 }
 
 function useMonthOptions(selectedMonth: number, selectedYear: number) {

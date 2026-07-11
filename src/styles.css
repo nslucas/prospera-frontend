@@ -4,56 +4,56 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #101b15;
+  --background: #f6f5ef;
+  --foreground: #14241e;
 
-  --card: oklch(1 0 0);
-  --card-foreground: #101b15;
+  --card: #fffefa;
+  --card-foreground: #14241e;
 
-  --popover: oklch(1 0 0);
-  --popover-foreground: #101b15;
+  --popover: #fffefa;
+  --popover-foreground: #14241e;
 
-  --primary: #18c957;
+  --primary: #105b44;
   --primary-foreground: #ffffff;
 
-  --secondary: #f7faf8;
-  --secondary-foreground: #1f3529;
+  --secondary: #edf0e9;
+  --secondary-foreground: #193b2f;
 
-  --muted: #f6f8f6;
-  --muted-foreground: #66736b;
+  --muted: #efefe8;
+  --muted-foreground: #69746e;
 
-  --accent: #edf9f1;
-  --accent-foreground: #108b43;
+  --accent: #e6f3d8;
+  --accent-foreground: #105b44;
 
   --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.99 0 0);
 
-  --success: #18c957;
+  --success: #188b64;
   --success-foreground: oklch(0.99 0 0);
 
   --warning: oklch(0.75 0.16 70);
   --warning-foreground: oklch(0.2 0.05 70);
 
-  --border: #e8eee9;
-  --input: #e4ebe6;
-  --ring: #8be8ad;
+  --border: #e2e4dc;
+  --input: #d9ddd4;
+  --ring: #76a88e;
 
-  --selection: color-mix(in oklab, var(--primary) 24%, white);
-  --selection-foreground: #101b15;
+  --selection: #d9f79c;
+  --selection-foreground: #0b2e24;
 
-  --radius: 0.5rem;
+  --radius: 0.875rem;
 
-  --sidebar: #ffffff;
-  --sidebar-foreground: #101b15;
-  --sidebar-primary: #18c957;
+  --sidebar: #0b2e24;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #c9ff5b;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #edf9f1;
-  --sidebar-accent-foreground: #108b43;
-  --sidebar-border: #e8eee9;
-  --sidebar-ring: #8be8ad;
+  --sidebar-accent: #163f34;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #21463b;
+  --sidebar-ring: #c9ff5b;
 
-  --chart-1: #18c957;
-  --chart-2: #57d6c6;
+  --chart-1: #105b44;
+  --chart-2: #ef6a57;
   --chart-3: oklch(0.72 0.085 85);
   --chart-4: oklch(0.62 0.095 35);
   --chart-5: oklch(0.55 0.06 235);
@@ -69,37 +69,37 @@
 }
 
 .dark {
-  --background: #000000;
-  --foreground: #f2fff7;
-  --card: #080a09;
-  --card-foreground: #f2fff7;
-  --popover: #080a09;
-  --popover-foreground: #f2fff7;
-  --primary: #18c957;
-  --primary-foreground: #001b0b;
-  --secondary: #101312;
-  --secondary-foreground: #f2fff7;
-  --muted: #111513;
-  --muted-foreground: #9aa79f;
-  --accent: #073d1b;
-  --accent-foreground: #18c957;
+  --background: #07120e;
+  --foreground: #f1f3ed;
+  --card: #0e1d17;
+  --card-foreground: #f1f3ed;
+  --popover: #102019;
+  --popover-foreground: #f1f3ed;
+  --primary: #b9ef57;
+  --primary-foreground: #0b2e24;
+  --secondary: #14251e;
+  --secondary-foreground: #f1f3ed;
+  --muted: #13231d;
+  --muted-foreground: #91a097;
+  --accent: #19382d;
+  --accent-foreground: #c9ff5b;
   --destructive: oklch(0.58 0.21 25);
   --destructive-foreground: oklch(0.99 0 0);
-  --border: #1b241f;
-  --input: #202a24;
-  --ring: #18c957;
-  --selection: #00ff66;
-  --selection-foreground: #001b0b;
-  --sidebar: #000000;
-  --sidebar-foreground: #f2fff7;
-  --sidebar-primary: #18c957;
-  --sidebar-primary-foreground: #001b0b;
-  --sidebar-accent: #073d1b;
-  --sidebar-accent-foreground: #18c957;
-  --sidebar-border: #1b241f;
-  --sidebar-ring: #18c957;
-  --chart-1: #18c957;
-  --chart-2: #00e5a8;
+  --border: #21352c;
+  --input: #2b4036;
+  --ring: #b9ef57;
+  --selection: #b9ef57;
+  --selection-foreground: #0b2e24;
+  --sidebar: #06130e;
+  --sidebar-foreground: #f1f3ed;
+  --sidebar-primary: #c9ff5b;
+  --sidebar-primary-foreground: #0b2e24;
+  --sidebar-accent: #17362b;
+  --sidebar-accent-foreground: #c9ff5b;
+  --sidebar-border: #1f3a31;
+  --sidebar-ring: #c9ff5b;
+  --chart-1: #b9ef57;
+  --chart-2: #ff8b79;
   --chart-3: #b6f36f;
   --chart-4: #ffd166;
   --chart-5: #8ab4ff;
@@ -155,14 +155,15 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 * {
   border-color: var(--border);
 }
 
-html, body {
+html,
+body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
@@ -171,6 +172,7 @@ html, body {
 
 body {
   font-feature-settings: "ss01", "cv11";
+  min-width: 320px;
 }
 
 ::selection {
@@ -180,6 +182,34 @@ body {
 
 @supports (background: color-mix(in oklab, white, black)) {
   .soft-grid {
-    background: var(--background);
+    background:
+      radial-gradient(
+        circle at 15% 10%,
+        color-mix(in oklab, var(--primary) 8%, transparent),
+        transparent 34rem
+      ),
+      radial-gradient(
+        circle at 90% 85%,
+        color-mix(in oklab, #c9ff5b 10%, transparent),
+        transparent 30rem
+      ),
+      var(--background);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-in {
+    animation: reveal-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  @keyframes reveal-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
