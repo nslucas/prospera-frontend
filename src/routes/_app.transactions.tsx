@@ -1516,7 +1516,7 @@ export default function TransactionsPage() {
                         return (
                           <li
                             key={movementKey(item)}
-                            className="group grid grid-cols-[2.75rem_minmax(0,1fr)_auto] items-center gap-3 py-3.5 sm:py-4"
+                            className="group grid grid-cols-[2.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 py-3.5 sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] sm:items-center sm:gap-y-0 sm:py-4"
                           >
                             <div
                               className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${movementIconBackground(item)}`}
@@ -1525,7 +1525,7 @@ export default function TransactionsPage() {
                             </div>
                             <div className="min-w-0">
                               <div className="flex min-w-0 items-center gap-2">
-                                <p className="truncate text-sm font-semibold leading-snug">
+                                <p className="min-w-0 break-words text-sm font-semibold leading-snug sm:truncate">
                                   {item.title}
                                 </p>
                                 {sharedItem && (
@@ -1535,12 +1535,12 @@ export default function TransactionsPage() {
                                   </span>
                                 )}
                               </div>
-                              <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-relaxed text-muted-foreground sm:flex-nowrap">
                                 {movementTimeLabel(item) && (
                                   <span className="shrink-0">{movementTimeLabel(item)}</span>
                                 )}
                                 {movementTimeLabel(item) && <span aria-hidden="true">·</span>}
-                                <span className="truncate">
+                                <span className="min-w-0 break-words sm:truncate">
                                   {movementMeta(item, accountName, cardName)}
                                 </span>
                                 {category && category !== "Sem categoria" && (
@@ -1553,7 +1553,7 @@ export default function TransactionsPage() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center justify-end gap-1 sm:gap-2">
+                            <div className="col-start-2 flex min-w-0 items-center justify-between gap-2 sm:col-start-3 sm:row-start-1 sm:justify-end">
                               <div className="text-right">
                                 <p
                                   className={`whitespace-nowrap text-sm font-bold tabular-nums sm:text-[15px] ${movementAmountClass(item)}`}
