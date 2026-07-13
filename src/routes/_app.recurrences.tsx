@@ -248,8 +248,8 @@ export default function RecurrencesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-end justify-between gap-3">
-        <div>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Recorrências</h1>
           <p className="text-sm text-muted-foreground">Crie regras, visualize próximas ocorrências e lance quando quiser.</p>
         </div>
@@ -306,22 +306,24 @@ export default function RecurrencesPage() {
           ) : (
             occ.data.map((item) => (
               <Card key={`${item.recurrenceId}-${item.occurrenceDate}`}>
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-medium">{item.recurrenceName}</span>
+                <CardContent className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                  <div className="col-span-2 min-w-0 sm:col-span-1">
+                    <div className="truncate text-sm font-medium">{item.recurrenceName}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <Badge variant="outline" className="text-[10px]">
                         {recurrenceClassificationLabel(item.classification)}
                       </Badge>
                       <Badge variant={item.status === "MATERIALIZED" ? "secondary" : "outline"} className="text-[10px]">
                         {recurrenceStatusLabel(item.status)}
                       </Badge>
+                      <span className="text-xs text-muted-foreground">{formatDate(item.occurrenceDate)}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground">{formatDate(item.occurrenceDate)}</div>
                   </div>
-                  <div className="text-sm font-semibold tabular-nums">{formatBRL(item.amount)}</div>
+                  <div className="min-w-0 whitespace-nowrap text-sm font-semibold tabular-nums sm:text-right">
+                    {formatBRL(item.amount)}
+                  </div>
                   {item.status === "PENDING" && (
-                    <div className="flex gap-1">
+                    <div className="flex shrink-0 justify-self-end gap-1">
                       <Button
                         size="icon"
                         variant="outline"
@@ -349,7 +351,7 @@ export default function RecurrencesPage() {
                       confirmLabel="Desfazer"
                       onConfirm={() => revert.mutate({ id: item.recurrenceId, date: item.occurrenceDate })}
                     >
-                      <Button size="icon" variant="ghost" className="h-8 w-8" disabled={revert.isPending} title="Desfazer lançamento">
+                      <Button size="icon" variant="ghost" className="h-8 w-8 justify-self-end" disabled={revert.isPending} title="Desfazer lançamento">
                         <RotateCcw className="h-4 w-4" />
                       </Button>
                     </ConfirmAction>
@@ -370,28 +372,32 @@ export default function RecurrencesPage() {
           ) : (
             list.data.map((item) => (
               <Card key={item.id}>
-                <CardContent className="flex items-center gap-3 p-4">
-                  <div className="min-w-0 flex-1">
+                <CardContent className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 p-4 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+                  <div className="col-span-2 min-w-0 sm:col-span-1">
                     <div className="truncate text-sm font-medium">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="mt-1 break-words text-xs text-muted-foreground">
                       {recurrenceFrequencyLabel(item.frequency)} - {recurrenceClassificationLabel(item.classification)} - {recurrenceDestinationLabel(item)}
                     </div>
                   </div>
-                  <div className="text-sm font-semibold tabular-nums">{formatBRL(item.amount)}</div>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                  <ConfirmAction
-                    title="Remover recorrência?"
-                    description={`A recorrência "${item.name}" será desativada.`}
-                    confirmLabel="Remover"
-                    destructive
-                    onConfirm={() => remove.mutate(item.id)}
-                  >
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                      <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  <div className="min-w-0 whitespace-nowrap text-sm font-semibold tabular-nums sm:text-right">
+                    {formatBRL(item.amount)}
+                  </div>
+                  <div className="flex shrink-0 justify-self-end gap-1">
+                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)}>
+                      <Pencil className="h-4 w-4 text-muted-foreground" />
                     </Button>
-                  </ConfirmAction>
+                    <ConfirmAction
+                      title="Remover recorrência?"
+                      description={`A recorrência "${item.name}" será desativada.`}
+                      confirmLabel="Remover"
+                      destructive
+                      onConfirm={() => remove.mutate(item.id)}
+                    >
+                      <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </ConfirmAction>
+                  </div>
                 </CardContent>
               </Card>
             ))

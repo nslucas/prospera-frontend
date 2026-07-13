@@ -172,7 +172,6 @@ body {
 
 body {
   font-feature-settings: "ss01", "cv11";
-  min-width: 320px;
 }
 
 ::selection {

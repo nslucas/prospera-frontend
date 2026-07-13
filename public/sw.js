@@ -76,9 +76,9 @@ self.addEventListener("fetch", (event) => {
 
 self.addEventListener("push", (event) => {
   const payload = readPushPayload(event);
-  const body = payload.body || payload.title || "Voce tem uma nova notificacao.";
+  const title = payload.title || APP_NAME;
   const options = {
-    body,
+    body: payload.body || "Você tem uma nova notificação.",
     icon: payload.icon || "/icon-192.png",
     badge: payload.badge || "/icon-maskable-192.png",
     image: payload.image,
@@ -90,7 +90,7 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  event.waitUntil(self.registration.showNotification(APP_NAME, options));
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
