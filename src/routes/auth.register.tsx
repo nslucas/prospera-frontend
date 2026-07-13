@@ -30,7 +30,7 @@ export default function RegisterPage() {
     try {
       await registerUser(values);
       toast.success("Conta criada com sucesso!");
-      navigate("/");
+      navigate("/home", { replace: true });
     } catch (e) {
       toast.error((e as Error).message || "Falha ao cadastrar");
     }

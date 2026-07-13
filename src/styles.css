@@ -170,6 +170,57 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+.landing-page {
+  color-scheme: light;
+}
+
+.landing-page :focus-visible {
+  outline: 2px solid #76a88e;
+  outline-offset: 3px;
+}
+
+.connections-perspective {
+  perspective: 1200px;
+}
+
+.connections-perspective-card {
+  transform: rotateX(7deg) rotateY(-10deg) rotateZ(1.5deg);
+  transform-style: preserve-3d;
+}
+
+.connections-floating-card {
+  transform: translateZ(54px) rotate(-2deg);
+}
+
+@media (max-width: 639px) {
+  .connections-perspective-card {
+    transform: rotateX(5deg) rotateY(-3deg) rotateZ(0.5deg) scale(0.97);
+  }
+
+  .connections-floating-card {
+    transform: translateZ(28px) rotate(-1deg) scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-orbit {
+    animation: landing-drift 16s ease-in-out infinite alternate;
+  }
+
+  @keyframes landing-drift {
+    from {
+      transform: translate3d(0, 0, 0) rotate(0deg);
+    }
+    to {
+      transform: translate3d(-2rem, 2rem, 0) rotate(8deg);
+    }
+  }
+}
+
 body {
   font-feature-settings: "ss01", "cv11";
 }

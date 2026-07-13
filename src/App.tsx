@@ -9,6 +9,7 @@ import { registerPwaServiceWorker } from "@/lib/pwa";
 import { ThemeProvider } from "@/lib/theme";
 import LoginPage from "@/routes/auth.login";
 import RegisterPage from "@/routes/auth.register";
+import LandingPage from "@/routes/landing";
 import AccountsPage from "@/routes/_app.accounts";
 import AlertsPage from "@/routes/_app.alerts";
 import BudgetsPage from "@/routes/_app.budgets";
@@ -44,7 +45,7 @@ export function App() {
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<HomeRedirect />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/auth/login" element={<LoginPage />} />
       <Route path="/auth/register" element={<RegisterPage />} />
       <Route
@@ -71,12 +72,6 @@ function AppRoutes() {
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
-}
-
-function HomeRedirect() {
-  const { user, loading } = useAuth();
-  if (loading) return <FullPageSpinner />;
-  return <Navigate to={user ? "/home" : "/auth/login"} replace />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {

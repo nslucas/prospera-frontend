@@ -27,7 +27,7 @@ export default function LoginPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   useEffect(() => {
-    if (user) navigate("/");
+    if (user) navigate("/home", { replace: true });
   }, [user, navigate]);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function LoginPage() {
     try {
       await login(values.email, values.password);
       toast.success("Bem-vindo de volta!", { duration: 2000 });
-      navigate("/");
+      navigate("/home", { replace: true });
     } catch (e) {
       toast.error((e as Error).message || "Falha ao entrar");
     }
