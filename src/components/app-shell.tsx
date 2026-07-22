@@ -376,7 +376,7 @@ function MobileMenu({
         </div>
         <button
           onClick={onAdd}
-          className="mb-6 flex h-12 items-center justify-center gap-2 rounded-2xl bg-[#c9ff5b] text-sm font-bold text-[#0b2e24]"
+          className="mb-6 flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#c9ff5b] text-sm font-bold text-[#0b2e24]"
         >
           <Plus className="h-4 w-4" /> Nova movimentação
         </button>
