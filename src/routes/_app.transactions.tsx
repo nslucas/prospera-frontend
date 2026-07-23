@@ -1,5 +1,5 @@
 import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
-import { useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -609,15 +609,35 @@ export default function TransactionsPage() {
     if (kind === "INCOME") return category.type === "INCOME";
     return category.type === "EXPENSE";
   });
-  const accountName = (id: number) =>
-    accounts.data?.find((account) => account.id === id)?.name ?? `Conta #${id}`;
-  const cardName = (id?: number | null) =>
-    cards.data?.find((card) => card.id === id)?.name ?? `Cartão #${id ?? ""}`;
-  const categoryName = (id?: number | null) => {
-    if (!id) return "Sem categoria";
-    return categories.data?.find((category) => category.id === id)?.name ?? `Categoria #${id}`;
-  };
-  const expensesById = new Map((expenses.data ?? []).map((expense) => [expense.id, expense]));
+  const accountsById = useMemo(
+    () => new Map((accounts.data ?? []).map((account) => [account.id, account])),
+    [accounts.data],
+  );
+  const cardsById = useMemo(
+    () => new Map((cards.data ?? []).map((card) => [card.id, card])),
+    [cards.data],
+  );
+  const categoriesById = useMemo(
+    () => new Map((categories.data ?? []).map((category) => [category.id, category])),
+    [categories.data],
+  );
+  const accountName = useCallback(
+    (id: number) => accountsById.get(id)?.name ?? `Conta #${id}`,
+    [accountsById],
+  );
+  const cardName = useCallback(
+    (id?: number | null) => cardsById.get(id ?? -1)?.name ?? `Cartão #${id ?? ""}`,
+    [cardsById],
+  );
+  const categoryName = useCallback(
+    (id?: number | null) =>
+      id ? (categoriesById.get(id)?.name ?? `Categoria #${id}`) : "Sem categoria",
+    [categoriesById],
+  );
+  const expensesById = useMemo(
+    () => new Map((expenses.data ?? []).map((expense) => [expense.id, expense])),
+    [expenses.data],
+  );
   const settlementItemByExpenseId = useMemo(() => {
     const map = new Map<number, SettlementItem>();
     for (const item of settlementItems.data ?? []) {
@@ -625,38 +645,61 @@ export default function TransactionsPage() {
     }
     return map;
   }, [settlementItems.data]);
-  const items = mergeMovements(
-    tx.data ?? [],
-    cardStatements.data ?? [],
-    expensesById,
-    cardPayments.data ?? [],
-    settlementItems.data ?? [],
-    month,
-    year,
+  const items = useMemo(
+    () =>
+      mergeMovements(
+        tx.data ?? [],
+        cardStatements.data ?? [],
+        expensesById,
+        cardPayments.data ?? [],
+        settlementItems.data ?? [],
+        month,
+        year,
+      ),
+    [
+      cardPayments.data,
+      cardStatements.data,
+      expensesById,
+      month,
+      settlementItems.data,
+      tx.data,
+      year,
+    ],
   );
-  const cashFlowTotals = calculateCashFlowTotals(items);
-  const statementSummaries = (cardStatements.data ?? []).filter(
-    (statement): statement is CardStatement => Boolean(statement),
+  const cashFlowTotals = useMemo(() => calculateCashFlowTotals(items), [items]);
+  const statementSummaries = useMemo(
+    () =>
+      (cardStatements.data ?? []).filter((statement): statement is CardStatement =>
+        Boolean(statement),
+      ),
+    [cardStatements.data],
   );
-  const statementTotals = calculateStatementTotals(statementSummaries);
+  const statementTotals = useMemo(
+    () => calculateStatementTotals(statementSummaries),
+    [statementSummaries],
+  );
   const selectedPeriodLabel = `${monthName(month, year)} de ${year}`;
-  const normalizedSearchQuery = normalizeSearch(searchQuery);
-  const searchedItems = normalizedSearchQuery
-    ? items.filter((item) =>
-        normalizeSearch(
-          [
-            item.title,
-            movementDate(item),
-            movementMeta(item, accountName, cardName),
-            movementCategoryName(item, categoryName),
-            formatBRL(Math.abs(item.amount)),
-            item.kind,
-          ].join(" "),
-        ).includes(normalizedSearchQuery),
-      )
-    : items;
-  const filteredItems = searchedItems.filter((item) => matchesMovementFilter(item, movementFilter));
-  const movementGroups = groupMovementsByDay(filteredItems);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+  const filteredItems = useMemo(() => {
+    const normalizedSearchQuery = normalizeSearch(deferredSearchQuery);
+    const searchedItems = normalizedSearchQuery
+      ? items.filter((item) =>
+          normalizeSearch(
+            [
+              item.title,
+              movementDate(item),
+              movementMeta(item, accountName, cardName),
+              movementCategoryName(item, categoryName),
+              formatBRL(Math.abs(item.amount)),
+              item.kind,
+            ].join(" "),
+          ).includes(normalizedSearchQuery),
+        )
+      : items;
+
+    return searchedItems.filter((item) => matchesMovementFilter(item, movementFilter));
+  }, [accountName, cardName, categoryName, deferredSearchQuery, items, movementFilter]);
+  const movementGroups = useMemo(() => groupMovementsByDay(filteredItems), [filteredItems]);
   const movementsLoading = tx.isLoading || cards.isLoading;
   const supplementalLoading =
     cardStatements.isLoading ||

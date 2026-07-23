@@ -22,13 +22,17 @@ import {
 } from "lucide-react";
 
 import { BrandLogo } from "@/components/brand-logo";
-import { MovementEntryDialog } from "@/components/movement-entry-dialog";
 import { ThemeSelector } from "@/components/theme-selector";
 import { useAsyncData } from "@/hooks/use-async-data";
 import { useAuth } from "@/lib/auth";
 import { fetchUnreadNotificationCount } from "@/lib/notifications";
 import { fetchPendingConnectionRequests } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+
+const loadMovementEntryDialog = () => import("@/components/movement-entry-dialog");
+const MovementEntryDialog = React.lazy(() =>
+  loadMovementEntryDialog().then((module) => ({ default: module.MovementEntryDialog })),
+);
 
 interface NavItem {
   to: string;
@@ -170,6 +174,8 @@ export function AppShell() {
           <button
             type="button"
             onClick={() => setMovementEntryOpen(true)}
+            onMouseEnter={() => void loadMovementEntryDialog()}
+            onFocus={() => void loadMovementEntryDialog()}
             className="group flex h-12 w-full items-center justify-between rounded-2xl bg-[#c9ff5b] px-4 text-sm font-bold text-[#0b2e24] shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:bg-[#d7ff81]"
           >
             <span className="flex items-center gap-2.5">
@@ -270,6 +276,8 @@ export function AppShell() {
               <button
                 type="button"
                 onClick={() => setMovementEntryOpen(true)}
+                onMouseEnter={() => void loadMovementEntryDialog()}
+                onFocus={() => void loadMovementEntryDialog()}
                 className="ml-1 hidden h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground shadow-[0_10px_24px_rgba(16,91,68,0.18)] transition hover:-translate-y-0.5 sm:inline-flex lg:hidden"
               >
                 <Plus className="h-4 w-4" /> Adicionar
@@ -299,7 +307,11 @@ export function AppShell() {
         />
       )}
 
-      <MovementEntryDialog open={movementEntryOpen} onOpenChange={setMovementEntryOpen} />
+      {movementEntryOpen ? (
+        <React.Suspense fallback={null}>
+          <MovementEntryDialog open onOpenChange={setMovementEntryOpen} />
+        </React.Suspense>
+      ) : null}
 
       {!mobileMenu && !movementEntryOpen && (
         <MobileBottomNav

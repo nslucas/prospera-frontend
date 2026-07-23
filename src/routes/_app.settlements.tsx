@@ -53,7 +53,7 @@ export default function SettlementsPage() {
     onError: (error) => toast.error(error.message),
   });
 
-  const allItems = items.data ?? [];
+  const allItems = useMemo(() => items.data ?? [], [items.data]);
   const openItems = useMemo(() => allItems.filter((item) => item.status === "OPEN"), [allItems]);
   const visibleItems = showSettledItems ? allItems : openItems;
   const settledItemsCount = allItems.length - openItems.length;

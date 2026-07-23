@@ -1,28 +1,31 @@
-import { useEffect, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, type ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 
-import { AppShell } from "@/components/app-shell";
 import { NotificationSync } from "@/components/notification-sync";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { registerPwaServiceWorker } from "@/lib/pwa";
 import { ThemeProvider } from "@/lib/theme";
-import LoginPage from "@/routes/auth.login";
-import RegisterPage from "@/routes/auth.register";
-import LandingPage from "@/routes/landing";
-import AccountsPage from "@/routes/_app.accounts";
-import AlertsPage from "@/routes/_app.alerts";
-import BudgetsPage from "@/routes/_app.budgets";
-import CardsPage from "@/routes/_app.cards";
-import CategoriesPage from "@/routes/_app.categories";
-import ConnectionsPage from "@/routes/_app.connections";
-import HomePage from "@/routes/_app.home";
-import NotificationsPage from "@/routes/_app.notifications";
-import RecurrencesPage from "@/routes/_app.recurrences";
-import ReportsPage from "@/routes/_app.reports";
-import SettlementsPage from "@/routes/_app.settlements";
-import SettingsPage from "@/routes/_app.settings";
-import TransactionsPage from "@/routes/_app.transactions";
+
+const AppShell = lazy(() =>
+  import("@/components/app-shell").then((module) => ({ default: module.AppShell })),
+);
+const LoginPage = lazy(() => import("@/routes/auth.login"));
+const RegisterPage = lazy(() => import("@/routes/auth.register"));
+const LandingPage = lazy(() => import("@/routes/landing"));
+const AccountsPage = lazy(() => import("@/routes/_app.accounts"));
+const AlertsPage = lazy(() => import("@/routes/_app.alerts"));
+const BudgetsPage = lazy(() => import("@/routes/_app.budgets"));
+const CardsPage = lazy(() => import("@/routes/_app.cards"));
+const CategoriesPage = lazy(() => import("@/routes/_app.categories"));
+const ConnectionsPage = lazy(() => import("@/routes/_app.connections"));
+const HomePage = lazy(() => import("@/routes/_app.home"));
+const NotificationsPage = lazy(() => import("@/routes/_app.notifications"));
+const RecurrencesPage = lazy(() => import("@/routes/_app.recurrences"));
+const ReportsPage = lazy(() => import("@/routes/_app.reports"));
+const SettlementsPage = lazy(() => import("@/routes/_app.settlements"));
+const SettingsPage = lazy(() => import("@/routes/_app.settings"));
+const TransactionsPage = lazy(() => import("@/routes/_app.transactions"));
 
 export function App() {
   useEffect(() => {
@@ -34,7 +37,9 @@ export function App() {
       <BrowserRouter>
         <AuthProvider>
           <NotificationSync />
-          <AppRoutes />
+          <Suspense fallback={<FullPageSpinner />}>
+            <AppRoutes />
+          </Suspense>
           <Toaster richColors position="top-center" />
         </AuthProvider>
       </BrowserRouter>

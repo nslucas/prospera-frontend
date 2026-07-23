@@ -15,28 +15,29 @@ import {
   YAxis,
 } from "recharts";
 import {
-  fetchCards,
-  fetchCardStatement,
   fetchCardSummary,
-  fetchCategories,
   fetchCategorySummary,
-  fetchExpenses,
   fetchFixedVariableSummary,
   fetchForecast,
   fetchMonthlySummary,
   fetchTrends,
-  fetchTransactions,
   fetchUpcoming,
   fetchYearlySummary,
 } from "@/lib/queries";
-import { addDaysIso, currentMonthYear, formatBRL, formatDate, monthLabel, todayIsoDate } from "@/lib/format";
+import {
+  addDaysIso,
+  currentMonthYear,
+  formatBRL,
+  formatDate,
+  monthLabel,
+  todayIsoDate,
+} from "@/lib/format";
 import { cardStatementStatusLabel } from "@/lib/card-labels";
 import { recurrenceStatusLabel } from "@/lib/recurrence-labels";
-import type { CardStatement, Category, CategorySummary, Expense, Transaction } from "@/lib/types";
+import type { CategorySummary } from "@/lib/types";
 import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-
 
 const CATEGORY_CHART_LIMIT = 6;
 
@@ -66,34 +67,13 @@ export default function ReportsPage() {
   const categorySummary = useAsyncData(() => fetchCategorySummary(month, year), [month, year], {
     cacheKey: `summary-categories:${month}:${year}`,
   });
-  const transactions = useAsyncData(() => fetchTransactions({ month, year }), [month, year], {
-    cacheKey: `transactions:${month}:${year}`,
-  });
-  const expenses = useAsyncData(() => fetchExpenses({}), [], { cacheKey: "expenses:all", staleMs: 60_000 });
-  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
-  const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards", staleMs: 60_000 });
-  const activeCards = (cards.data ?? []).filter((card) => card.active);
-  const activeCardsKey = activeCards.map((card) => card.id).join("|");
-  const cardsReady = !cards.isLoading && Boolean(cards.data);
-  const cardStatements = useAsyncData(
-    () =>
-      activeCards.length
-        ? Promise.all(
-            activeCards.map((card) =>
-              fetchCardStatement(card.id, cardStatementPeriod.month, cardStatementPeriod.year).catch(() => null),
-            ),
-          )
-        : Promise.resolve([]),
-    [activeCardsKey, cardStatementPeriod.month, cardStatementPeriod.year],
+  const cardSummary = useAsyncData(
+    () => fetchCardSummary(cardStatementPeriod.month, cardStatementPeriod.year),
+    [cardStatementPeriod.month, cardStatementPeriod.year],
     {
-      enabled: cardsReady,
-      initialData: [],
-      cacheKey: `reports-card-statements:${activeCardsKey}:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
+      cacheKey: `summary-cards:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
     },
   );
-  const cardSummary = useAsyncData(() => fetchCardSummary(cardStatementPeriod.month, cardStatementPeriod.year), [cardStatementPeriod.month, cardStatementPeriod.year], {
-    cacheKey: `summary-cards:${cardStatementPeriod.month}:${cardStatementPeriod.year}`,
-  });
   const fixedVariable = useAsyncData(() => fetchFixedVariableSummary(month, year), [month, year], {
     cacheKey: `summary-fixed-variable:${month}:${year}`,
   });
@@ -105,18 +85,17 @@ export default function ReportsPage() {
   });
   const fromMonth = month - 11 <= 0 ? month - 11 + 12 : month - 11;
   const fromYear = month - 11 <= 0 ? year - 1 : year;
-  const trends = useAsyncData(() => fetchTrends(fromMonth, fromYear, month, year), [fromMonth, fromYear, month, year], {
-    cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
-  });
+  const trends = useAsyncData(
+    () => fetchTrends(fromMonth, fromYear, month, year),
+    [fromMonth, fromYear, month, year],
+    {
+      cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}`,
+    },
+  );
   const forecast = useAsyncData(() => fetchForecast(6), [], { cacheKey: "summary-forecast:6" });
   useFinanceUpdates(() => {
     summary.reload();
     categorySummary.reload();
-    transactions.reload();
-    expenses.reload();
-    categories.reload();
-    cards.reload();
-    cardStatements.reload();
     cardSummary.reload();
     fixedVariable.reload();
     upcoming.reload();
@@ -125,34 +104,38 @@ export default function ReportsPage() {
     forecast.reload();
   });
 
-  const trendData =
-    trends.data?.map((item) => ({
-      label: `${String(item.month).padStart(2, "0")}/${String(item.year).slice(-2)}`,
-      Receita: item.incomeTotal,
-      Despesa: item.accountExpenseTotal + item.cardStatementExpenseTotal,
-      Liquido: item.netTotal,
-    })) ?? [];
+  const trendData = useMemo(
+    () =>
+      trends.data?.map((item) => ({
+        label: `${String(item.month).padStart(2, "0")}/${String(item.year).slice(-2)}`,
+        Receita: item.incomeTotal,
+        Despesa: item.accountExpenseTotal + item.cardStatementExpenseTotal,
+        Liquido: item.netTotal,
+      })) ?? [],
+    [trends.data],
+  );
 
-  const localCategoryBreakdown = useMemo(() => {
-    if (!transactions.data || !expenses.data || !categories.data || !cardsReady || !cardStatements.data) return null;
-    if (activeCards.length > 0 && cardStatements.data.length !== activeCards.length) return null;
-    return buildCategoryBreakdown(transactions.data, cardStatements.data, expenses.data, categories.data);
-  }, [activeCards.length, cardStatements.data, cardsReady, categories.data, expenses.data, transactions.data]);
+  const categoryChart = useMemo(
+    () => buildCategoryChartData(categorySummary.data ?? summary.data?.categoryBreakdown ?? []),
+    [categorySummary.data, summary.data?.categoryBreakdown],
+  );
 
-  const categoryBreakdown = localCategoryBreakdown ?? categorySummary.data ?? summary.data?.categoryBreakdown ?? [];
-  const categoryChart = buildCategoryChartData(categoryBreakdown);
-
-  const forecastData =
-    forecast.data?.forecast.map((item) => ({
-      label: `${String(item.month).padStart(2, "0")}/${String(item.year).slice(-2)}`,
-      Saldo: item.projectedAccountBalance,
-    })) ?? [];
+  const forecastData = useMemo(
+    () =>
+      forecast.data?.forecast.map((item) => ({
+        label: `${String(item.month).padStart(2, "0")}/${String(item.year).slice(-2)}`,
+        Saldo: item.projectedAccountBalance,
+      })) ?? [],
+    [forecast.data?.forecast],
+  );
 
   const fixedTotal =
     (fixedVariable.data?.fixedAmount ?? 0) +
     (fixedVariable.data?.variableAmount ?? 0) +
     (fixedVariable.data?.unclassifiedAmount ?? 0);
-  const cardBillsTotal = cardSummary.data?.reduce((total, card) => total + Number(card.totalAmount ?? 0), 0) ?? summary.data?.cardBillsTotal;
+  const cardBillsTotal =
+    cardSummary.data?.reduce((total, card) => total + Number(card.totalAmount ?? 0), 0) ??
+    summary.data?.cardBillsTotal;
 
   if (summary.isLoading && !summary.data) {
     return (
@@ -169,7 +152,12 @@ export default function ReportsPage() {
           <p className="text-sm text-muted-foreground capitalize">{monthLabel(month, year)}</p>
           <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Relatórios</h1>
         </div>
-        <PeriodPicker month={month} year={year} onChange={setPeriod} className="w-full justify-center md:w-auto" />
+        <PeriodPicker
+          month={month}
+          year={year}
+          onChange={setPeriod}
+          className="w-full justify-center md:w-auto"
+        />
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
@@ -189,7 +177,9 @@ export default function ReportsPage() {
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                 <YAxis
                   tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                  tickFormatter={(value) => (Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`)}
+                  tickFormatter={(value) =>
+                    Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`
+                  }
                 />
                 <Tooltip
                   contentStyle={tooltipContentStyle}
@@ -212,13 +202,17 @@ export default function ReportsPage() {
             <h2 className="text-xl font-semibold tracking-tight">Despesas por categoria</h2>
             {categoryChart.items.length === 0 ? (
               <div className="mt-4 h-64">
-                <p className="grid h-full place-items-center text-sm text-muted-foreground">Sem dados.</p>
+                <p className="grid h-full place-items-center text-sm text-muted-foreground">
+                  Sem dados.
+                </p>
               </div>
             ) : (
               <>
                 <div className="mt-1 flex items-baseline justify-between gap-3">
                   <span className="text-xs text-muted-foreground">Total no mês</span>
-                  <span className="text-sm font-semibold tabular-nums">{formatBRL(categoryChart.total)}</span>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {formatBRL(categoryChart.total)}
+                  </span>
                 </div>
                 <div className="flex min-h-64 flex-col justify-center">
                   <div
@@ -240,10 +234,15 @@ export default function ReportsPage() {
                             </span>
                             <span className="shrink-0 tabular-nums">
                               {formatBRL(item.value)}
-                              <span className="ml-1 text-xs text-muted-foreground">({percentageLabel})</span>
+                              <span className="ml-1 text-xs text-muted-foreground">
+                                ({percentageLabel})
+                              </span>
                             </span>
                           </div>
-                          <div className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
+                          <div
+                            className="mt-1.5 h-2.5 overflow-hidden rounded-full bg-muted"
+                            aria-hidden="true"
+                          >
                             <div
                               className={`h-full rounded-full ${item.isOther ? "bg-primary/50" : "bg-primary"}`}
                               style={{ width: `max(2px, ${Math.min(100, item.percentage)}%)` }}
@@ -269,7 +268,9 @@ export default function ReportsPage() {
                   <XAxis dataKey="label" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} />
                   <YAxis
                     tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                    tickFormatter={(value) => (Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`)}
+                    tickFormatter={(value) =>
+                      Number(value) >= 1000 ? `${(Number(value) / 1000).toFixed(0)}k` : `${value}`
+                    }
                   />
                   <Tooltip
                     contentStyle={tooltipContentStyle}
@@ -277,7 +278,13 @@ export default function ReportsPage() {
                     labelStyle={tooltipTextStyle}
                     formatter={(value: number) => formatBRL(value)}
                   />
-                  <Line type="monotone" dataKey="Saldo" stroke="var(--primary)" strokeWidth={2} dot={{ r: 3 }} />
+                  <Line
+                    type="monotone"
+                    dataKey="Saldo"
+                    stroke="var(--primary)"
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -302,9 +309,16 @@ export default function ReportsPage() {
                       <span className="truncate font-medium">{card.cardName}</span>
                       <span className="tabular-nums">{formatBRL(card.totalAmount)}</span>
                     </div>
-                    <Progress value={card.totalAmount ? Math.min(100, (card.paidAmount / card.totalAmount) * 100) : 0} />
+                    <Progress
+                      value={
+                        card.totalAmount
+                          ? Math.min(100, (card.paidAmount / card.totalAmount) * 100)
+                          : 0
+                      }
+                    />
                     <div className="text-xs text-muted-foreground">
-                      Restante {formatBRL(card.remainingAmount)} - pago {formatBRL(card.paidAmount)} - {cardStatementStatusLabel(card.status)}
+                      Restante {formatBRL(card.remainingAmount)} - pago {formatBRL(card.paidAmount)}{" "}
+                      - {cardStatementStatusLabel(card.status)}
                     </div>
                   </div>
                 ))
@@ -317,9 +331,21 @@ export default function ReportsPage() {
           <CardContent className="p-4 md:p-6">
             <h2 className="text-xl font-semibold tracking-tight">Fixo x variavel</h2>
             <div className="mt-4 space-y-3">
-              <Breakdown label="Fixo" value={fixedVariable.data?.fixedAmount ?? 0} total={fixedTotal} />
-              <Breakdown label="Variavel" value={fixedVariable.data?.variableAmount ?? 0} total={fixedTotal} />
-              <Breakdown label="Sem classificacao" value={fixedVariable.data?.unclassifiedAmount ?? 0} total={fixedTotal} />
+              <Breakdown
+                label="Fixo"
+                value={fixedVariable.data?.fixedAmount ?? 0}
+                total={fixedTotal}
+              />
+              <Breakdown
+                label="Variavel"
+                value={fixedVariable.data?.variableAmount ?? 0}
+                total={fixedTotal}
+              />
+              <Breakdown
+                label="Sem classificacao"
+                value={fixedVariable.data?.unclassifiedAmount ?? 0}
+                total={fixedTotal}
+              />
             </div>
           </CardContent>
         </Card>
@@ -328,26 +354,38 @@ export default function ReportsPage() {
           <CardContent className="p-4 md:p-6">
             <h2 className="text-xl font-semibold tracking-tight">Proximos 30 dias</h2>
             <div className="mt-4 space-y-3">
-              {!upcoming.data?.recurrenceOccurrences.length && !upcoming.data?.cardStatements.length ? (
+              {!upcoming.data?.recurrenceOccurrences.length &&
+              !upcoming.data?.cardStatements.length ? (
                 <p className="text-sm text-muted-foreground">Nada previsto.</p>
               ) : (
                 <>
                   {upcoming.data?.cardStatements.map((statement) => (
-                    <div key={`card-${statement.cardId}-${statement.month}-${statement.year}`} className="rounded-md border border-border/70 p-3">
+                    <div
+                      key={`card-${statement.cardId}-${statement.month}-${statement.year}`}
+                      className="rounded-md border border-border/70 p-3"
+                    >
                       <div className="flex items-center justify-between gap-3 text-sm">
                         <span className="font-medium">{statement.cardName}</span>
                         <span className="tabular-nums">{formatBRL(statement.remainingAmount)}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground">Vence {formatDate(statement.dueDate)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        Vence {formatDate(statement.dueDate)}
+                      </div>
                     </div>
                   ))}
                   {upcoming.data?.recurrenceOccurrences.map((occurrence) => (
-                    <div key={`rec-${occurrence.recurrenceId}-${occurrence.occurrenceDate}`} className="rounded-md border border-border/70 p-3">
+                    <div
+                      key={`rec-${occurrence.recurrenceId}-${occurrence.occurrenceDate}`}
+                      className="rounded-md border border-border/70 p-3"
+                    >
                       <div className="flex items-center justify-between gap-3 text-sm">
                         <span className="font-medium">{occurrence.recurrenceName}</span>
                         <span className="tabular-nums">{formatBRL(occurrence.amount)}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground">{formatDate(occurrence.occurrenceDate)} - {recurrenceStatusLabel(occurrence.status)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDate(occurrence.occurrenceDate)} -{" "}
+                        {recurrenceStatusLabel(occurrence.status)}
+                      </div>
                     </div>
                   ))}
                 </>
@@ -359,11 +397,16 @@ export default function ReportsPage() {
 
       <Card>
         <CardContent className="p-4 md:p-6">
-          <h2 className="text-xl font-semibold tracking-tight">Resumo anual {yearly.data?.year ?? year}</h2>
+          <h2 className="text-xl font-semibold tracking-tight">
+            Resumo anual {yearly.data?.year ?? year}
+          </h2>
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <Metric title="Receitas" value={formatBRL(yearly.data?.incomeTotal)} />
             <Metric title="Despesas em conta" value={formatBRL(yearly.data?.accountExpenseTotal)} />
-            <Metric title="Despesas em cartão" value={formatBRL(yearly.data?.cardStatementExpenseTotal)} />
+            <Metric
+              title="Despesas em cartão"
+              value={formatBRL(yearly.data?.cardStatementExpenseTotal)}
+            />
             <Metric title="Liquido" value={formatBRL(yearly.data?.netTotal)} />
           </div>
         </CardContent>
@@ -440,56 +483,6 @@ function buildCategoryChartData(categoryBreakdown: CategorySummary[]) {
 function formatCategoryPercentage(percentage: number): string {
   if (percentage > 0 && percentage < 1) return "<1%";
   return `${Math.round(percentage)}%`;
-}
-
-function buildCategoryBreakdown(
-  transactions: Transaction[],
-  cardStatements: Array<CardStatement | null>,
-  expenses: Expense[],
-  categories: Category[],
-): CategorySummary[] {
-  const categoriesById = new Map(categories.map((category) => [category.id, category]));
-  const expensesById = new Map(expenses.map((expense) => [expense.id, expense]));
-  const totalsByCategory = new Map<string, CategorySummary>();
-
-  const addAmount = (categoryId: number | null | undefined, amount: number) => {
-    const normalizedAmount = Math.abs(Number(amount));
-    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return;
-
-    const category = categoryId ? categoriesById.get(categoryId) : undefined;
-    const key = category ? String(category.id) : "uncategorized";
-    const current =
-      totalsByCategory.get(key) ??
-      ({
-        categoryId: category?.id ?? null,
-        categoryName: category?.name ?? "Sem categoria",
-        categoryType: "EXPENSE",
-        amount: 0,
-      } satisfies CategorySummary);
-
-    current.amount = roundMoney((current.amount ?? 0) + normalizedAmount);
-    totalsByCategory.set(key, current);
-  };
-
-  for (const transaction of transactions) {
-    if (transaction.type !== "EXPENSE") continue;
-    addAmount(transaction.categoryId, transaction.amount);
-  }
-
-  for (const statement of cardStatements) {
-    if (!statement) continue;
-
-    for (const installment of statement.installments) {
-      const expense = expensesById.get(installment.expenseId);
-      addAmount(expense?.categoryId, installment.amount);
-    }
-  }
-
-  return Array.from(totalsByCategory.values()).sort((a, b) => {
-    if (!a.categoryId && b.categoryId) return 1;
-    if (a.categoryId && !b.categoryId) return -1;
-    return a.categoryName.localeCompare(b.categoryName, "pt-BR");
-  });
 }
 
 function roundMoney(value: number): number {

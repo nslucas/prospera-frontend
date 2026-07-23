@@ -8,7 +8,13 @@ import { useAsyncData, useAsyncMutation } from "@/hooks/use-async-data";
 import { notifyFinanceUpdated } from "@/hooks/use-finance-updates";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { currentMonthYear, formatBRL, monthLabel, nowIsoDateTime, todayIsoDate } from "@/lib/format";
+import {
+  currentMonthYear,
+  formatBRL,
+  monthLabel,
+  nowIsoDateTime,
+  todayIsoDate,
+} from "@/lib/format";
 import {
   fetchAccounts,
   fetchCards,
@@ -120,65 +126,133 @@ const schema = z
       values.kind === "ADJUSTMENT";
 
     if (requiresTitle && !title) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["title"], message: "Informe uma descrição" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["title"],
+        message: "Informe uma descrição",
+      });
     }
     if (values.kind === "ADJUSTMENT" && values.amount === 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amount"], message: "Ajuste não pode ser zero" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["amount"],
+        message: "Ajuste não pode ser zero",
+      });
     }
     if (values.kind !== "ADJUSTMENT" && values.amount <= 0) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["amount"], message: "Valor deve ser > 0" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["amount"],
+        message: "Valor deve ser > 0",
+      });
     }
     if (values.kind === "CARD_EXPENSE") {
       if (!values.cardId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartão" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["cardId"],
+          message: "Selecione um cartão",
+        });
       }
       if (!values.installmentCount) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["installmentCount"], message: "Informe as parcelas" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["installmentCount"],
+          message: "Informe as parcelas",
+        });
       }
       if (values.shareEnabled) {
         if (!values.participantUserId) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantUserId"], message: "Selecione uma conexão" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantUserId"],
+            message: "Selecione uma conexão",
+          });
         }
         if (!values.participantAmount || values.participantAmount <= 0) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "Valor da outra pessoa deve ser maior que zero" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantAmount"],
+            message: "Valor da outra pessoa deve ser maior que zero",
+          });
         }
         if (values.participantAmount && values.participantAmount > values.amount) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "Valor da outra pessoa não pode passar do total" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantAmount"],
+            message: "Valor da outra pessoa não pode passar do total",
+          });
         }
         const creatorAmount = roundMoney(values.amount - Number(values.participantAmount ?? 0));
         const participantAmount = roundMoney(Number(values.participantAmount ?? 0));
         if (roundMoney(creatorAmount + participantAmount) !== roundMoney(values.amount)) {
-          ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["participantAmount"], message: "A divisão precisa fechar com o valor total" });
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["participantAmount"],
+            message: "A divisão precisa fechar com o valor total",
+          });
         }
       }
       return;
     }
     if (values.kind === "TRANSFER") {
       if (!values.accountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione a conta de origem" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["accountId"],
+          message: "Selecione a conta de origem",
+        });
       }
       if (!values.targetAccountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAccountId"], message: "Selecione a conta de destino" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetAccountId"],
+          message: "Selecione a conta de destino",
+        });
       }
-      if (values.accountId && values.targetAccountId && values.accountId === values.targetAccountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["targetAccountId"], message: "Destino deve ser diferente da origem" });
+      if (
+        values.accountId &&
+        values.targetAccountId &&
+        values.accountId === values.targetAccountId
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["targetAccountId"],
+          message: "Destino deve ser diferente da origem",
+        });
       }
       return;
     }
     if (values.kind === "CARD_PAYMENT") {
       if (!values.cardId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["cardId"], message: "Selecione um cartão" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["cardId"],
+          message: "Selecione um cartão",
+        });
       }
       if (!values.accountId) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione uma conta" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["accountId"],
+          message: "Selecione uma conta",
+        });
       }
       if (!values.paymentMonth || !values.paymentYear) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["paymentMonth"], message: "Selecione a fatura" });
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["paymentMonth"],
+          message: "Selecione a fatura",
+        });
       }
       return;
     }
     if (!values.accountId) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["accountId"], message: "Selecione uma conta" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["accountId"],
+        message: "Selecione uma conta",
+      });
     }
   });
 
@@ -197,16 +271,28 @@ export function MovementEntryDialog({
   const defaultPeriod = currentMonthYear();
   const month = period?.month ?? defaultPeriod.month;
   const year = period?.year ?? defaultPeriod.year;
-  const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
-  const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
-  const categories = useAsyncData(() => fetchCategories(), [], { cacheKey: "categories", staleMs: 60_000 });
-  const connections = useAsyncData(() => fetchConnections(), [], { cacheKey: "connections", staleMs: 60_000 });
-  const preferences = useAsyncData(() => fetchUserPreferences(), [], { cacheKey: "user-preferences", staleMs: 60_000 });
+  const accounts = useAsyncData(() => fetchAccounts(), [], { enabled: open, cacheKey: "accounts" });
+  const cards = useAsyncData(() => fetchCards(), [], { enabled: open, cacheKey: "cards" });
+  const categories = useAsyncData(() => fetchCategories(), [], {
+    enabled: open,
+    cacheKey: "categories",
+    staleMs: 60_000,
+  });
+  const connections = useAsyncData(() => fetchConnections(), [], {
+    enabled: open,
+    cacheKey: "connections",
+    staleMs: 60_000,
+  });
+  const preferences = useAsyncData(() => fetchUserPreferences(), [], {
+    enabled: open,
+    cacheKey: "user-preferences",
+    staleMs: 60_000,
+  });
   const form = useForm<Values>({
     resolver: zodResolver(schema),
     defaultValues: movementDefaults("CARD_EXPENSE", month, year),
   });
-  const previousOpenRef = React.useRef(open);
+  const previousOpenRef = React.useRef(false);
 
   const kind = form.watch("kind");
   const shareEnabled = form.watch("shareEnabled");
@@ -282,7 +368,19 @@ export function MovementEntryDialog({
         participantAmount: editingShare?.participantAmount,
       });
     }
-  }, [accounts.data, cards.data, categories.data, editing, editingExpense, editingShare, form, month, open, preferences.data, year]);
+  }, [
+    accounts.data,
+    cards.data,
+    categories.data,
+    editing,
+    editingExpense,
+    editingShare,
+    form,
+    month,
+    open,
+    preferences.data,
+    year,
+  ]);
 
   const switchMovementKind = (nextKind: MovementKind) => {
     const occurredAt = form.getValues("occurredAt");
@@ -294,10 +392,16 @@ export function MovementEntryDialog({
     form.setValue("kind", nextKind, { shouldDirty: true, shouldValidate: true });
 
     if (nextKind === "CARD_PAYMENT" && occurredAt?.includes("T")) {
-      form.setValue("occurredAt", occurredAt.slice(0, 10), { shouldDirty: true, shouldValidate: true });
+      form.setValue("occurredAt", occurredAt.slice(0, 10), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
     if (nextKind !== "CARD_PAYMENT" && occurredAt && !occurredAt.includes("T")) {
-      form.setValue("occurredAt", `${occurredAt}T00:00`, { shouldDirty: true, shouldValidate: true });
+      form.setValue("occurredAt", `${occurredAt}T00:00`, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
     if (nextKind === "CARD_EXPENSE" && !form.getValues("installmentCount")) {
       form.setValue("installmentCount", 1, { shouldDirty: true, shouldValidate: true });
@@ -305,7 +409,10 @@ export function MovementEntryDialog({
     if (nextKind === "CARD_EXPENSE") {
       form.setValue("cardId", defaults.cardId, { shouldDirty: true, shouldValidate: true });
       form.setValue("categoryId", defaults.categoryId, { shouldDirty: true, shouldValidate: true });
-      form.setValue("installmentCount", defaults.installmentCount, { shouldDirty: true, shouldValidate: true });
+      form.setValue("installmentCount", defaults.installmentCount, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
     }
     if (nextKind === "EXPENSE" || nextKind === "INCOME") {
       form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
@@ -317,7 +424,10 @@ export function MovementEntryDialog({
     }
     if (nextKind === "TRANSFER") {
       form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
-      form.setValue("targetAccountId", defaults.targetAccountId, { shouldDirty: true, shouldValidate: true });
+      form.setValue("targetAccountId", defaults.targetAccountId, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       form.setValue("categoryId", undefined, { shouldDirty: true, shouldValidate: true });
     }
     if (nextKind === "CARD_PAYMENT") {
@@ -325,10 +435,16 @@ export function MovementEntryDialog({
       form.setValue("accountId", defaults.accountId, { shouldDirty: true, shouldValidate: true });
       form.setValue("categoryId", undefined, { shouldDirty: true, shouldValidate: true });
       if (!form.getValues("paymentMonth")) {
-        form.setValue("paymentMonth", nextMonthPeriod(month, year).month, { shouldDirty: true, shouldValidate: true });
+        form.setValue("paymentMonth", nextMonthPeriod(month, year).month, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
       if (!form.getValues("paymentYear")) {
-        form.setValue("paymentYear", nextMonthPeriod(month, year).year, { shouldDirty: true, shouldValidate: true });
+        form.setValue("paymentYear", nextMonthPeriod(month, year).year, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
     }
   };
@@ -338,25 +454,28 @@ export function MovementEntryDialog({
       if (values.kind === "CARD_EXPENSE") {
         const participantAmount = roundMoney(Number(values.participantAmount ?? 0));
         const creatorAmount = roundMoney(values.amount - participantAmount);
-        return api<Expense>(editing?.kind === "card-expense" ? `/expenses/${editing.id}` : "/expenses", {
-          method: editing?.kind === "card-expense" ? "PUT" : "POST",
-          body: {
-            name: values.title?.trim(),
-            amount: values.amount,
-            installmentCount: values.installmentCount || 1,
-            purchaseDate: normalizeDateTime(values.occurredAt),
-            description: null,
-            cardId: values.cardId,
-            categoryId: values.categoryId || null,
-            share: values.shareEnabled
-              ? {
-                  participantUserId: values.participantUserId,
-                  creatorAmount,
-                  participantAmount,
-                }
-              : undefined,
+        return api<Expense>(
+          editing?.kind === "card-expense" ? `/expenses/${editing.id}` : "/expenses",
+          {
+            method: editing?.kind === "card-expense" ? "PUT" : "POST",
+            body: {
+              name: values.title?.trim(),
+              amount: values.amount,
+              installmentCount: values.installmentCount || 1,
+              purchaseDate: normalizeDateTime(values.occurredAt),
+              description: null,
+              cardId: values.cardId,
+              categoryId: values.categoryId || null,
+              share: values.shareEnabled
+                ? {
+                    participantUserId: values.participantUserId,
+                    creatorAmount,
+                    participantAmount,
+                  }
+                : undefined,
+            },
           },
-        });
+        );
       }
 
       if (values.kind === "TRANSFER") {
@@ -451,18 +570,25 @@ export function MovementEntryDialog({
               <Label>Valor</Label>
               <CurrencyAmountInput
                 value={form.watch("amount")}
-                onChange={(value) => form.setValue("amount", value, { shouldDirty: true, shouldValidate: true })}
+                onChange={(value) =>
+                  form.setValue("amount", value, { shouldDirty: true, shouldValidate: true })
+                }
               />
               <FieldError message={errors.amount?.message} />
             </div>
             <div className="col-span-2 space-y-1.5">
-              <Label>Descrição{kind === "TRANSFER" || kind === "CARD_PAYMENT" ? " (opcional)" : ""}</Label>
+              <Label>
+                Descrição{kind === "TRANSFER" || kind === "CARD_PAYMENT" ? " (opcional)" : ""}
+              </Label>
               <Input {...form.register("title")} placeholder="ex: Mercado, salário, farmácia" />
               <FieldError message={errors.title?.message} />
             </div>
             <div className="col-span-2 space-y-1.5">
               <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
-              <Input type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"} {...form.register("occurredAt")} />
+              <Input
+                type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"}
+                {...form.register("occurredAt")}
+              />
               <FieldError message={errors.occurredAt?.message} />
             </div>
 
@@ -472,7 +598,12 @@ export function MovementEntryDialog({
                   <Label>Cartão</Label>
                   <Select
                     value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
-                    onValueChange={(value) => form.setValue("cardId", Number(value), { shouldDirty: true, shouldValidate: true })}
+                    onValueChange={(value) =>
+                      form.setValue("cardId", Number(value), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione" />
@@ -486,7 +617,9 @@ export function MovementEntryDialog({
                     </SelectContent>
                   </Select>
                   <FieldError message={errors.cardId?.message} />
-                  {!activeCards.length && <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>}
+                  {!activeCards.length && (
+                    <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Parcelas</Label>
@@ -499,10 +632,19 @@ export function MovementEntryDialog({
                       checked={!!shareEnabled}
                       onCheckedChange={(checked) => {
                         const enabled = checked === true;
-                        form.setValue("shareEnabled", enabled, { shouldDirty: true, shouldValidate: true });
+                        form.setValue("shareEnabled", enabled, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
                         if (!enabled) {
-                          form.setValue("participantUserId", undefined, { shouldDirty: true, shouldValidate: true });
-                          form.setValue("participantAmount", undefined, { shouldDirty: true, shouldValidate: true });
+                          form.setValue("participantUserId", undefined, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          form.setValue("participantAmount", undefined, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
                         }
                       }}
                     />
@@ -519,9 +661,16 @@ export function MovementEntryDialog({
                       <div className="space-y-1.5">
                         <Label>Conexão</Label>
                         <Select
-                          value={form.watch("participantUserId") ? String(form.watch("participantUserId")) : undefined}
+                          value={
+                            form.watch("participantUserId")
+                              ? String(form.watch("participantUserId"))
+                              : undefined
+                          }
                           onValueChange={(value) =>
-                            form.setValue("participantUserId", Number(value), { shouldDirty: true, shouldValidate: true })
+                            form.setValue("participantUserId", Number(value), {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
                           }
                         >
                           <SelectTrigger>
@@ -539,13 +688,20 @@ export function MovementEntryDialog({
                           </SelectContent>
                         </Select>
                         <FieldError message={errors.participantUserId?.message} />
-                        {!activeConnections.length && <ResourceHint>Nenhuma conexão aceita disponível.</ResourceHint>}
+                        {!activeConnections.length && (
+                          <ResourceHint>Nenhuma conexão aceita disponível.</ResourceHint>
+                        )}
                       </div>
                       <div className="space-y-1.5">
                         <Label>Valor da outra pessoa</Label>
                         <CurrencyAmountInput
                           value={form.watch("participantAmount")}
-                          onChange={(value) => form.setValue("participantAmount", value, { shouldDirty: true, shouldValidate: true })}
+                          onChange={(value) =>
+                            form.setValue("participantAmount", value, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
                         />
                         <FieldError message={errors.participantAmount?.message} />
                         <p className="text-xs text-muted-foreground">
@@ -565,17 +721,28 @@ export function MovementEntryDialog({
                   <AccountSelect
                     value={form.watch("accountId")}
                     accounts={activeAccounts}
-                    onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
+                    onChange={(value) =>
+                      form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
+                    }
                   />
                   <FieldError message={errors.accountId?.message} />
-                  {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
+                  {!activeAccounts.length && (
+                    <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Conta de destino</Label>
                   <AccountSelect
                     value={form.watch("targetAccountId")}
-                    accounts={activeAccounts.filter((account) => account.id !== form.watch("accountId"))}
-                    onChange={(value) => form.setValue("targetAccountId", value, { shouldDirty: true, shouldValidate: true })}
+                    accounts={activeAccounts.filter(
+                      (account) => account.id !== form.watch("accountId"),
+                    )}
+                    onChange={(value) =>
+                      form.setValue("targetAccountId", value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   />
                   <FieldError message={errors.targetAccountId?.message} />
                 </div>
@@ -588,7 +755,12 @@ export function MovementEntryDialog({
                   <Label>Cartão</Label>
                   <Select
                     value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
-                    onValueChange={(value) => form.setValue("cardId", Number(value), { shouldDirty: true, shouldValidate: true })}
+                    onValueChange={(value) =>
+                      form.setValue("cardId", Number(value), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione" />
@@ -602,17 +774,23 @@ export function MovementEntryDialog({
                     </SelectContent>
                   </Select>
                   <FieldError message={errors.cardId?.message} />
-                  {!activeCards.length && <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>}
+                  {!activeCards.length && (
+                    <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Conta de pagamento</Label>
                   <AccountSelect
                     value={form.watch("accountId")}
                     accounts={activeAccounts}
-                    onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
+                    onChange={(value) =>
+                      form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
+                    }
                   />
                   <FieldError message={errors.accountId?.message} />
-                  {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
+                  {!activeAccounts.length && (
+                    <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                  )}
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label>Fatura</Label>
@@ -620,8 +798,14 @@ export function MovementEntryDialog({
                     value={`${form.watch("paymentMonth") ?? month}-${form.watch("paymentYear") ?? year}`}
                     onValueChange={(value) => {
                       const [paymentMonth, paymentYear] = value.split("-").map(Number);
-                      form.setValue("paymentMonth", paymentMonth, { shouldDirty: true, shouldValidate: true });
-                      form.setValue("paymentYear", paymentYear, { shouldDirty: true, shouldValidate: true });
+                      form.setValue("paymentMonth", paymentMonth, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      form.setValue("paymentYear", paymentYear, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
                     }}
                   >
                     <SelectTrigger>
@@ -646,10 +830,14 @@ export function MovementEntryDialog({
                 <AccountSelect
                   value={form.watch("accountId")}
                   accounts={activeAccounts}
-                  onChange={(value) => form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })}
+                  onChange={(value) =>
+                    form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
+                  }
                 />
                 <FieldError message={errors.accountId?.message} />
-                {!activeAccounts.length && <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>}
+                {!activeAccounts.length && (
+                  <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                )}
               </div>
             )}
 
@@ -659,7 +847,9 @@ export function MovementEntryDialog({
                 <Select
                   value={form.watch("categoryId") ? String(form.watch("categoryId")) : "_none"}
                   onValueChange={(value) =>
-                    form.setValue("categoryId", value === "_none" ? undefined : Number(value), { shouldDirty: true })
+                    form.setValue("categoryId", value === "_none" ? undefined : Number(value), {
+                      shouldDirty: true,
+                    })
                   }
                 >
                   <SelectTrigger>
@@ -702,7 +892,10 @@ function AccountSelect({
   onChange: (value: number) => void;
 }) {
   return (
-    <Select value={value ? String(value) : undefined} onValueChange={(next) => onChange(Number(next))}>
+    <Select
+      value={value ? String(value) : undefined}
+      onValueChange={(next) => onChange(Number(next))}
+    >
       <SelectTrigger>
         <SelectValue placeholder="Selecione" />
       </SelectTrigger>
@@ -735,10 +928,21 @@ function movementDefaults(
 ): Values {
   const paymentPeriod = kind === "CARD_PAYMENT" ? nextMonthPeriod(month, year) : { month, year };
   const defaultAccountId = validActiveId(preferences?.defaultAccountId, resources.accounts);
-  const defaultTargetAccountId = validActiveId(preferences?.defaultTargetAccountId, resources.accounts);
+  const defaultTargetAccountId = validActiveId(
+    preferences?.defaultTargetAccountId,
+    resources.accounts,
+  );
   const defaultCardId = validActiveId(preferences?.defaultCardId, resources.cards);
-  const defaultExpenseCategoryId = validCategoryId(preferences?.defaultExpenseCategoryId, resources.categories, "EXPENSE");
-  const defaultIncomeCategoryId = validCategoryId(preferences?.defaultIncomeCategoryId, resources.categories, "INCOME");
+  const defaultExpenseCategoryId = validCategoryId(
+    preferences?.defaultExpenseCategoryId,
+    resources.categories,
+    "EXPENSE",
+  );
+  const defaultIncomeCategoryId = validCategoryId(
+    preferences?.defaultIncomeCategoryId,
+    resources.categories,
+    "INCOME",
+  );
   const defaults: Values = {
     kind,
     title: "",
@@ -777,13 +981,23 @@ function movementDefaults(
   return defaults;
 }
 
-function validActiveId<T extends { id: number; active: boolean }>(id: number | null | undefined, items?: T[]) {
+function validActiveId<T extends { id: number; active: boolean }>(
+  id: number | null | undefined,
+  items?: T[],
+) {
   if (!id || !items?.some((item) => item.id === id && item.active)) return undefined;
   return id;
 }
 
-function validCategoryId(id: number | null | undefined, categories: Category[] | undefined, type: "INCOME" | "EXPENSE") {
-  if (!id || !categories?.some((category) => category.id === id && category.active && category.type === type)) {
+function validCategoryId(
+  id: number | null | undefined,
+  categories: Category[] | undefined,
+  type: "INCOME" | "EXPENSE",
+) {
+  if (
+    !id ||
+    !categories?.some((category) => category.id === id && category.active && category.type === type)
+  ) {
     return undefined;
   }
   return id;
@@ -797,7 +1011,9 @@ function normalizeDateTime(value: string) {
   return value.includes("T") ? value : `${value}T00:00`;
 }
 
-function isEditableTransactionType(type: TransactionType): type is Extract<MovementKind, "INCOME" | "EXPENSE" | "ADJUSTMENT"> {
+function isEditableTransactionType(
+  type: TransactionType,
+): type is Extract<MovementKind, "INCOME" | "EXPENSE" | "ADJUSTMENT"> {
   return type === "INCOME" || type === "EXPENSE" || type === "ADJUSTMENT";
 }
 

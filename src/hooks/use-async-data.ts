@@ -15,7 +15,9 @@ interface AsyncDataOptions<T> {
 }
 
 const cache = new Map<string, { data: unknown; updatedAt: number }>();
+const inFlightRequests = new Map<string, Promise<unknown>>();
 const DEFAULT_STALE_MS = 30_000;
+let cacheVersion = 0;
 
 function readFreshCache<T>(key: string | undefined, staleMs: number): T | undefined {
   if (!key) return undefined;
@@ -29,15 +31,57 @@ function writeCache<T>(key: string | undefined, data: T) {
   cache.set(key, { data, updatedAt: Date.now() });
 }
 
+function loadWithDeduplication<T>(key: string | undefined, load: () => Promise<T>): Promise<T> {
+  if (!key) return load();
+
+  const pending = inFlightRequests.get(key);
+  if (pending) return pending as Promise<T>;
+
+  const versionAtStart = cacheVersion;
+  const request = Promise.resolve()
+    .then(load)
+    .then((value) => {
+      if (versionAtStart === cacheVersion) writeCache(key, value);
+      return value;
+    })
+    .finally(() => {
+      if (inFlightRequests.get(key) === request) inFlightRequests.delete(key);
+    });
+
+  inFlightRequests.set(key, request);
+  return request;
+}
+
+function clearCachedData() {
+  cacheVersion += 1;
+  cache.clear();
+  inFlightRequests.clear();
+}
+
+function useStableDependencies(deps: React.DependencyList): React.DependencyList {
+  const depsRef = React.useRef(deps);
+  const previousDeps = depsRef.current;
+  const changed =
+    previousDeps.length !== deps.length ||
+    deps.some((dependency, index) => !Object.is(dependency, previousDeps[index]));
+
+  if (changed) depsRef.current = deps;
+  return depsRef.current;
+}
+
 export function useAsyncData<T>(
   load: () => Promise<T>,
   deps: React.DependencyList,
   options: AsyncDataOptions<T> = {},
 ): AsyncDataState<T> {
   const enabled = options.enabled ?? true;
+  const cacheKey = options.cacheKey;
   const staleMs = options.staleMs ?? DEFAULT_STALE_MS;
+  const stableDeps = useStableDependencies(deps);
+  const loadRef = React.useRef(load);
+  loadRef.current = load;
   const [data, setDataState] = React.useState<T | undefined>(
-    () => readFreshCache<T>(options.cacheKey, staleMs) ?? options.initialData,
+    () => readFreshCache<T>(cacheKey, staleMs) ?? options.initialData,
   );
   const [error, setError] = React.useState<Error | null>(null);
   const [isLoading, setIsLoading] = React.useState(enabled && data === undefined);
@@ -57,9 +101,8 @@ export function useAsyncData<T>(
     setIsLoading(true);
     setError(null);
     try {
-      const value = await load();
+      const value = await loadWithDeduplication(cacheKey, () => loadRef.current());
       setData(value);
-      writeCache(options.cacheKey, value);
       return value;
     } catch (caught) {
       const normalized = caught instanceof Error ? caught : new Error("Falha ao carregar dados");
@@ -68,7 +111,7 @@ export function useAsyncData<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [enabled, options.cacheKey, setData, ...deps]);
+  }, [cacheKey, enabled, setData]);
 
   React.useEffect(() => {
     if (!enabled) {
@@ -76,7 +119,7 @@ export function useAsyncData<T>(
       return;
     }
 
-    const cached = readFreshCache<T>(options.cacheKey, staleMs);
+    const cached = readFreshCache<T>(cacheKey, staleMs);
     if (cached !== undefined) {
       setData(cached);
       setError(null);
@@ -88,11 +131,10 @@ export function useAsyncData<T>(
     setIsLoading(true);
     setError(null);
 
-    load()
+    loadWithDeduplication(cacheKey, () => loadRef.current())
       .then((value) => {
         if (!active) return;
         setData(value);
-        writeCache(options.cacheKey, value);
       })
       .catch((caught) => {
         if (!active) return;
@@ -105,7 +147,7 @@ export function useAsyncData<T>(
     return () => {
       active = false;
     };
-  }, [enabled, options.cacheKey, setData, staleMs, ...deps]);
+  }, [cacheKey, enabled, setData, stableDeps, staleMs]);
 
   return { data, error, isLoading, reload };
 }
@@ -128,7 +170,7 @@ export function useAsyncMutation<TInput, TOutput = unknown>({
       setIsPending(true);
       try {
         const result = await mutationFn(input);
-        cache.clear();
+        clearCachedData();
         await onSuccess?.(result, input);
         return result;
       } catch (caught) {
