@@ -450,7 +450,7 @@ function buildCategoryChartData(categoryBreakdown: CategorySummary[]) {
     .filter((item) => !item.categoryType || item.categoryType === "EXPENSE")
     .map((item) => ({
       key: String(item.categoryId ?? item.categoryName),
-      name: item.categoryName,
+      name: getCategoryDisplayName(item),
       value: getCategoryAmount(item),
       isOther: false,
     }))
@@ -478,6 +478,18 @@ function buildCategoryChartData(categoryBreakdown: CategorySummary[]) {
       percentage: total > 0 ? (item.value / total) * 100 : 0,
     })),
   };
+}
+
+function getCategoryDisplayName(item: CategorySummary): string {
+  if (item.categoryId == null || item.categoryName === "Uncategorized") {
+    return "Sem categoria";
+  }
+
+  if (item.categoryName === "Unknown category") {
+    return "Categoria desconhecida";
+  }
+
+  return item.categoryName;
 }
 
 function formatCategoryPercentage(percentage: number): string {
