@@ -85,6 +85,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PeriodPicker, monthName } from "@/components/period-picker";
 import { MovementEntryDialog } from "@/components/movement-entry-dialog";
+import { cn } from "@/lib/utils";
 
 type MovementItem =
   | {
@@ -138,6 +139,7 @@ type MovementItem =
     };
 
 type MovementFilter = "ALL" | "INFLOW" | "OUTFLOW" | "CARD" | "TRANSFER" | "SETTLEMENT";
+type MobileExpenseTab = "ALL" | "CATEGORIES" | "ACCOUNTS";
 
 const MOVEMENT_FILTERS: Array<{ value: MovementFilter; label: string }> = [
   { value: "ALL", label: "Tudo" },
@@ -386,6 +388,8 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [flowDetailsOpen, setFlowDetailsOpen] = useState(false);
   const [movementFilter, setMovementFilter] = useState<MovementFilter>("ALL");
+  const [mobileExpenseTab, setMobileExpenseTab] = useState<MobileExpenseTab>("ALL");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const legacyDialogEnabled = false;
 
   const form = useForm<Values>({
@@ -699,6 +703,30 @@ export default function TransactionsPage() {
 
     return searchedItems.filter((item) => matchesMovementFilter(item, movementFilter));
   }, [accountName, cardName, categoryName, deferredSearchQuery, items, movementFilter]);
+  const mobileExpenseItems = useMemo(() => {
+    const expensesOnly = filteredItems.filter(
+      (item) =>
+        item.kind === "card-expense" ||
+        (item.kind === "transaction" && (item.type === "EXPENSE" || item.type === "ADJUSTMENT")),
+    );
+
+    if (mobileExpenseTab === "ACCOUNTS") {
+      return expensesOnly.filter((item) => item.kind === "transaction");
+    }
+    if (mobileExpenseTab === "CATEGORIES") {
+      return [...expensesOnly].sort((left, right) =>
+        movementCategoryName(left, categoryName).localeCompare(
+          movementCategoryName(right, categoryName),
+          "pt-BR",
+        ),
+      );
+    }
+    return expensesOnly;
+  }, [categoryName, filteredItems, mobileExpenseTab]);
+  const mobileExpenseTotal = useMemo(
+    () => mobileExpenseItems.reduce((total, item) => total + Math.abs(item.amount), 0),
+    [mobileExpenseItems],
+  );
   const movementGroups = useMemo(() => groupMovementsByDay(filteredItems), [filteredItems]);
   const movementsLoading = tx.isLoading || cards.isLoading;
   const supplementalLoading =
@@ -810,848 +838,958 @@ export default function TransactionsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-5">
-        <header className="reveal-in flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-          <div className="min-w-0">
-            <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-primary">
-              Extrato inteligente
-            </p>
-            <h1 className="font-display text-3xl font-extrabold leading-tight tracking-[-0.045em] md:text-[2.6rem]">
-              Movimentações
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-              Acompanhe cada entrada, saída e compromisso sem perder o contexto.
-            </p>
+    <>
+      <section className="-mx-4 -my-5 min-h-[calc(100vh-4.35rem)] bg-card pb-20 md:hidden">
+        <header className="flex items-center justify-between px-4 pb-3 pt-6">
+          <h1 className="font-display text-[1.35rem] font-bold tracking-[-0.035em]">Gastos</h1>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              aria-label={mobileSearchOpen ? "Fechar busca" : "Buscar gastos"}
+              onClick={() => {
+                setMobileSearchOpen((current) => !current);
+                if (mobileSearchOpen) setSearchQuery("");
+              }}
+              className="grid h-9 w-9 place-items-center rounded-full text-foreground"
+            >
+              {mobileSearchOpen ? (
+                <X className="h-[1.1rem] w-[1.1rem]" />
+              ) : (
+                <Search className="h-[1.1rem] w-[1.1rem]" />
+              )}
+            </button>
+            <button
+              type="button"
+              aria-label="Adicionar gasto"
+              onClick={openNew}
+              className="grid h-9 w-9 place-items-center rounded-full text-[#15975d]"
+            >
+              <Plus className="h-5 w-5 stroke-[2.2]" />
+            </button>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
-            <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none lg:w-80">
+        </header>
+
+        {mobileSearchOpen ? (
+          <div className="px-4 pb-3">
+            <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
+                autoFocus
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Buscar no extrato"
-                aria-label="Buscar movimentação"
-                autoComplete="off"
-                className="h-11 rounded-xl border-border bg-card pl-10 pr-10 text-sm shadow-sm"
+                placeholder="Buscar gastos"
+                aria-label="Buscar gastos"
+                className="h-10 rounded-xl border-0 bg-muted pl-9 shadow-none"
               />
-              {searchQuery && (
-                <button
-                  type="button"
-                  aria-label="Limpar busca"
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
             </div>
-            <MovementEntryDialog
-              open={open}
-              onOpenChange={(next) => {
-                setOpen(next);
-                if (!next) setEditing(null);
-              }}
-              period={{ month, year }}
-              editing={
-                editing?.kind === "transaction" ||
-                editing?.kind === "card-expense" ||
-                editing?.kind === "card-payment"
-                  ? editing
-                  : null
-              }
-              editingExpense={
-                editing?.kind === "card-expense" ? expensesById.get(editing.id) : null
-              }
-              editingShare={
-                editing?.kind === "card-expense" ? settlementItemByExpenseId.get(editing.id) : null
-              }
-              trigger={
-                <Button
-                  type="button"
-                  onClick={openNew}
-                  className="hidden h-11 sm:inline-flex sm:flex-none"
-                >
-                  <Plus className="h-4 w-4" /> Nova movimentação
-                </Button>
-              }
-            />
-            {legacyDialogEnabled && (
-              <Dialog
+          </div>
+        ) : null}
+
+        <div className="flex border-b border-border/70 px-4">
+          {[
+            { value: "ALL" as const, label: "Todos" },
+            { value: "CATEGORIES" as const, label: "Categorias" },
+            { value: "ACCOUNTS" as const, label: "Contas" },
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              type="button"
+              onClick={() => setMobileExpenseTab(tab.value)}
+              className={cn(
+                "relative min-w-[5.25rem] px-2 py-3 text-[10px] font-medium text-muted-foreground",
+                mobileExpenseTab === tab.value && "font-semibold text-foreground",
+              )}
+            >
+              {tab.label}
+              {mobileExpenseTab === tab.value ? (
+                <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-[#18a263]" />
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between border-b border-border/50 bg-[#fafbf9] px-4 py-3">
+          <p className="text-[10px] font-medium text-muted-foreground">
+            {monthName(month, year)} de {year}
+          </p>
+          <p className="text-[9px] text-muted-foreground">
+            Total{" "}
+            <span className="font-semibold text-foreground">{formatBRL(mobileExpenseTotal)}</span>
+          </p>
+        </div>
+
+        {movementsLoading ? (
+          <div className="space-y-2 px-4 py-4">
+            {[0, 1, 2, 3, 4].map((item) => (
+              <div key={item} className="h-14 animate-pulse rounded-xl bg-muted" />
+            ))}
+          </div>
+        ) : mobileExpenseItems.length ? (
+          <ul className="divide-y divide-border/55 px-4">
+            {mobileExpenseItems.map((item) => {
+              const category = movementCategoryName(item, categoryName);
+              return (
+                <li key={movementKey(item)} className="flex items-center gap-3 py-3.5">
+                  <span
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${movementIconBackground(item)}`}
+                  >
+                    {movementIcon(item)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] font-semibold">{item.title}</p>
+                    <p className="mt-0.5 truncate text-[9px] text-muted-foreground">{category}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[11px] font-semibold tabular-nums text-foreground">
+                      {formatBRL(Math.abs(item.amount))}
+                    </p>
+                    <p className="mt-0.5 text-[9px] text-muted-foreground">
+                      {movementDayLabel(item.occurredAt.slice(0, 10))}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <div className="grid min-h-64 place-items-center px-8 text-center">
+            <div>
+              <p className="text-sm font-semibold">Nenhum gasto encontrado</p>
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                Seus gastos deste período aparecerão aqui.
+              </p>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="hidden space-y-4 md:block">
+        <div className="space-y-3">
+          <header className="reveal-in flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="font-display text-2xl font-extrabold leading-tight tracking-[-0.04em] md:text-3xl">
+                Movimentações
+              </h1>
+            </div>
+            <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
+              <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none lg:w-80">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Buscar no extrato"
+                  aria-label="Buscar movimentação"
+                  autoComplete="off"
+                  className="h-11 rounded-xl border-border bg-card pl-10 pr-10 text-sm shadow-sm"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    aria-label="Limpar busca"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              <MovementEntryDialog
                 open={open}
                 onOpenChange={(next) => {
                   setOpen(next);
                   if (!next) setEditing(null);
                 }}
-              >
-                <DialogTrigger asChild>
-                  <Button onClick={openNew} className="flex-1 sm:flex-none">
-                    <Plus className="h-4 w-4" /> Novo
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-xl">
-                  <DialogHeader>
-                    <DialogTitle>{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
-                  </DialogHeader>
-                  <form
-                    className="space-y-4"
-                    onSubmit={form.handleSubmit(
-                      (values) => save.mutate(values),
-                      () => toast.error("Confira os campos obrigatórios antes de salvar."),
-                    )}
+                period={{ month, year }}
+                editing={
+                  editing?.kind === "transaction" ||
+                  editing?.kind === "card-expense" ||
+                  editing?.kind === "card-payment"
+                    ? editing
+                    : null
+                }
+                editingExpense={
+                  editing?.kind === "card-expense" ? expensesById.get(editing.id) : null
+                }
+                editingShare={
+                  editing?.kind === "card-expense"
+                    ? settlementItemByExpenseId.get(editing.id)
+                    : null
+                }
+                trigger={
+                  <Button
+                    type="button"
+                    onClick={openNew}
+                    className="hidden h-11 sm:inline-flex sm:flex-none"
                   >
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label>Tipo</Label>
-                        <Select
-                          value={kind}
-                          disabled={!!editing}
-                          onValueChange={(value) => {
-                            const nextKind = value as MovementKind;
-                            switchMovementKind(nextKind);
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="EXPENSE">Despesa em conta</SelectItem>
-                            <SelectItem value="CARD_EXPENSE">Compra no cartão</SelectItem>
-                            <SelectItem value="INCOME">Receita</SelectItem>
-                            <SelectItem value="ADJUSTMENT">Ajuste</SelectItem>
-                            <SelectItem value="TRANSFER">Transferência</SelectItem>
-                            <SelectItem value="CARD_PAYMENT">Pagamento de fatura</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label>Valor</Label>
-                        <CurrencyAmountInput
-                          value={form.watch("amount")}
-                          onChange={(value) =>
-                            form.setValue("amount", value, {
-                              shouldDirty: true,
-                              shouldValidate: true,
-                            })
-                          }
-                        />
-                        <FieldError message={errors.amount?.message} />
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <Label>
-                          Descricao
-                          {kind === "TRANSFER" || kind === "CARD_PAYMENT" ? " (opcional)" : ""}
-                        </Label>
-                        <Input
-                          {...form.register("title")}
-                          placeholder="ex: Mercado, salario, farmacia"
-                        />
-                        <FieldError message={errors.title?.message} />
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
-                        <Input
-                          type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"}
-                          {...form.register("occurredAt")}
-                        />
-                        <FieldError message={errors.occurredAt?.message} />
-                      </div>
-
-                      {kind === "CARD_EXPENSE" && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label>Cartão</Label>
-                            <Select
-                              value={
-                                form.watch("cardId") ? String(form.watch("cardId")) : undefined
-                              }
-                              disabled={editing?.kind === "card-payment"}
-                              onValueChange={(value) =>
-                                form.setValue("cardId", Number(value), {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {activeCards.map((card) => (
-                                  <SelectItem key={card.id} value={String(card.id)}>
-                                    {card.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FieldError message={errors.cardId?.message} />
-                            {!activeCards.length && (
-                              <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
-                            )}
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Parcelas</Label>
-                            <Input type="number" min={1} {...form.register("installmentCount")} />
-                            <FieldError message={errors.installmentCount?.message} />
-                          </div>
-                          <div className="col-span-2 rounded-lg border bg-muted/20 p-3">
-                            <label className="flex cursor-pointer items-start gap-3">
-                              <Checkbox
-                                checked={!!shareEnabled}
-                                onCheckedChange={(checked) => {
-                                  const enabled = checked === true;
-                                  form.setValue("shareEnabled", enabled, {
-                                    shouldDirty: true,
-                                    shouldValidate: true,
-                                  });
-                                  if (!enabled) {
-                                    form.setValue("participantUserId", undefined, {
-                                      shouldDirty: true,
-                                      shouldValidate: true,
-                                    });
-                                    form.setValue("participantAmount", undefined, {
-                                      shouldDirty: true,
-                                      shouldValidate: true,
-                                    });
-                                  }
-                                }}
-                              />
-                              <span>
-                                <span className="block text-sm font-medium">Dividir compra</span>
-                                <span className="block text-xs text-muted-foreground">
-                                  A compra fica no seu cartão e a outra pessoa aparece em Acertos.
-                                </span>
-                              </span>
-                            </label>
-
-                            {shareEnabled && (
-                              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                                <div className="space-y-1.5">
-                                  <Label>Conexão</Label>
-                                  <Select
-                                    value={
-                                      form.watch("participantUserId")
-                                        ? String(form.watch("participantUserId"))
-                                        : undefined
-                                    }
-                                    onValueChange={(value) =>
-                                      form.setValue("participantUserId", Number(value), {
-                                        shouldDirty: true,
-                                        shouldValidate: true,
-                                      })
-                                    }
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecione" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {activeConnections.map((connection) => {
-                                        const person = getConnectionPerson(connection, user?.id);
-                                        return (
-                                          <SelectItem key={connection.id} value={String(person.id)}>
-                                            {person.name}
-                                          </SelectItem>
-                                        );
-                                      })}
-                                    </SelectContent>
-                                  </Select>
-                                  <FieldError message={errors.participantUserId?.message} />
-                                  {!activeConnections.length && (
-                                    <ResourceHint>Nenhuma conexão aceita disponível.</ResourceHint>
-                                  )}
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label>Valor da outra pessoa</Label>
-                                  <CurrencyAmountInput
-                                    value={form.watch("participantAmount")}
-                                    onChange={(value) =>
-                                      form.setValue("participantAmount", value, {
-                                        shouldDirty: true,
-                                        shouldValidate: true,
-                                      })
-                                    }
-                                  />
-                                  <FieldError message={errors.participantAmount?.message} />
-                                  <p className="text-xs text-muted-foreground">
-                                    Sua parte: {formatBRL(Math.max(0, creatorShareAmount))}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </>
+                    <Plus className="h-4 w-4" /> Nova movimentação
+                  </Button>
+                }
+              />
+              {legacyDialogEnabled && (
+                <Dialog
+                  open={open}
+                  onOpenChange={(next) => {
+                    setOpen(next);
+                    if (!next) setEditing(null);
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button onClick={openNew} className="flex-1 sm:flex-none">
+                      <Plus className="h-4 w-4" /> Novo
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-xl">
+                    <DialogHeader>
+                      <DialogTitle>{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
+                    </DialogHeader>
+                    <form
+                      className="space-y-4"
+                      onSubmit={form.handleSubmit(
+                        (values) => save.mutate(values),
+                        () => toast.error("Confira os campos obrigatórios antes de salvar."),
                       )}
-
-                      {kind === "TRANSFER" && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label>Conta de origem</Label>
-                            <AccountSelect
-                              value={form.watch("accountId")}
-                              accounts={activeAccounts}
-                              onChange={(value) =>
-                                form.setValue("accountId", value, {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                })
-                              }
-                            />
-                            <FieldError message={errors.accountId?.message} />
-                            {!activeAccounts.length && (
-                              <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
-                            )}
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Conta de destino</Label>
-                            <AccountSelect
-                              value={form.watch("targetAccountId")}
-                              accounts={activeAccounts.filter(
-                                (account) => account.id !== form.watch("accountId"),
-                              )}
-                              onChange={(value) =>
-                                form.setValue("targetAccountId", value, {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                })
-                              }
-                            />
-                            <FieldError message={errors.targetAccountId?.message} />
-                          </div>
-                        </>
-                      )}
-
-                      {kind === "CARD_PAYMENT" && (
-                        <>
-                          <div className="space-y-1.5">
-                            <Label>Cartão</Label>
-                            <Select
-                              value={
-                                form.watch("cardId") ? String(form.watch("cardId")) : undefined
-                              }
-                              onValueChange={(value) =>
-                                form.setValue("cardId", Number(value), {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                })
-                              }
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecione" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {activeCards.map((card) => (
-                                  <SelectItem key={card.id} value={String(card.id)}>
-                                    {card.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FieldError message={errors.cardId?.message} />
-                            {!activeCards.length && (
-                              <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
-                            )}
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Conta de pagamento</Label>
-                            <AccountSelect
-                              value={form.watch("accountId")}
-                              accounts={activeAccounts}
-                              onChange={(value) =>
-                                form.setValue("accountId", value, {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                })
-                              }
-                            />
-                            <FieldError message={errors.accountId?.message} />
-                            {!activeAccounts.length && (
-                              <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
-                            )}
-                          </div>
-                          <div className="col-span-2 space-y-1.5">
-                            <Label>Fatura</Label>
-                            <Select
-                              value={`${form.watch("paymentMonth") ?? month}-${form.watch("paymentYear") ?? year}`}
-                              onValueChange={(value) => {
-                                const [paymentMonth, paymentYear] = value.split("-").map(Number);
-                                form.setValue("paymentMonth", paymentMonth, {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                });
-                                form.setValue("paymentYear", paymentYear, {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                });
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {monthOptions.map((option) => (
-                                  <SelectItem key={option.key} value={option.key}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FieldError message={errors.paymentMonth?.message} />
-                          </div>
-                        </>
-                      )}
-
-                      {(kind === "INCOME" || kind === "EXPENSE" || kind === "ADJUSTMENT") && (
+                    >
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
-                          <Label>Conta</Label>
-                          <AccountSelect
-                            value={form.watch("accountId")}
-                            accounts={activeAccounts}
-                            onChange={(value) =>
-                              form.setValue("accountId", value, {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              })
-                            }
-                          />
-                          <FieldError message={errors.accountId?.message} />
-                          {!activeAccounts.length && (
-                            <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
-                          )}
-                        </div>
-                      )}
-
-                      {showsCategory && (
-                        <div className="space-y-1.5">
-                          <Label>Categoria</Label>
+                          <Label>Tipo</Label>
                           <Select
-                            value={
-                              form.watch("categoryId") ? String(form.watch("categoryId")) : "_none"
-                            }
-                            onValueChange={(value) =>
-                              form.setValue(
-                                "categoryId",
-                                value === "_none" ? undefined : Number(value),
-                                { shouldDirty: true },
-                              )
-                            }
+                            value={kind}
+                            disabled={!!editing}
+                            onValueChange={(value) => {
+                              const nextKind = value as MovementKind;
+                              switchMovementKind(nextKind);
+                            }}
                           >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="_none">Sem categoria</SelectItem>
-                              {filteredCategories.map((category) => (
-                                <SelectItem key={category.id} value={String(category.id)}>
-                                  {category.name}
-                                </SelectItem>
-                              ))}
+                              <SelectItem value="EXPENSE">Despesa em conta</SelectItem>
+                              <SelectItem value="CARD_EXPENSE">Compra no cartão</SelectItem>
+                              <SelectItem value="INCOME">Receita</SelectItem>
+                              <SelectItem value="ADJUSTMENT">Ajuste</SelectItem>
+                              <SelectItem value="TRANSFER">Transferência</SelectItem>
+                              <SelectItem value="CARD_PAYMENT">Pagamento de fatura</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                      )}
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        type="submit"
-                        disabled={save.isPending}
-                        className="h-11 w-full rounded-2xl shadow-[0_14px_34px_rgba(24,201,87,0.24)] sm:w-auto sm:min-w-32"
-                      >
-                        {save.isPending ? "Salvando..." : "Salvar"}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </DialogContent>
-              </Dialog>
-            )}
-          </div>
-        </header>
+                        <div className="space-y-1.5">
+                          <Label>Valor</Label>
+                          <CurrencyAmountInput
+                            value={form.watch("amount")}
+                            onChange={(value) =>
+                              form.setValue("amount", value, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              })
+                            }
+                          />
+                          <FieldError message={errors.amount?.message} />
+                        </div>
+                        <div className="col-span-2 space-y-1.5">
+                          <Label>
+                            Descricao
+                            {kind === "TRANSFER" || kind === "CARD_PAYMENT" ? " (opcional)" : ""}
+                          </Label>
+                          <Input
+                            {...form.register("title")}
+                            placeholder="ex: Mercado, salario, farmacia"
+                          />
+                          <FieldError message={errors.title?.message} />
+                        </div>
+                        <div className="col-span-2 space-y-1.5">
+                          <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
+                          <Input
+                            type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"}
+                            {...form.register("occurredAt")}
+                          />
+                          <FieldError message={errors.occurredAt?.message} />
+                        </div>
 
-        <div className="grid grid-cols-[3rem_minmax(0,1fr)_3rem] items-center gap-2 rounded-[1.25rem] border border-border/80 bg-card p-2 shadow-[0_10px_35px_rgba(20,36,30,0.045)] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-11 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-start sm:px-2 md:px-3"
-            onClick={() => setPeriod(previousPeriod)}
-            aria-label={`Ir para ${monthName(previousPeriod.month, previousPeriod.year)}`}
-          >
-            <ChevronLeft className="h-5 w-5" />
-            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">
-              {monthName(previousPeriod.month, previousPeriod.year)}
-            </span>
-          </Button>
+                        {kind === "CARD_EXPENSE" && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label>Cartão</Label>
+                              <Select
+                                value={
+                                  form.watch("cardId") ? String(form.watch("cardId")) : undefined
+                                }
+                                disabled={editing?.kind === "card-payment"}
+                                onValueChange={(value) =>
+                                  form.setValue("cardId", Number(value), {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activeCards.map((card) => (
+                                    <SelectItem key={card.id} value={String(card.id)}>
+                                      {card.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FieldError message={errors.cardId?.message} />
+                              {!activeCards.length && (
+                                <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
+                              )}
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Parcelas</Label>
+                              <Input type="number" min={1} {...form.register("installmentCount")} />
+                              <FieldError message={errors.installmentCount?.message} />
+                            </div>
+                            <div className="col-span-2 rounded-lg border bg-muted/20 p-3">
+                              <label className="flex cursor-pointer items-start gap-3">
+                                <Checkbox
+                                  checked={!!shareEnabled}
+                                  onCheckedChange={(checked) => {
+                                    const enabled = checked === true;
+                                    form.setValue("shareEnabled", enabled, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    });
+                                    if (!enabled) {
+                                      form.setValue("participantUserId", undefined, {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      });
+                                      form.setValue("participantAmount", undefined, {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                      });
+                                    }
+                                  }}
+                                />
+                                <span>
+                                  <span className="block text-sm font-medium">Dividir compra</span>
+                                  <span className="block text-xs text-muted-foreground">
+                                    A compra fica no seu cartão e a outra pessoa aparece em Acertos.
+                                  </span>
+                                </span>
+                              </label>
 
-          <PeriodPicker
-            month={month}
-            year={year}
-            onChange={setPeriod}
-            className="w-full min-w-0 px-3"
-          />
+                              {shareEnabled && (
+                                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                  <div className="space-y-1.5">
+                                    <Label>Conexão</Label>
+                                    <Select
+                                      value={
+                                        form.watch("participantUserId")
+                                          ? String(form.watch("participantUserId"))
+                                          : undefined
+                                      }
+                                      onValueChange={(value) =>
+                                        form.setValue("participantUserId", Number(value), {
+                                          shouldDirty: true,
+                                          shouldValidate: true,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Selecione" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {activeConnections.map((connection) => {
+                                          const person = getConnectionPerson(connection, user?.id);
+                                          return (
+                                            <SelectItem
+                                              key={connection.id}
+                                              value={String(person.id)}
+                                            >
+                                              {person.name}
+                                            </SelectItem>
+                                          );
+                                        })}
+                                      </SelectContent>
+                                    </Select>
+                                    <FieldError message={errors.participantUserId?.message} />
+                                    {!activeConnections.length && (
+                                      <ResourceHint>
+                                        Nenhuma conexão aceita disponível.
+                                      </ResourceHint>
+                                    )}
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label>Valor da outra pessoa</Label>
+                                    <CurrencyAmountInput
+                                      value={form.watch("participantAmount")}
+                                      onChange={(value) =>
+                                        form.setValue("participantAmount", value, {
+                                          shouldDirty: true,
+                                          shouldValidate: true,
+                                        })
+                                      }
+                                    />
+                                    <FieldError message={errors.participantAmount?.message} />
+                                    <p className="text-xs text-muted-foreground">
+                                      Sua parte: {formatBRL(Math.max(0, creatorShareAmount))}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
 
-          <Button
-            type="button"
-            variant="ghost"
-            className="h-11 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-end sm:px-2 md:px-3"
-            onClick={() => setPeriod(nextPeriod)}
-            aria-label={`Ir para ${monthName(nextPeriod.month, nextPeriod.year)}`}
-          >
-            <span className="hidden truncate text-base font-medium sm:inline md:text-sm">
-              {monthName(nextPeriod.month, nextPeriod.year)}
-            </span>
-            <ChevronRight className="h-5 w-5" />
-          </Button>
-        </div>
+                        {kind === "TRANSFER" && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label>Conta de origem</Label>
+                              <AccountSelect
+                                value={form.watch("accountId")}
+                                accounts={activeAccounts}
+                                onChange={(value) =>
+                                  form.setValue("accountId", value, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              />
+                              <FieldError message={errors.accountId?.message} />
+                              {!activeAccounts.length && (
+                                <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                              )}
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Conta de destino</Label>
+                              <AccountSelect
+                                value={form.watch("targetAccountId")}
+                                accounts={activeAccounts.filter(
+                                  (account) => account.id !== form.watch("accountId"),
+                                )}
+                                onChange={(value) =>
+                                  form.setValue("targetAccountId", value, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              />
+                              <FieldError message={errors.targetAccountId?.message} />
+                            </div>
+                          </>
+                        )}
 
-        <Collapsible
-          open={flowDetailsOpen}
-          onOpenChange={setFlowDetailsOpen}
-          className="overflow-hidden rounded-[1.5rem] border border-border/80 bg-card shadow-[0_10px_35px_rgba(20,36,30,0.045)]"
-        >
-          <div className="p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-accent text-primary">
-                  <ArrowLeftRight className="h-4 w-4" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                    Fluxo de caixa
-                  </p>
-                  <h2 className="mt-0.5 truncate text-base font-bold tracking-tight">
-                    Resumo de {selectedPeriodLabel}
-                  </h2>
-                </div>
-              </div>
+                        {kind === "CARD_PAYMENT" && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label>Cartão</Label>
+                              <Select
+                                value={
+                                  form.watch("cardId") ? String(form.watch("cardId")) : undefined
+                                }
+                                onValueChange={(value) =>
+                                  form.setValue("cardId", Number(value), {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Selecione" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activeCards.map((card) => (
+                                    <SelectItem key={card.id} value={String(card.id)}>
+                                      {card.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FieldError message={errors.cardId?.message} />
+                              {!activeCards.length && (
+                                <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
+                              )}
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Conta de pagamento</Label>
+                              <AccountSelect
+                                value={form.watch("accountId")}
+                                accounts={activeAccounts}
+                                onChange={(value) =>
+                                  form.setValue("accountId", value, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  })
+                                }
+                              />
+                              <FieldError message={errors.accountId?.message} />
+                              {!activeAccounts.length && (
+                                <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                              )}
+                            </div>
+                            <div className="col-span-2 space-y-1.5">
+                              <Label>Fatura</Label>
+                              <Select
+                                value={`${form.watch("paymentMonth") ?? month}-${form.watch("paymentYear") ?? year}`}
+                                onValueChange={(value) => {
+                                  const [paymentMonth, paymentYear] = value.split("-").map(Number);
+                                  form.setValue("paymentMonth", paymentMonth, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  });
+                                  form.setValue("paymentYear", paymentYear, {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  });
+                                }}
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {monthOptions.map((option) => (
+                                    <SelectItem key={option.key} value={option.key}>
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FieldError message={errors.paymentMonth?.message} />
+                            </div>
+                          </>
+                        )}
 
-              <CollapsibleTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
-                  aria-label={
-                    flowDetailsOpen
-                      ? "Ocultar detalhes do fluxo mensal"
-                      : "Ver detalhes do fluxo mensal"
-                  }
-                >
-                  {flowDetailsOpen ? "Fechar" : "Detalhes"}
-                  <ChevronDown
-                    className={`transition-transform duration-200 ${flowDetailsOpen ? "rotate-180" : ""}`}
-                  />
-                </Button>
-              </CollapsibleTrigger>
-            </div>
+                        {(kind === "INCOME" || kind === "EXPENSE" || kind === "ADJUSTMENT") && (
+                          <div className="space-y-1.5">
+                            <Label>Conta</Label>
+                            <AccountSelect
+                              value={form.watch("accountId")}
+                              accounts={activeAccounts}
+                              onChange={(value) =>
+                                form.setValue("accountId", value, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                })
+                              }
+                            />
+                            <FieldError message={errors.accountId?.message} />
+                            {!activeAccounts.length && (
+                              <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                            )}
+                          </div>
+                        )}
 
-            <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-4">
-              <div className="col-span-2 bg-muted/65 p-4 sm:col-span-1">
-                <p className="text-[10px] font-semibold text-muted-foreground">Saldo do mês</p>
-                <p
-                  className={`mt-1 truncate font-display text-xl font-extrabold tracking-[-0.035em] tabular-nums ${
-                    cashFlowTotals.net >= 0 ? "text-[var(--success)]" : "text-destructive"
-                  }`}
-                >
-                  {formatSignedBRL(cashFlowTotals.net)}
-                </p>
-              </div>
-              <FlowMetric label="Entradas" value={cashFlowTotals.inflow} tone="positive" />
-              <FlowMetric label="Saídas da conta" value={cashFlowTotals.accountOutflow} />
-              <FlowMetric
-                label="Compras no cartão"
-                value={cashFlowTotals.cardPurchases}
-                tone="card"
-              />
-            </div>
-          </div>
-
-          <CollapsibleContent>
-            <div className="border-t border-border bg-muted/30 p-5 sm:p-6">
-              <div className="grid gap-4 md:grid-cols-[minmax(8rem,1.1fr)_minmax(0,1.7fr)_minmax(12rem,1.2fr)] md:items-center">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-muted-foreground">Fluxo do mês</p>
-                  </div>
-                  <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">
-                    {formatBRL(cashFlowTotals.net)}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Entradas</p>
-                    <p className="truncate font-semibold tabular-nums text-[var(--success)]">
-                      {formatBRL(cashFlowTotals.inflow)}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Saídas conta</p>
-                    <p className="truncate font-semibold tabular-nums">
-                      {formatBRL(cashFlowTotals.accountOutflow)}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Cartão</p>
-                    <p className="truncate font-semibold tabular-nums text-primary">
-                      {formatBRL(cashFlowTotals.cardPurchases)}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Acertos</p>
-                    <p
-                      className={`truncate font-semibold tabular-nums ${cashFlowTotals.settlementsNet > 0 ? "text-[var(--success)]" : ""}`}
-                    >
-                      {formatSignedBRL(cashFlowTotals.settlementsNet)}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Aberto</p>
-                    <p className="truncate font-semibold tabular-nums">
-                      {formatBRL(statementTotals.remaining)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm">
-                  <div className="col-span-2 min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Fatura</p>
-                    <p className="truncate font-semibold capitalize">
-                      {monthName(cardStatementPeriod.month, cardStatementPeriod.year)}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Total</p>
-                    <p className="truncate font-semibold tabular-nums text-primary">
-                      {formatBRL(statementTotals.total)}
-                    </p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Pago</p>
-                    <p className="truncate font-semibold tabular-nums">
-                      {formatBRL(statementTotals.paid)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {cardStatements.isLoading && !statementSummaries.length ? (
-                <p className="mt-2 text-xs text-muted-foreground">Carregando faturas...</p>
-              ) : statementSummaries.length ? (
-                <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                  {statementSummaries.map((statement) => (
-                    <div
-                      key={`${statement.cardId}-${statement.month}-${statement.year}`}
-                      className="flex min-w-40 items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-xs"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{statement.cardName}</p>
-                        <p className="truncate text-muted-foreground">
-                          Vence {formatDate(statement.dueDate)}
-                        </p>
+                        {showsCategory && (
+                          <div className="space-y-1.5">
+                            <Label>Categoria</Label>
+                            <Select
+                              value={
+                                form.watch("categoryId")
+                                  ? String(form.watch("categoryId"))
+                                  : "_none"
+                              }
+                              onValueChange={(value) =>
+                                form.setValue(
+                                  "categoryId",
+                                  value === "_none" ? undefined : Number(value),
+                                  { shouldDirty: true },
+                                )
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="_none">Sem categoria</SelectItem>
+                                {filteredCategories.map((category) => (
+                                  <SelectItem key={category.id} value={String(category.id)}>
+                                    {category.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                      <p className="shrink-0 font-semibold tabular-nums">
-                        {formatBRL(statement.remainingAmount)}
+                      <DialogFooter>
+                        <Button
+                          type="submit"
+                          disabled={save.isPending}
+                          className="h-11 w-full rounded-2xl shadow-[0_14px_34px_rgba(24,201,87,0.24)] sm:w-auto sm:min-w-32"
+                        >
+                          {save.isPending ? "Salvando..." : "Salvar"}
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              )}
+            </div>
+          </header>
+
+          <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-1 rounded-[1.1rem] border border-border/80 bg-card p-1.5 shadow-[0_8px_24px_rgba(20,36,30,0.04)] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-start sm:px-2 md:px-3"
+              onClick={() => setPeriod(previousPeriod)}
+              aria-label={`Ir para ${monthName(previousPeriod.month, previousPeriod.year)}`}
+            >
+              <ChevronLeft className="h-5 w-5" />
+              <span className="hidden truncate text-base font-medium sm:inline md:text-sm">
+                {monthName(previousPeriod.month, previousPeriod.year)}
+              </span>
+            </Button>
+
+            <PeriodPicker
+              month={month}
+              year={year}
+              onChange={setPeriod}
+              className="w-full min-w-0 px-3"
+            />
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-11 justify-center rounded-xl px-0 text-muted-foreground hover:text-foreground sm:justify-end sm:px-2 md:px-3"
+              onClick={() => setPeriod(nextPeriod)}
+              aria-label={`Ir para ${monthName(nextPeriod.month, nextPeriod.year)}`}
+            >
+              <span className="hidden truncate text-base font-medium sm:inline md:text-sm">
+                {monthName(nextPeriod.month, nextPeriod.year)}
+              </span>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+
+          <Collapsible
+            open={flowDetailsOpen}
+            onOpenChange={setFlowDetailsOpen}
+            className="overflow-hidden rounded-[1.25rem] border border-border/80 bg-card shadow-[0_8px_24px_rgba(20,36,30,0.04)]"
+          >
+            <div className="p-4 sm:p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                    Saldo de {selectedPeriodLabel}
+                  </p>
+                  <p
+                    className={`mt-1 truncate font-display text-2xl font-extrabold tracking-[-0.04em] tabular-nums sm:text-3xl ${
+                      cashFlowTotals.net >= 0 ? "text-[var(--success)]" : "text-destructive"
+                    }`}
+                  >
+                    {formatSignedBRL(cashFlowTotals.net)}
+                  </p>
+                </div>
+
+                <CollapsibleTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+                    aria-label={
+                      flowDetailsOpen
+                        ? "Ocultar detalhes do fluxo mensal"
+                        : "Ver detalhes do fluxo mensal"
+                    }
+                  >
+                    {flowDetailsOpen ? "Fechar" : "Ver detalhes"}
+                    <ChevronDown
+                      className={`transition-transform duration-200 ${flowDetailsOpen ? "rotate-180" : ""}`}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+
+              <div className="mt-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border bg-border">
+                <FlowMetric label="Entradas" value={cashFlowTotals.inflow} tone="positive" />
+                <FlowMetric label="Saídas" value={cashFlowTotals.accountOutflow} />
+                <FlowMetric label="Cartão" value={cashFlowTotals.cardPurchases} tone="card" />
+              </div>
+            </div>
+
+            <CollapsibleContent>
+              <div className="border-t border-border bg-muted/30 p-5 sm:p-6">
+                <div className="grid gap-4 md:grid-cols-[minmax(8rem,1.1fr)_minmax(0,1.7fr)_minmax(12rem,1.2fr)] md:items-center">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">Fluxo do mês</p>
+                    </div>
+                    <p className="mt-0.5 truncate text-2xl font-semibold tabular-nums">
+                      {formatBRL(cashFlowTotals.net)}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Entradas</p>
+                      <p className="truncate font-semibold tabular-nums text-[var(--success)]">
+                        {formatBRL(cashFlowTotals.inflow)}
                       </p>
                     </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Saídas conta</p>
+                      <p className="truncate font-semibold tabular-nums">
+                        {formatBRL(cashFlowTotals.accountOutflow)}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Cartão</p>
+                      <p className="truncate font-semibold tabular-nums text-primary">
+                        {formatBRL(cashFlowTotals.cardPurchases)}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Acertos</p>
+                      <p
+                        className={`truncate font-semibold tabular-nums ${cashFlowTotals.settlementsNet > 0 ? "text-[var(--success)]" : ""}`}
+                      >
+                        {formatSignedBRL(cashFlowTotals.settlementsNet)}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Aberto</p>
+                      <p className="truncate font-semibold tabular-nums">
+                        {formatBRL(statementTotals.remaining)}
+                      </p>
+                    </div>
+                  </div>
 
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-            Histórico
-          </p>
-          <h2 className="mt-1 font-display text-2xl font-extrabold tracking-[-0.035em]">
-            Extrato do mês
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+                  <div className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card px-3 py-2 text-sm">
+                    <div className="col-span-2 min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Fatura</p>
+                      <p className="truncate font-semibold capitalize">
+                        {monthName(cardStatementPeriod.month, cardStatementPeriod.year)}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Total</p>
+                      <p className="truncate font-semibold tabular-nums text-primary">
+                        {formatBRL(statementTotals.total)}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[11px] text-muted-foreground">Pago</p>
+                      <p className="truncate font-semibold tabular-nums">
+                        {formatBRL(statementTotals.paid)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {cardStatements.isLoading && !statementSummaries.length ? (
+                  <p className="mt-2 text-xs text-muted-foreground">Carregando faturas...</p>
+                ) : statementSummaries.length ? (
+                  <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                    {statementSummaries.map((statement) => (
+                      <div
+                        key={`${statement.cardId}-${statement.month}-${statement.year}`}
+                        className="flex min-w-40 items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-xs"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{statement.cardName}</p>
+                          <p className="truncate text-muted-foreground">
+                            Vence {formatDate(statement.dueDate)}
+                          </p>
+                        </div>
+                        <p className="shrink-0 font-semibold tabular-nums">
+                          {formatBRL(statement.remainingAmount)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+
+        <section className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-sm font-bold tracking-tight">
             {filteredItems.length} movimentaç{filteredItems.length === 1 ? "ão" : "ões"}
-            {movementFilter !== "ALL" || searchQuery ? " neste recorte" : " no período"}
-          </p>
-        </div>
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
-          {MOVEMENT_FILTERS.map((filter) => (
-            <button
-              key={filter.value}
-              type="button"
-              onClick={() => setMovementFilter(filter.value)}
-              className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
-                movementFilter === filter.value
-                  ? "border-[#0b2e24] bg-[#0b2e24] text-[#c9ff5b] shadow-sm dark:border-[#c9ff5b]"
-                  : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
-              }`}
-            >
-              {filter.label}
-            </button>
-          ))}
-        </div>
-      </section>
+            <span className="font-normal text-muted-foreground">
+              {movementFilter !== "ALL" || searchQuery ? " neste recorte" : " no período"}
+            </span>
+          </h2>
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:px-0 [&::-webkit-scrollbar]:hidden">
+            {MOVEMENT_FILTERS.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setMovementFilter(filter.value)}
+                className={`shrink-0 rounded-full border px-3.5 py-2 text-xs font-semibold transition ${
+                  movementFilter === filter.value
+                    ? "border-[#0b2e24] bg-[#0b2e24] text-[#c9ff5b] shadow-sm dark:border-[#c9ff5b]"
+                    : "border-border bg-card text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </section>
 
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          {movementsLoading ? (
-            <div className="space-y-3 p-5 sm:p-6">
-              {[0, 1, 2, 3].map((item) => (
-                <div key={item} className="h-16 animate-pulse rounded-2xl bg-muted" />
-              ))}
-            </div>
-          ) : !items.length ? (
-            <div className="grid min-h-[18rem] place-items-center p-6 text-center">
-              <div>
-                <p className="text-xl font-semibold tracking-tight">
-                  {supplementalLoading
-                    ? "Carregando faturas e pagamentos..."
-                    : "Nenhum lançamento no período"}
-                </p>
-                {!supplementalLoading && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Toque em <span className="font-semibold text-primary">+</span> para adicionar um
-                    lançamento.
+        <Card className="overflow-hidden">
+          <CardContent className="p-0">
+            {movementsLoading ? (
+              <div className="space-y-3 p-5 sm:p-6">
+                {[0, 1, 2, 3].map((item) => (
+                  <div key={item} className="h-16 animate-pulse rounded-2xl bg-muted" />
+                ))}
+              </div>
+            ) : !items.length ? (
+              <div className="grid min-h-[18rem] place-items-center p-6 text-center">
+                <div>
+                  <p className="text-xl font-semibold tracking-tight">
+                    {supplementalLoading
+                      ? "Carregando faturas e pagamentos..."
+                      : "Nenhum lançamento no período"}
                   </p>
-                )}
-              </div>
-            </div>
-          ) : !filteredItems.length ? (
-            <div className="grid min-h-[16rem] place-items-center p-6 text-center">
-              <div>
-                <p className="text-xl font-semibold tracking-tight">Nenhum lançamento encontrado</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Tente buscar por descrição, conta, cartão, data ou valor.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              {supplementalLoading && (
-                <div className="border-b border-border bg-muted/40 px-5 py-2.5 text-xs text-muted-foreground">
-                  Atualizando faturas e pagamentos...
+                  {!supplementalLoading && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Toque em <span className="font-semibold text-primary">+</span> para adicionar
+                      um lançamento.
+                    </p>
+                  )}
                 </div>
-              )}
-              <div className="divide-y divide-border/80">
-                {movementGroups.map((group) => (
-                  <section key={group.key}>
-                    <div className="flex items-center justify-between bg-muted/35 px-4 py-2.5 sm:px-6">
-                      <div className="flex items-baseline gap-2">
-                        <h3 className="text-xs font-bold text-foreground">{group.label}</h3>
-                        <span className="text-[10px] text-muted-foreground">
-                          {group.items.length} {group.items.length === 1 ? "item" : "itens"}
+              </div>
+            ) : !filteredItems.length ? (
+              <div className="grid min-h-[16rem] place-items-center p-6 text-center">
+                <div>
+                  <p className="text-xl font-semibold tracking-tight">
+                    Nenhum lançamento encontrado
+                  </p>
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Tente buscar por descrição, conta, cartão, data ou valor.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {supplementalLoading && (
+                  <div className="border-b border-border bg-muted/40 px-5 py-2.5 text-xs text-muted-foreground">
+                    Atualizando faturas e pagamentos...
+                  </div>
+                )}
+                <div className="divide-y divide-border/80">
+                  {movementGroups.map((group) => (
+                    <section key={group.key}>
+                      <div className="flex items-center justify-between bg-muted/35 px-4 py-2.5 sm:px-6">
+                        <div className="flex items-baseline gap-2">
+                          <h3 className="text-xs font-bold text-foreground">{group.label}</h3>
+                          <span className="text-[10px] text-muted-foreground">
+                            {group.items.length} {group.items.length === 1 ? "item" : "itens"}
+                          </span>
+                        </div>
+                        <span
+                          className={`text-[11px] font-bold tabular-nums ${
+                            group.net > 0 ? "text-[var(--success)]" : "text-muted-foreground"
+                          }`}
+                        >
+                          {formatSignedBRL(group.net)}
                         </span>
                       </div>
-                      <span
-                        className={`text-[11px] font-bold tabular-nums ${
-                          group.net > 0 ? "text-[var(--success)]" : "text-muted-foreground"
-                        }`}
-                      >
-                        {formatSignedBRL(group.net)}
-                      </span>
-                    </div>
-                    <ul className="divide-y divide-border/60 px-3 sm:px-4">
-                      {group.items.map((item) => {
-                        const sharedItem =
-                          item.kind === "card-expense"
-                            ? settlementItemByExpenseId.get(item.id)
-                            : undefined;
-                        const isSettledSharedExpense = sharedItem?.status === "SETTLED";
-                        const category = movementCategoryName(item, categoryName);
-                        return (
-                          <li
-                            key={movementKey(item)}
-                            className="group grid grid-cols-[2.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 py-3.5 sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] sm:items-center sm:gap-y-0 sm:py-4"
-                          >
-                            <div
-                              className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${movementIconBackground(item)}`}
+                      <ul className="divide-y divide-border/60 px-3 sm:px-4">
+                        {group.items.map((item) => {
+                          const sharedItem =
+                            item.kind === "card-expense"
+                              ? settlementItemByExpenseId.get(item.id)
+                              : undefined;
+                          const isSettledSharedExpense = sharedItem?.status === "SETTLED";
+                          const category = movementCategoryName(item, categoryName);
+                          return (
+                            <li
+                              key={movementKey(item)}
+                              className="group grid grid-cols-[2.75rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2 py-3.5 sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] sm:items-center sm:gap-y-0 sm:py-4"
                             >
-                              {movementIcon(item)}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <p className="min-w-0 break-words text-sm font-semibold leading-snug sm:truncate">
-                                  {item.title}
-                                </p>
-                                {sharedItem && (
-                                  <span className="hidden shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] font-bold text-primary sm:inline-flex">
-                                    <UsersRound className="h-3 w-3" />
-                                    {isSettledSharedExpense ? "Quitada" : "Dividida"}
-                                  </span>
-                                )}
+                              <div
+                                className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${movementIconBackground(item)}`}
+                              >
+                                {movementIcon(item)}
                               </div>
-                              <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-relaxed text-muted-foreground sm:flex-nowrap">
-                                {movementTimeLabel(item) && (
-                                  <span className="shrink-0">{movementTimeLabel(item)}</span>
-                                )}
-                                {movementTimeLabel(item) && <span aria-hidden="true">·</span>}
-                                <span className="min-w-0 break-words sm:truncate">
-                                  {movementMeta(item, accountName, cardName)}
-                                </span>
-                                {category && category !== "Sem categoria" && (
-                                  <>
-                                    <span className="hidden sm:inline" aria-hidden="true">
-                                      ·
+                              <div className="min-w-0">
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <p className="min-w-0 break-words text-sm font-semibold leading-snug sm:truncate">
+                                    {item.title}
+                                  </p>
+                                  {sharedItem && (
+                                    <span className="hidden shrink-0 items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[9px] font-bold text-primary sm:inline-flex">
+                                      <UsersRound className="h-3 w-3" />
+                                      {isSettledSharedExpense ? "Quitada" : "Dividida"}
                                     </span>
-                                    <span className="hidden shrink-0 sm:inline">{category}</span>
-                                  </>
-                                )}
+                                  )}
+                                </div>
+                                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] leading-relaxed text-muted-foreground sm:flex-nowrap">
+                                  {movementTimeLabel(item) && (
+                                    <span className="shrink-0">{movementTimeLabel(item)}</span>
+                                  )}
+                                  {movementTimeLabel(item) && <span aria-hidden="true">·</span>}
+                                  <span className="min-w-0 break-words sm:truncate">
+                                    {movementMeta(item, accountName, cardName)}
+                                  </span>
+                                  {category && category !== "Sem categoria" && (
+                                    <>
+                                      <span className="hidden sm:inline" aria-hidden="true">
+                                        ·
+                                      </span>
+                                      <span className="hidden shrink-0 sm:inline">{category}</span>
+                                    </>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                            <div className="col-start-2 flex min-w-0 items-center justify-between gap-2 sm:col-start-3 sm:row-start-1 sm:justify-end">
-                              <div className="text-right">
-                                <p
-                                  className={`whitespace-nowrap text-sm font-bold tabular-nums sm:text-[15px] ${movementAmountClass(item)}`}
-                                >
-                                  {movementAmountPrefix(item)}
-                                  {formatBRL(Math.abs(item.amount))}
-                                </p>
-                                <p className="mt-0.5 hidden text-[10px] text-muted-foreground sm:block">
-                                  {movementKindLabel(item)}
-                                </p>
-                              </div>
-                              <div className="flex shrink-0 items-center sm:opacity-0 sm:transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-                                {canEditMovement(item, sharedItem) && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    aria-label={`Editar ${item.title}`}
-                                    className="h-8 w-8 rounded-xl"
-                                    onClick={() => openEdit(item)}
+                              <div className="col-start-2 flex min-w-0 items-center justify-between gap-2 sm:col-start-3 sm:row-start-1 sm:justify-end">
+                                <div className="text-right">
+                                  <p
+                                    className={`whitespace-nowrap text-sm font-bold tabular-nums sm:text-[15px] ${movementAmountClass(item)}`}
                                   >
-                                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                                  </Button>
-                                )}
-                                {canDeleteMovement(item, sharedItem) && (
-                                  <ConfirmAction
-                                    title={deleteMovementTitle(item)}
-                                    description={deleteMovementDescription(item)}
-                                    confirmLabel="Remover"
-                                    destructive
-                                    onConfirm={() => deleteMovement(item)}
-                                  >
+                                    {movementAmountPrefix(item)}
+                                    {formatBRL(Math.abs(item.amount))}
+                                  </p>
+                                  <p className="mt-0.5 hidden text-[10px] text-muted-foreground sm:block">
+                                    {movementKindLabel(item)}
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 items-center sm:opacity-0 sm:transition sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                                  {canEditMovement(item, sharedItem) && (
                                     <Button
                                       variant="ghost"
                                       size="icon"
-                                      aria-label={`Remover ${item.title}`}
+                                      aria-label={`Editar ${item.title}`}
                                       className="h-8 w-8 rounded-xl"
+                                      onClick={() => openEdit(item)}
                                     >
-                                      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                                     </Button>
-                                  </ConfirmAction>
-                                )}
+                                  )}
+                                  {canDeleteMovement(item, sharedItem) && (
+                                    <ConfirmAction
+                                      title={deleteMovementTitle(item)}
+                                      description={deleteMovementDescription(item)}
+                                      confirmLabel="Remover"
+                                      destructive
+                                      onConfirm={() => deleteMovement(item)}
+                                    >
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label={`Remover ${item.title}`}
+                                        className="h-8 w-8 rounded-xl"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                      </Button>
+                                    </ConfirmAction>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </section>
-                ))}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }
 
@@ -1665,10 +1803,12 @@ function FlowMetric({
   tone?: "positive" | "card";
 }) {
   return (
-    <div className="min-w-0 bg-card p-4 last:col-span-2 sm:last:col-span-1">
-      <p className="truncate text-[10px] font-semibold text-muted-foreground">{label}</p>
+    <div className="min-w-0 bg-card p-3 sm:p-4">
+      <p className="truncate text-[9px] font-semibold text-muted-foreground sm:text-[10px]">
+        {label}
+      </p>
       <p
-        className={`mt-1 truncate text-sm font-bold tabular-nums ${
+        className={`mt-1 truncate text-xs font-bold tabular-nums sm:text-sm ${
           tone === "positive"
             ? "text-[var(--success)]"
             : tone === "card"

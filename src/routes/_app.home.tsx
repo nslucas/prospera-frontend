@@ -1,27 +1,37 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import {
   AlertCircle,
   ArrowDownLeft,
   ArrowRight,
   ArrowUpRight,
   BarChart3,
-  CalendarDays,
+  Bell,
   ChevronRight,
   CreditCard,
   Eye,
   EyeOff,
   Landmark,
   PiggyBank,
-  Sparkles,
+  ReceiptText,
   WalletCards,
 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import { useAsyncData } from "@/hooks/use-async-data";
+import { useFinanceUpdates } from "@/hooks/use-finance-updates";
 import { alertMessage } from "@/lib/alert-labels";
 import { useAuth } from "@/lib/auth";
 import { getBankBrand } from "@/lib/bank-brand";
@@ -32,10 +42,20 @@ import {
   fetchCards,
   fetchCardStatement,
   fetchMonthlySummary,
+  fetchTransactions,
   fetchTrends,
 } from "@/lib/queries";
-import type { Account, Card as CreditCardModel, CardStatement } from "@/lib/types";
+import type {
+  Account,
+  BudgetProgress,
+  Card as CreditCardModel,
+  CardStatement,
+  CategorySummary,
+  Transaction,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+const CATEGORY_COLORS = ["#56b787", "#83a9d3", "#8d82c4", "#e99367", "#c6d1cb"];
 
 export default function HomePage() {
   const { user } = useAuth();
@@ -46,6 +66,19 @@ export default function HomePage() {
   });
   const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
   const cards = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
+  const transactions = useAsyncData(() => fetchTransactions({ month, year }), [month, year], {
+    cacheKey: `transactions:${month}:${year}`,
+  });
+  const alerts = useAsyncData(() => fetchAlerts({ month, year }), [month, year], {
+    cacheKey: `alerts:${month}:${year}`,
+  });
+  const fromMonth = month - 5 <= 0 ? month + 7 : month - 5;
+  const fromYear = month - 5 <= 0 ? year - 1 : year;
+  const trends = useAsyncData(
+    () => fetchTrends(fromMonth, fromYear, month, year),
+    [fromMonth, fromYear, month, year],
+    { cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}` },
+  );
   const cardsReady = !cards.isLoading && Boolean(cards.data);
   const statementCacheKey = React.useMemo(
     () =>
@@ -68,463 +101,652 @@ export default function HomePage() {
     [cards.data],
     { enabled: cardsReady, initialData: [], cacheKey: statementCacheKey },
   );
-  const alerts = useAsyncData(() => fetchAlerts({ month, year }), [month, year], {
-    cacheKey: `alerts:${month}:${year}`,
-  });
-  const fromMonth = month - 5 <= 0 ? month + 7 : month - 5;
-  const fromYear = month - 5 <= 0 ? year - 1 : year;
-  const trends = useAsyncData(
-    () => fetchTrends(fromMonth, fromYear, month, year),
-    [fromMonth, fromYear, month, year],
-    { cacheKey: `summary-trends:${fromMonth}:${fromYear}:${month}:${year}` },
-  );
 
   useFinanceUpdates(() => {
     summary.reload();
     accounts.reload();
     cards.reload();
-    statements.reload();
+    transactions.reload();
     alerts.reload();
     trends.reload();
+    statements.reload();
   });
 
   const data = summary.data;
+  const monthlyExpenses = (data?.accountExpenseTotal ?? 0) + (data?.cardPaymentsTotal ?? 0);
+  const budgets = data?.budgetProgress ?? [];
+  const budgetRemaining = budgets.reduce(
+    (total, budget) => total + Math.max(0, budget.remainingAmount),
+    0,
+  );
+  const chartData =
+    trends.data?.map((point) => ({
+      label: shortMonth(point.month, point.year),
+      Receitas: point.incomeTotal,
+      Despesas: point.accountExpenseTotal + point.cardStatementExpenseTotal,
+    })) ?? [];
+  const expenseCategories = normalizeCategoryBreakdown(data?.categoryBreakdown ?? []).slice(0, 5);
+  const categoryTotal = expenseCategories.reduce((total, item) => total + item.value, 0);
   const statementTotals = React.useMemo(
     () => buildStatementTotalsByCardId(cards.data ?? [], statements.data ?? []),
     [cards.data, statements.data],
   );
-  const openBillsTotal = statements.data?.length
-    ? statements.data.reduce(
-        (total, statement) => total + Number(statement.remainingAmount ?? 0),
-        0,
-      )
-    : (data?.cardBillsRemaining ?? data?.cardBillsTotal ?? 0);
-  const monthlyExpenses = (data?.accountExpenseTotal ?? 0) + (data?.cardPaymentsTotal ?? 0);
-  const savingsRate = data?.incomeTotal
-    ? Math.round(((data.incomeTotal - monthlyExpenses) / data.incomeTotal) * 100)
-    : 0;
-  const chartData =
-    trends.data?.map((point) => ({
-      label: shortMonth(point.month),
-      Receitas: point.incomeTotal,
-      Despesas: point.accountExpenseTotal + point.cardStatementExpenseTotal,
-    })) ?? [];
-  const budgets = data?.budgetProgress ?? [];
+  const recentTransactions = React.useMemo(
+    () =>
+      [...(transactions.data ?? [])]
+        .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+        .slice(0, 5),
+    [transactions.data],
+  );
+  const accountNames = React.useMemo(
+    () => new Map((accounts.data ?? []).map((account) => [account.id, account.name])),
+    [accounts.data],
+  );
+  const categoryNames = React.useMemo(
+    () =>
+      new Map(
+        (data?.categoryBreakdown ?? [])
+          .filter((category) => category.categoryId != null)
+          .map((category) => [category.categoryId as number, category.categoryName]),
+      ),
+    [data?.categoryBreakdown],
+  );
+  const firstName = user?.name?.trim().split(/\s+/)[0] || "Olá";
 
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <header className="reveal-in flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="mb-1 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-            <span className="h-2 w-2 rounded-full bg-[#9ed440]" />
-            {getGreeting()}, {getFirstName(user)}
-          </div>
-          <h1 className="font-display text-[2rem] font-extrabold leading-tight tracking-[-0.04em] sm:text-[2.6rem]">
-            Seu dinheiro, em perspectiva.
-          </h1>
-        </div>
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-card px-3.5 py-2 text-xs font-semibold text-muted-foreground shadow-sm">
-          <CalendarDays className="h-3.5 w-3.5 text-primary" />
-          {formatPeriod(month, year)}
-        </div>
-      </header>
+    <>
+      <MobileHomeDashboard
+        firstName={firstName}
+        valuesHidden={valuesHidden}
+        onToggleValues={() => setValuesHidden((current) => !current)}
+        totalBalance={data?.totalAccountBalance ?? 0}
+        monthlyExpenses={monthlyExpenses}
+        expenseCategories={expenseCategories}
+        categoryTotal={categoryTotal}
+        budgets={budgets}
+      />
 
-      <section className="grid gap-5 xl:grid-cols-[0.75fr_1.25fr]">
-        <div className="reveal-in order-2 relative min-h-[22rem] overflow-hidden rounded-[1.75rem] bg-[#0b2e24] p-6 text-white shadow-[0_24px_60px_rgba(11,46,36,0.18)] sm:p-8">
-          <div className="absolute -right-28 -top-28 hidden h-80 w-80 rounded-full border-[52px] border-[#c9ff5b]/10 sm:block" />
-          <div className="absolute -bottom-24 right-28 h-56 w-56 rounded-full bg-[#c9ff5b]/10 blur-3xl" />
-          <div className="relative flex h-full flex-col justify-between gap-10">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-white/55">
-                  <WalletCards className="h-4 w-4 text-[#c9ff5b]" />
-                  Patrimônio disponível
-                </div>
-                <p className="font-display text-4xl font-extrabold tracking-[-0.045em] sm:text-5xl">
-                  {summary.isLoading
-                    ? "—"
-                    : valuesHidden
-                      ? "R$ ••••••"
-                      : formatBRL(data?.totalAccountBalance)}
-                </p>
-                <p className="mt-3 max-w-md text-sm leading-relaxed text-white/50">
-                  Soma das suas contas ativas. Faturas e compromissos aparecem separados para você
-                  decidir com clareza.
-                </p>
-              </div>
+      <div className="hidden space-y-5 md:block sm:space-y-6">
+        <header className="reveal-in flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="font-display text-2xl font-bold tracking-[-0.035em] sm:text-[1.75rem]">
+              Olá, {firstName}! <span aria-hidden="true">👋</span>
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Acompanhe suas finanças em um só lugar.
+            </p>
+          </div>
+          <div className="inline-flex w-fit items-center rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground shadow-sm">
+            {formatPeriod(month, year)}
+          </div>
+        </header>
+
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard
+            label="Saldo total"
+            value={formatBRL(data?.totalAccountBalance)}
+            hidden={valuesHidden}
+            status="Saldo disponível em contas"
+            tone="green"
+            action={
               <button
                 type="button"
-                onClick={() => setValuesHidden((value) => !value)}
+                onClick={() => setValuesHidden((current) => !current)}
+                className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
                 aria-label={valuesHidden ? "Mostrar valores" : "Ocultar valores"}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.07] text-white/65 transition hover:bg-white/10 hover:text-white"
               >
-                {valuesHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                {valuesHidden ? (
+                  <Eye className="h-3.5 w-3.5" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5" />
+                )}
               </button>
-            </div>
+            }
+          />
+          <MetricCard
+            label="Receitas"
+            value={formatBRL(data?.incomeTotal)}
+            hidden={valuesHidden}
+            status="Entradas neste mês"
+            tone="green"
+          />
+          <MetricCard
+            label="Despesas"
+            value={formatBRL(monthlyExpenses)}
+            hidden={valuesHidden}
+            status="Saídas neste mês"
+            tone="red"
+          />
+          <MetricCard
+            label="Orçamento restante"
+            value={formatBRL(budgetRemaining)}
+            hidden={valuesHidden}
+            status={
+              budgets.length ? `${budgets.length} limites acompanhados` : "Nenhum limite criado"
+            }
+            tone="green"
+          />
+        </section>
 
-            <div className="grid gap-2.5 sm:grid-cols-3">
-              <HeroMetric
-                label="Entrou no mês"
-                value={formatBRL(data?.incomeTotal)}
-                hidden={valuesHidden}
-                icon={<ArrowDownLeft className="h-4 w-4" />}
-                positive
+        <section className="grid gap-5 lg:grid-cols-2">
+          <Card className="order-2 overflow-hidden">
+            <CardContent className="p-5 sm:p-6">
+              <SectionHeader
+                title="Gastos ao longo do tempo"
+                subtitle="Evolução dos últimos seis meses"
               />
-              <HeroMetric
-                label="Saiu no mês"
-                value={formatBRL(monthlyExpenses)}
-                hidden={valuesHidden}
-                icon={<ArrowUpRight className="h-4 w-4" />}
-              />
-              <HeroMetric
-                label="Fluxo líquido"
-                value={formatBRL(data?.netCashFlow)}
-                hidden={valuesHidden}
-                icon={<Sparkles className="h-4 w-4" />}
-                positive={(data?.netCashFlow ?? 0) >= 0}
-              />
-            </div>
-          </div>
-        </div>
-
-        <Card className="reveal-in order-1 overflow-hidden">
-          <CardContent className="flex h-full flex-col p-5 sm:p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                  A pagar
-                </p>
-                <h2 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.035em]">
-                  Faturas abertas
-                </h2>
+              <div className="mt-5 h-[15.5rem] sm:h-[18rem]">
+                <ResponsiveContainer width="100%" height="100%" minWidth={1}>
+                  <AreaChart data={chartData} margin={{ left: -12, right: 4, top: 8, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="dashboard-income" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#54b889" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#54b889" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="dashboard-expense" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#e78277" stopOpacity={0.15} />
+                        <stop offset="100%" stopColor="#e78277" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
+                    <XAxis
+                      dataKey="label"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      width={48}
+                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                      tickFormatter={formatCompactBRL}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => formatBRL(value)}
+                      contentStyle={{
+                        background: "var(--popover)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 10,
+                        boxShadow: "0 14px 35px rgba(22, 44, 35, .1)",
+                        fontSize: 12,
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="Receitas"
+                      stroke="#48a879"
+                      fill="url(#dashboard-income)"
+                      strokeWidth={2}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="Despesas"
+                      stroke="#dd766c"
+                      fill="url(#dashboard-expense)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-              <span className="grid h-11 w-11 place-items-center rounded-2xl bg-[#fff0ec] text-[#df5a48] dark:bg-[#5b281f] dark:text-[#ff9a8a]">
-                <CreditCard className="h-5 w-5" />
-              </span>
-            </div>
-            <div className="mt-6">
-              <p className="text-xs text-muted-foreground">Saldo pendente total</p>
-              <p className="mt-1 font-display text-3xl font-extrabold tracking-[-0.04em]">
-                {statements.isLoading ? "—" : valuesHidden ? "R$ ••••" : formatBRL(openBillsTotal)}
-              </p>
-            </div>
-            <div className="my-5 h-px bg-border" />
-            <div className="flex-1 space-y-3">
-              {(cards.data ?? []).slice(0, 3).map((card) => (
-                <CardBillRow
-                  key={card.id}
-                  card={card}
-                  amount={statementTotals.get(card.id) ?? 0}
-                  hidden={valuesHidden}
-                  loading={statements.isLoading}
-                />
-              ))}
-              {!cards.isLoading && !cards.data?.length && (
-                <EmptyLine text="Nenhum cartão cadastrado." />
+              <div className="mt-3 flex gap-5 border-t border-border/70 pt-4 text-[11px] font-medium text-muted-foreground">
+                <LegendDot color="#48a879" label="Receitas" />
+                <LegendDot color="#dd766c" label="Despesas" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="order-1 overflow-hidden">
+            <CardContent className="p-5 sm:p-6">
+              <SectionHeader title="Resumo de Gastos" subtitle="Distribuição do mês" />
+              {expenseCategories.length ? (
+                <>
+                  <div className="relative mx-auto mt-5 h-44 max-w-[15rem]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={1}>
+                      <PieChart>
+                        <Pie
+                          data={expenseCategories}
+                          dataKey="value"
+                          nameKey="name"
+                          innerRadius={52}
+                          outerRadius={75}
+                          paddingAngle={1}
+                          stroke="none"
+                        >
+                          {expenseCategories.map((item, index) => (
+                            <Cell
+                              key={item.name}
+                              fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
+                            />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div className="pointer-events-none absolute inset-0 grid place-content-center text-center">
+                      <p className="text-[10px] text-muted-foreground">Total</p>
+                      <p className="text-sm font-bold tabular-nums">
+                        {valuesHidden ? "R$ ••••" : formatBRL(categoryTotal)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 space-y-2.5">
+                    {expenseCategories.map((item, index) => (
+                      <div key={item.name} className="flex items-center gap-2 text-[11px]">
+                        <span
+                          className="h-2 w-2 rounded-full"
+                          style={{
+                            backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+                          }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                          {item.name}
+                        </span>
+                        <span className="font-semibold tabular-nums">
+                          {Math.round((item.value / categoryTotal) * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <EmptyLine text="As despesas categorizadas aparecerão aqui." className="mt-5" />
               )}
-            </div>
-            <Link
-              to="/cards"
-              className="mt-5 flex items-center justify-between rounded-2xl bg-muted px-4 py-3 text-sm font-semibold transition hover:bg-accent"
-            >
-              Gerenciar cartões <ArrowRight className="h-4 w-4 text-primary" />
-            </Link>
-          </CardContent>
-        </Card>
-      </section>
+            </CardContent>
+          </Card>
+        </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
-        <Card className="overflow-hidden">
-          <CardContent className="p-5 sm:p-6">
-            <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-primary">
-                  <BarChart3 className="h-4 w-4" /> Ritmo financeiro
-                </div>
-                <h2 className="font-display text-2xl font-extrabold tracking-[-0.035em]">
-                  Entradas e saídas
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Evolução dos últimos seis meses
-                </p>
+        <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+          <Card>
+            <CardContent className="p-5 sm:p-6">
+              <SectionHeader title="Últimas movimentações" to="/transactions" />
+              <div className="mt-4 divide-y divide-border/70">
+                {recentTransactions.map((transaction) => (
+                  <TransactionRow
+                    key={transaction.id}
+                    transaction={transaction}
+                    accountName={accountNames.get(transaction.accountId)}
+                    categoryName={
+                      transaction.categoryId ? categoryNames.get(transaction.categoryId) : undefined
+                    }
+                    hidden={valuesHidden}
+                  />
+                ))}
+                {!transactions.isLoading && !recentTransactions.length ? (
+                  <EmptyLine text="Nenhuma movimentação neste mês." />
+                ) : null}
               </div>
-              <Link
-                to="/reports"
-                className="rounded-full border border-border px-3.5 py-2 text-xs font-semibold transition hover:border-primary/30 hover:bg-accent"
-              >
-                Explorar relatórios
-              </Link>
-            </div>
-            <div className="h-[16rem] sm:h-[19rem]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ left: 0, right: 4, top: 8, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="income-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.23} />
-                      <stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="expense-fill" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="var(--chart-2)" stopOpacity={0.18} />
-                      <stop offset="100%" stopColor="var(--chart-2)" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="4 6" />
-                  <XAxis
-                    dataKey="label"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: "var(--popover)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 14,
-                      boxShadow: "0 18px 48px rgba(10, 30, 22, .12)",
-                      fontSize: 12,
-                    }}
-                    formatter={(value: number) => formatBRL(value)}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="Receitas"
-                    stroke="var(--chart-1)"
-                    fill="url(#income-fill)"
-                    strokeWidth={2.5}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="Despesas"
-                    stroke="var(--chart-2)"
-                    fill="url(#expense-fill)"
-                    strokeWidth={2.5}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="mt-3 flex gap-5 border-t border-border pt-4 text-xs font-medium text-muted-foreground">
-              <span className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--chart-1)]" />
-                Receitas
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="h-2.5 w-2.5 rounded-full bg-[var(--chart-2)]" />
-                Despesas
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        <Card className="overflow-hidden bg-[#e8f0d9] dark:bg-[#15291f]">
-          <CardContent className="flex h-full flex-col p-5 sm:p-6">
-            <div className="flex items-center justify-between">
-              <Badge className="rounded-full border-0 bg-[#0b2e24] px-3 text-[#c9ff5b] hover:bg-[#0b2e24]">
-                Leitura do mês
-              </Badge>
-              <Sparkles className="h-5 w-5 text-primary" />
-            </div>
-            <div className="mt-8">
-              <p className="text-sm text-muted-foreground">Taxa de sobra estimada</p>
-              <p className="mt-1 font-display text-6xl font-extrabold tracking-[-0.06em] text-[#0b2e24] dark:text-foreground">
-                {summary.isLoading ? "—" : `${savingsRate}%`}
-              </p>
-              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-                {savingsRate >= 20
-                  ? "Você está preservando uma boa parte da renda deste mês. Continue assim."
-                  : savingsRate >= 0
-                    ? "Seu mês está positivo, mas há pouco espaço para imprevistos."
-                    : "As saídas superaram as entradas. Vale revisar os maiores gastos."}
-              </p>
-            </div>
-            <div className="mt-auto pt-8">
-              <div className="h-2 overflow-hidden rounded-full bg-[#0b2e24]/10 dark:bg-white/10">
-                <div
-                  className="h-full rounded-full bg-[#0b2e24] dark:bg-[#c9ff5b]"
-                  style={{ width: `${Math.max(4, Math.min(100, savingsRate))}%` }}
-                />
+          <Card>
+            <CardContent className="p-5 sm:p-6">
+              <SectionHeader title="Orçamentos" to="/budgets" />
+              <div className="mt-5 space-y-5">
+                {budgets.slice(0, 4).map((budget) => (
+                  <BudgetRow
+                    key={budget.budgetId}
+                    name={budget.categoryName}
+                    percentage={budget.percentUsed}
+                    amount={budget.remainingAmount}
+                  />
+                ))}
+                {!summary.isLoading && !budgets.length ? (
+                  <EmptyLine text="Crie um orçamento para acompanhar seus limites." />
+                ) : null}
               </div>
-              <div className="mt-3 flex justify-between text-[11px] font-semibold text-muted-foreground">
-                <span>0%</span>
-                <span>Meta saudável: 20%</span>
-                <span>100%</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+            </CardContent>
+          </Card>
+        </section>
 
-      <section className="grid gap-5 lg:grid-cols-3">
-        <DashboardListCard
-          eyebrow="Liquidez"
-          title="Suas contas"
-          icon={<Landmark className="h-5 w-5" />}
-          to="/accounts"
-          linkLabel="Ver contas"
-        >
-          <div className="space-y-3">
+        <section className="grid gap-5 lg:grid-cols-3">
+          <DashboardListCard title="Contas" icon={<Landmark className="h-4 w-4" />} to="/accounts">
             {(accounts.data ?? []).slice(0, 4).map((account) => (
               <AccountRow key={account.id} account={account} hidden={valuesHidden} />
             ))}
-            {!accounts.isLoading && !accounts.data?.length && (
+            {!accounts.isLoading && !accounts.data?.length ? (
               <EmptyLine text="Nenhuma conta cadastrada." />
-            )}
-          </div>
-        </DashboardListCard>
+            ) : null}
+          </DashboardListCard>
 
-        <DashboardListCard
-          eyebrow="Limites"
-          title="Orçamentos"
-          icon={<PiggyBank className="h-5 w-5" />}
-          to="/budgets"
-          linkLabel="Planejar gastos"
-        >
-          <div className="space-y-4">
-            {budgets.slice(0, 4).map((budget) => (
-              <BudgetRow
-                key={budget.budgetId}
-                name={budget.categoryName}
-                percentage={budget.percentUsed}
-                amount={budget.remainingAmount}
+          <DashboardListCard title="Cartões" icon={<CreditCard className="h-4 w-4" />} to="/cards">
+            {(cards.data ?? []).slice(0, 4).map((card) => (
+              <CardBillRow
+                key={card.id}
+                card={card}
+                amount={statementTotals.get(card.id) ?? 0}
+                hidden={valuesHidden}
+                loading={statements.isLoading}
               />
             ))}
-            {!summary.isLoading && !budgets.length && (
-              <EmptyLine text="Crie um orçamento para acompanhar seus limites." />
-            )}
-          </div>
-        </DashboardListCard>
+            {!cards.isLoading && !cards.data?.length ? (
+              <EmptyLine text="Nenhum cartão cadastrado." />
+            ) : null}
+          </DashboardListCard>
 
-        <DashboardListCard
-          eyebrow="Atenção"
-          title="O que pede ação"
-          icon={<AlertCircle className="h-5 w-5" />}
-          to="/alerts"
-          linkLabel="Ver central"
-        >
-          <div className="space-y-2.5">
+          <DashboardListCard
+            title="Alertas"
+            icon={<AlertCircle className="h-4 w-4" />}
+            to="/alerts"
+          >
             {(alerts.data ?? []).slice(0, 4).map((alert) => (
               <Link
                 key={alert.key}
                 to="/alerts"
-                className="flex items-start gap-3 rounded-2xl bg-muted/70 p-3 transition hover:bg-accent"
+                className="flex items-start gap-3 rounded-lg px-2 py-2.5 transition hover:bg-muted"
               >
                 <span
                   className={cn(
-                    "mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full",
-                    alert.severity === "CRITICAL" ? "bg-[#ef6a57]" : "bg-[#e3aa37]",
+                    "mt-1 h-2 w-2 shrink-0 rounded-full",
+                    alert.severity === "CRITICAL" ? "bg-[#dd766c]" : "bg-[#d8a249]",
                   )}
                 />
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 text-sm font-medium leading-snug">
-                    {alertMessage(alert)}
-                  </p>
-                  {alert.dueDate && (
-                    <p className="mt-1 text-[11px] text-muted-foreground">
-                      Vence em {formatDate(alert.dueDate)}
-                    </p>
-                  )}
-                </div>
-                <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <p className="line-clamp-2 min-w-0 flex-1 text-xs font-medium leading-relaxed">
+                  {alertMessage(alert)}
+                </p>
+                <ChevronRight className="mt-0.5 h-3.5 w-3.5 text-muted-foreground" />
               </Link>
             ))}
-            {!alerts.isLoading && !alerts.data?.length && (
-              <div className="rounded-2xl bg-[#e7f5df] p-4 dark:bg-[#163226]">
-                <p className="text-sm font-semibold text-primary">Tudo sob controle</p>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                  Nenhum alerta financeiro para este período.
-                </p>
-              </div>
-            )}
+            {!alerts.isLoading && !alerts.data?.length ? (
+              <EmptyLine text="Tudo sob controle neste período." />
+            ) : null}
+          </DashboardListCard>
+        </section>
+      </div>
+    </>
+  );
+}
+
+function MobileHomeDashboard({
+  firstName,
+  valuesHidden,
+  onToggleValues,
+  totalBalance,
+  monthlyExpenses,
+  expenseCategories,
+  categoryTotal,
+  budgets,
+}: {
+  firstName: string;
+  valuesHidden: boolean;
+  onToggleValues: () => void;
+  totalBalance: number;
+  monthlyExpenses: number;
+  expenseCategories: Array<{ name: string; value: number }>;
+  categoryTotal: number;
+  budgets: BudgetProgress[];
+}) {
+  const quickActions = [
+    { to: "/transactions", label: "Gastos", icon: ReceiptText },
+    { to: "/accounts", label: "Contas", icon: Landmark },
+    { to: "/cards", label: "Cartões", icon: CreditCard },
+    { to: "/reports", label: "Relatórios", icon: BarChart3 },
+  ];
+
+  return (
+    <div className="space-y-6 pb-2 md:hidden">
+      <header className="flex items-center justify-between pt-1">
+        <h1 className="font-display text-[1.35rem] font-bold tracking-[-0.035em]">
+          Olá, {firstName} <span aria-hidden="true">👋</span>
+        </h1>
+        <Link
+          to="/notifications"
+          aria-label="Notificações"
+          className="relative grid h-9 w-9 place-items-center rounded-full text-foreground"
+        >
+          <Bell className="h-[1.1rem] w-[1.1rem]" />
+          <span className="absolute right-2 top-1.5 h-1.5 w-1.5 rounded-full bg-[#ef6262] ring-2 ring-[#f7f8f6]" />
+        </Link>
+      </header>
+
+      <section className="rounded-[1.15rem] bg-gradient-to-br from-[#139a61] via-[#19a968] to-[#129052] px-4 py-4 text-white shadow-[0_12px_30px_rgba(18,145,82,0.18)]">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-medium text-white/85">Saldo Total</p>
+          <button
+            type="button"
+            onClick={onToggleValues}
+            aria-label={valuesHidden ? "Mostrar valores" : "Ocultar valores"}
+            className="grid h-7 w-7 place-items-center rounded-full text-white/80"
+          >
+            {valuesHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+        <p className="mt-1 font-display text-[1.55rem] font-bold tracking-[-0.04em] tabular-nums">
+          {valuesHidden ? "R$ •••••" : formatBRL(totalBalance)}
+        </p>
+        <p className="mt-1.5 flex items-center gap-1 text-[9px] font-semibold text-white/90">
+          <ArrowUpRight className="h-3 w-3" /> Saldo disponível em contas
+        </p>
+      </section>
+
+      <nav aria-label="Atalhos financeiros" className="grid grid-cols-4 gap-2">
+        {quickActions.map((action) => (
+          <Link
+            key={action.to}
+            to={action.to}
+            className="flex min-h-[4.6rem] flex-col items-center justify-center gap-2 rounded-[1rem] border border-border/70 bg-card px-1 text-center shadow-[0_6px_18px_rgba(24,65,47,0.04)]"
+          >
+            <span className="grid h-7 w-7 place-items-center rounded-full bg-muted text-foreground">
+              <action.icon className="h-3.5 w-3.5" />
+            </span>
+            <span className="text-[9px] font-semibold">{action.label}</span>
+          </Link>
+        ))}
+      </nav>
+
+      <section>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-bold">Resumo de Gastos</h2>
+            <p className="mt-1 font-display text-xl font-bold tracking-[-0.035em] tabular-nums">
+              {valuesHidden ? "R$ •••••" : formatBRL(monthlyExpenses)}
+            </p>
+            <p className="text-[9px] text-muted-foreground">Este mês</p>
           </div>
-        </DashboardListCard>
+          <Link to="/reports" className="text-[9px] font-semibold text-primary">
+            Ver todos
+          </Link>
+        </div>
+
+        {expenseCategories.length ? (
+          <div className="mt-3 grid grid-cols-[8.25rem_minmax(0,1fr)] items-center gap-4">
+            <div className="h-[8.25rem]">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1}>
+                <PieChart>
+                  <Pie
+                    data={expenseCategories}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={38}
+                    outerRadius={61}
+                    paddingAngle={1}
+                    stroke="none"
+                  >
+                    {expenseCategories.map((item, index) => (
+                      <Cell
+                        key={item.name}
+                        fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]}
+                      />
+                    ))}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="space-y-2.5">
+              {expenseCategories.map((item, index) => (
+                <div key={item.name} className="flex min-w-0 items-center gap-2 text-[9px]">
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }}
+                  />
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.name}</span>
+                  <span className="font-semibold tabular-nums">
+                    {categoryTotal ? Math.round((item.value / categoryTotal) * 100) : 0}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <EmptyLine text="As despesas categorizadas aparecerão aqui." className="mt-4" />
+        )}
+      </section>
+
+      <section>
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold">Orçamentos</h2>
+          <Link to="/budgets" className="text-[9px] font-semibold text-primary">
+            Ver todos
+          </Link>
+        </div>
+        <div className="mt-3 divide-y divide-border/70 rounded-[1rem] border border-border/70 bg-card px-3">
+          {budgets.slice(0, 3).map((budget) => (
+            <div key={budget.budgetId} className="flex items-center gap-3 py-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-muted text-muted-foreground">
+                <PiggyBank className="h-4 w-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="truncate text-[10px] font-semibold">{budget.categoryName}</p>
+                  <span className="text-[9px] font-semibold tabular-nums text-muted-foreground">
+                    {Math.round(budget.percentUsed)}%
+                  </span>
+                </div>
+                <p className="mt-0.5 text-[8px] text-muted-foreground">
+                  {valuesHidden
+                    ? "R$ ••• de R$ •••"
+                    : `${formatBRL(budget.spentAmount)} de ${formatBRL(budget.budgetAmount)}`}
+                </p>
+                <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-[#28a76c]"
+                    style={{ width: `${Math.min(100, Math.max(0, budget.percentUsed))}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          {!budgets.length ? (
+            <p className="py-5 text-center text-[10px] text-muted-foreground">
+              Crie um orçamento para acompanhar seus limites.
+            </p>
+          ) : null}
+        </div>
       </section>
     </div>
   );
 }
 
-function HeroMetric({
+function MetricCard({
   label,
   value,
   hidden,
-  icon,
-  positive = false,
+  status,
+  tone,
+  action,
 }: {
   label: string;
   value: string;
   hidden: boolean;
-  icon: React.ReactNode;
-  positive?: boolean;
+  status: string;
+  tone: "green" | "red";
+  action?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3.5 backdrop-blur-sm">
-      <div className="flex items-center gap-2 text-[11px] font-semibold text-white/50">
-        <span
+    <Card className="reveal-in overflow-hidden">
+      <CardContent className="p-4 sm:p-5">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-medium text-muted-foreground">{label}</p>
+          {action}
+        </div>
+        <p className="mt-2 truncate font-display text-xl font-bold tracking-[-0.035em] tabular-nums sm:text-2xl">
+          {hidden ? "R$ ••••••" : value}
+        </p>
+        <div
           className={cn(
-            "grid h-7 w-7 place-items-center rounded-lg",
-            positive ? "bg-[#c9ff5b]/15 text-[#c9ff5b]" : "bg-white/8 text-white/70",
+            "mt-3 flex items-center gap-1.5 text-[10px] font-medium",
+            tone === "green" ? "text-[#3a9a6c]" : "text-[#cf675e]",
           )}
         >
-          {icon}
-        </span>
-        {label}
+          {tone === "green" ? (
+            <ArrowUpRight className="h-3 w-3" />
+          ) : (
+            <ArrowDownLeft className="h-3 w-3" />
+          )}
+          <span>{status}</span>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SectionHeader({ title, subtitle, to }: { title: string; subtitle?: string; to?: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h2 className="font-display text-sm font-bold tracking-tight sm:text-base">{title}</h2>
+        {subtitle ? <p className="mt-1 text-[11px] text-muted-foreground">{subtitle}</p> : null}
       </div>
-      <p className="mt-3 truncate text-sm font-bold tabular-nums sm:text-base">
-        {hidden ? "R$ ••••" : value}
-      </p>
+      {to ? (
+        <Link
+          to={to}
+          className="text-[10px] font-semibold text-[#31966b] transition hover:text-primary"
+        >
+          Ver todas
+        </Link>
+      ) : null}
     </div>
   );
 }
 
-function CardBillRow({
-  card,
-  amount,
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="flex items-center gap-2">
+      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
+      {label}
+    </span>
+  );
+}
+
+function TransactionRow({
+  transaction,
+  accountName,
+  categoryName,
   hidden,
-  loading,
 }: {
-  card: CreditCardModel;
-  amount: number;
+  transaction: Transaction;
+  accountName?: string;
+  categoryName?: string;
   hidden: boolean;
-  loading: boolean;
 }) {
-  const brand = getBankBrand(card.bankName);
+  const positive = transaction.type === "INCOME" || transaction.type === "TRANSFER_IN";
   return (
-    <div className="flex items-center gap-3">
-      <span
-        className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl", brand.softClassName)}
-      >
-        <CreditCard className="h-4 w-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{card.name}</p>
-        <p className="truncate text-[11px] text-muted-foreground">
-          {card.bankName}
-          {card.lastFourDigits ? ` • ${card.lastFourDigits}` : ""}
-        </p>
-      </div>
-      <p className="text-sm font-bold tabular-nums">
-        {loading ? "—" : hidden ? "••••" : formatBRL(amount)}
-      </p>
-    </div>
-  );
-}
-
-function AccountRow({ account, hidden }: { account: Account; hidden: boolean }) {
-  const brand = getBankBrand(account.name);
-  return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
       <span
         className={cn(
-          "grid h-10 w-10 shrink-0 place-items-center rounded-xl text-xs font-extrabold",
-          brand.solidClassName,
+          "grid h-9 w-9 shrink-0 place-items-center rounded-lg",
+          positive
+            ? "bg-[#e8f5ee] text-[#3c9c70] dark:bg-primary/15"
+            : "bg-muted text-muted-foreground",
         )}
       >
-        {getInitials(account.name)}
+        {positive ? <WalletCards className="h-4 w-4" /> : <ReceiptText className="h-4 w-4" />}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold">{account.name}</p>
-        <p className="text-[11px] text-muted-foreground">{accountTypeLabel(account.type)}</p>
+        <p className="truncate text-xs font-semibold">
+          {transaction.description || transactionLabel(transaction.type)}
+        </p>
+        <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+          {categoryName || accountName || "Movimentação"} ·{" "}
+          {formatTransactionDate(transaction.occurredAt)}
+        </p>
       </div>
-      <p className="text-sm font-bold tabular-nums" style={{ color: brand.color }}>
-        {hidden ? "R$ ••••" : formatBRL(account.balance, account.currency || "BRL")}
+      <p
+        className={cn(
+          "shrink-0 text-xs font-semibold tabular-nums",
+          positive ? "text-[#31966b]" : "text-foreground",
+        )}
+      >
+        {hidden ? "••••" : `${positive ? "+ " : "- "}${formatBRL(Math.abs(transaction.amount))}`}
       </p>
     </div>
   );
@@ -545,10 +767,17 @@ function BudgetRow({
   return (
     <div>
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="truncate text-sm font-semibold">{name}</p>
+        <div className="min-w-0">
+          <p className="truncate text-xs font-semibold">{name}</p>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">
+            {amount >= 0
+              ? `${formatBRL(amount)} restantes`
+              : `${formatBRL(Math.abs(amount))} acima do limite`}
+          </p>
+        </div>
         <p
           className={cn(
-            "shrink-0 text-[11px] font-bold",
+            "shrink-0 text-[10px] font-semibold",
             critical ? "text-destructive" : warning ? "text-[#b77a13]" : "text-muted-foreground",
           )}
         >
@@ -559,86 +788,133 @@ function BudgetRow({
         <div
           className={cn(
             "h-full rounded-full",
-            critical ? "bg-destructive" : warning ? "bg-[#e8ad3f]" : "bg-primary",
+            critical ? "bg-destructive" : warning ? "bg-[#e8ad3f]" : "bg-[#56b787]",
           )}
           style={{ width: `${safe}%` }}
         />
       </div>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">
-        {amount >= 0
-          ? `${formatBRL(amount)} disponíveis`
-          : `${formatBRL(Math.abs(amount))} acima do limite`}
-      </p>
     </div>
   );
 }
 
 function DashboardListCard({
-  eyebrow,
   title,
   icon,
   to,
-  linkLabel,
   children,
 }: {
-  eyebrow: string;
   title: string;
   icon: React.ReactNode;
   to: string;
-  linkLabel: string;
   children: React.ReactNode;
 }) {
   return (
-    <Card className="overflow-hidden">
+    <Card>
       <CardContent className="p-5 sm:p-6">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-              {eyebrow}
-            </p>
-            <h2 className="mt-1 font-display text-xl font-extrabold tracking-[-0.03em]">{title}</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#e8f5ee] text-[#31966b] dark:bg-primary/15">
+              {icon}
+            </span>
+            <h2 className="font-display text-sm font-bold">{title}</h2>
           </div>
-          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-accent text-primary">
-            {icon}
-          </span>
+          <Link
+            to={to}
+            aria-label={`Ver ${title.toLowerCase()}`}
+            className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
-        <div className="min-h-36">{children}</div>
-        <Link
-          to={to}
-          className="mt-5 flex items-center justify-between border-t border-border pt-4 text-xs font-bold text-primary"
-        >
-          {linkLabel} <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        <div className="space-y-3">{children}</div>
       </CardContent>
     </Card>
   );
 }
 
-function EmptyLine({ text }: { text: string }) {
+function AccountRow({ account, hidden }: { account: Account; hidden: boolean }) {
+  const brand = getBankBrand(account.name);
   return (
-    <p className="rounded-2xl bg-muted/70 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+    <div className="flex items-center gap-3">
+      <span
+        className={cn(
+          "grid h-9 w-9 shrink-0 place-items-center rounded-full text-[10px] font-bold",
+          brand.softClassName,
+        )}
+      >
+        {getInitials(account.name)}
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold">{account.name}</p>
+        <p className="text-[10px] text-muted-foreground">{accountTypeLabel(account.type)}</p>
+      </div>
+      <p className="text-xs font-semibold tabular-nums">
+        {hidden ? "R$ ••••" : formatBRL(account.balance, account.currency || "BRL")}
+      </p>
+    </div>
+  );
+}
+
+function CardBillRow({
+  card,
+  amount,
+  hidden,
+  loading,
+}: {
+  card: CreditCardModel;
+  amount: number;
+  hidden: boolean;
+  loading: boolean;
+}) {
+  const brand = getBankBrand(card.bankName);
+  return (
+    <div className="flex items-center gap-3">
+      <span
+        className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full", brand.softClassName)}
+      >
+        <CreditCard className="h-3.5 w-3.5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-semibold">{card.name}</p>
+        <p className="truncate text-[10px] text-muted-foreground">
+          {card.bankName}
+          {card.lastFourDigits ? ` · ${card.lastFourDigits}` : ""}
+        </p>
+      </div>
+      <p className="text-xs font-semibold tabular-nums">
+        {loading ? "—" : hidden ? "R$ ••••" : formatBRL(amount)}
+      </p>
+    </div>
+  );
+}
+
+function EmptyLine({ text, className }: { text: string; className?: string }) {
+  return (
+    <p
+      className={cn(
+        "rounded-lg bg-muted/70 px-3 py-3 text-xs leading-relaxed text-muted-foreground",
+        className,
+      )}
+    >
       {text}
     </p>
   );
 }
 
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Bom dia";
-  if (hour < 18) return "Boa tarde";
-  return "Boa noite";
+function normalizeCategoryBreakdown(categories: CategorySummary[]) {
+  return categories
+    .filter((category) => category.categoryType !== "INCOME")
+    .map((category) => ({
+      name: category.categoryName,
+      value: Number(category.amount ?? category.total ?? 0),
+    }))
+    .filter((category) => category.value > 0)
+    .sort((left, right) => right.value - left.value);
 }
 
-function getFirstName(user?: { name?: string | null; email?: string | null } | null) {
-  if (user?.name?.trim()) return user.name.trim().split(/\s+/)[0];
-  const local = user?.email?.split("@")[0] ?? "Prospera";
-  const name = local.split(/[._-]+/).find(Boolean) ?? "Prospera";
-  return name.charAt(0).toUpperCase() + name.slice(1).replace(/\d+$/g, "").toLowerCase();
-}
-
-function shortMonth(month: number) {
+function shortMonth(month: number, year: number) {
   return new Intl.DateTimeFormat("pt-BR", { month: "short" })
-    .format(new Date(2026, month - 1, 1))
+    .format(new Date(year, month - 1, 1))
     .replace(".", "");
 }
 
@@ -649,10 +925,28 @@ function formatPeriod(month: number, year: number) {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function formatDate(value: string) {
+function formatCompactBRL(value: number) {
+  if (Math.abs(value) >= 1000) return `${Math.round(value / 1000)}k`;
+  return String(Math.round(value));
+}
+
+function formatTransactionDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" }).format(
-    new Date(`${value}T12:00:00`),
+    new Date(value),
   );
+}
+
+function transactionLabel(type: Transaction["type"]) {
+  return (
+    {
+      INCOME: "Receita",
+      EXPENSE: "Despesa",
+      TRANSFER_IN: "Transferência recebida",
+      TRANSFER_OUT: "Transferência enviada",
+      CARD_PAYMENT: "Pagamento de cartão",
+      ADJUSTMENT: "Ajuste",
+    } as const
+  )[type];
 }
 
 function getInitials(value: string) {
@@ -669,9 +963,14 @@ function getInitials(value: string) {
 
 function accountTypeLabel(type: Account["type"]) {
   return (
-    { CHECKING: "Conta corrente", SAVINGS: "Poupança", CASH: "Dinheiro", OTHER: "Conta manual" }[
-      type
-    ] ?? "Conta"
+    (
+      {
+        CHECKING: "Conta corrente",
+        SAVINGS: "Poupança",
+        CASH: "Dinheiro",
+        OTHER: "Conta manual",
+      } as const
+    )[type] ?? "Conta"
   );
 }
 

@@ -4,7 +4,6 @@ import {
   ArrowLeftRight,
   BarChart3,
   Bell,
-  ChevronRight,
   CreditCard,
   HandCoins,
   LayoutDashboard,
@@ -148,6 +147,7 @@ export function AppShell() {
     Object.entries(PAGE_META).find(
       ([path]) => pathname === path || pathname.startsWith(`${path}/`),
     )?.[1] ?? PAGE_META["/home"];
+  const hasPageLevelMobileHeader = pathname === "/home" || pathname === "/transactions";
   const pendingConnectionCount = pendingRequests.data?.length ?? 0;
   const notificationCount = unreadNotifications.data?.count ?? 0;
 
@@ -155,40 +155,20 @@ export function AppShell() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[17rem] flex-col overflow-hidden bg-[#0b2e24] text-white lg:flex">
-        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-[#c9ff5b]/10 blur-3xl" />
-        <div className="relative flex h-24 items-center px-6">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-[15.5rem] flex-col border-r border-border/70 bg-card text-foreground lg:flex">
+        <div className="flex h-24 items-center px-6">
           <Link
             to="/home"
-            className="rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c9ff5b]"
+            className="rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <BrandLogo
-              markSize="sm"
-              textClassName="text-xl !text-white"
-              className="[&>span:first-child]:shadow-none"
-            />
+            <BrandLogo markSize="sm" textClassName="text-lg" />
           </Link>
         </div>
 
-        <div className="relative px-4">
-          <button
-            type="button"
-            onClick={() => setMovementEntryOpen(true)}
-            onMouseEnter={() => void loadMovementEntryDialog()}
-            onFocus={() => void loadMovementEntryDialog()}
-            className="group flex h-12 w-full items-center justify-between rounded-2xl bg-[#c9ff5b] px-4 text-sm font-bold text-[#0b2e24] shadow-[0_16px_34px_rgba(0,0,0,0.2)] transition hover:-translate-y-0.5 hover:bg-[#d7ff81]"
-          >
-            <span className="flex items-center gap-2.5">
-              <Plus className="h-4 w-4" /> Nova movimentação
-            </span>
-            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </button>
-        </div>
-
-        <nav className="relative mt-6 flex-1 overflow-y-auto px-4 pb-4">
+        <nav className="flex-1 overflow-y-auto px-4 pb-4">
           {NAV_GROUPS.map((group) => (
-            <div key={group.label} className="mb-5">
-              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">
+            <div key={group.label} className="mb-4">
+              <p className="mb-1.5 px-3 text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/70">
                 {group.label}
               </p>
               <div className="space-y-1">
@@ -203,7 +183,7 @@ export function AppShell() {
               </div>
             </div>
           ))}
-          <div className="my-4 h-px bg-white/8" />
+          <div className="my-3 h-px bg-border/70" />
           <div className="space-y-1">
             {UTILITY_NAV.map((item) => (
               <NavLink key={item.to} item={item} active={isActive(item)} badge={badgeFor(item)} />
@@ -211,21 +191,34 @@ export function AppShell() {
           </div>
         </nav>
 
-        <div className="relative m-4 rounded-2xl border border-white/10 bg-white/[0.06] p-3.5">
+        <div className="mx-4 mb-2 flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium text-muted-foreground">
+          <span>Preferência de tema</span>
+          <ThemeSelector className="h-8 w-8 border-0 bg-transparent shadow-none" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setMovementEntryOpen(true)}
+          onMouseEnter={() => void loadMovementEntryDialog()}
+          onFocus={() => void loadMovementEntryDialog()}
+          className="mx-4 mb-3 flex h-10 items-center justify-center gap-2 rounded-xl bg-primary text-xs font-bold text-primary-foreground shadow-sm transition hover:bg-primary/90"
+        >
+          <Plus className="h-4 w-4" /> Nova movimentação
+        </button>
+        <div className="m-4 mt-0 rounded-xl border border-border/70 bg-background/70 p-3">
           <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#c9ff5b] text-xs font-extrabold text-[#0b2e24]">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#e2f3e9] text-xs font-extrabold text-primary dark:bg-primary/15">
               {getInitials(user.name, user.email)}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{user.name || "Minha conta"}</p>
-              <p className="truncate text-[11px] text-white/45">{user.email}</p>
+              <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
             </div>
             <button
               type="button"
               onClick={logout}
               aria-label="Sair"
               title="Sair"
-              className="grid h-8 w-8 place-items-center rounded-lg text-white/45 transition hover:bg-white/10 hover:text-white"
+              className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
             >
               <LogOut className="h-4 w-4" />
             </button>
@@ -233,8 +226,13 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="lg:pl-[17rem]">
-        <header className="sticky top-0 z-30 border-b border-border/70 bg-background/88 backdrop-blur-xl">
+      <div className="lg:pl-[15.5rem]">
+        <header
+          className={cn(
+            "sticky top-0 z-30 border-b border-border/70 bg-card/90 backdrop-blur-xl lg:hidden",
+            hasPageLevelMobileHeader && "hidden md:block lg:hidden",
+          )}
+        >
           <div className="flex h-[4.5rem] items-center justify-between px-4 sm:px-6 lg:px-9">
             <div className="flex min-w-0 items-center gap-3">
               <button
@@ -248,7 +246,7 @@ export function AppShell() {
               <Link to="/home" className="lg:hidden">
                 <BrandLogo markSize="sm" textClassName="text-base" />
               </Link>
-              <div className="hidden min-w-0 sm:block">
+              <div className="hidden min-w-0 sm:block lg:hidden">
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
                   {pageMeta.eyebrow}
                 </p>
@@ -257,10 +255,7 @@ export function AppShell() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="mr-2 hidden text-xs font-medium text-muted-foreground xl:inline">
-                {formatHeaderDate()}
-              </span>
-              <ThemeSelector className="h-10 w-10 rounded-xl bg-card" />
+              <ThemeSelector className="hidden h-10 w-10 rounded-xl bg-card sm:grid" />
               <Link
                 to="/notifications"
                 aria-label="Notificações"
@@ -286,8 +281,8 @@ export function AppShell() {
           </div>
         </header>
 
-        <main className="min-h-[calc(100vh-4.5rem)] pb-28 lg:pb-10">
-          <div className="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 sm:py-8 lg:px-9">
+        <main className="min-h-screen bg-[#f7f8f6] pb-24 dark:bg-background lg:pb-10">
+          <div className="mx-auto max-w-[90rem] px-4 py-5 sm:px-6 sm:py-8 lg:px-10 lg:py-9">
             <Outlet />
           </div>
         </main>
@@ -330,25 +325,25 @@ function NavLink({ item, active, badge = 0 }: { item: NavItem; active: boolean; 
     <Link
       to={item.to}
       className={cn(
-        "group flex min-h-10 items-center gap-3 rounded-xl px-3 text-[13px] font-medium transition",
+        "group flex min-h-9 items-center gap-3 rounded-lg px-3 text-[12px] font-medium transition",
         active
-          ? "bg-white/[0.11] text-white"
-          : "text-white/85 hover:bg-white/[0.06] hover:text-white",
+          ? "bg-[#e7f3ed] text-[#20855f] dark:bg-primary/15 dark:text-primary"
+          : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
       <item.icon
         className={cn(
           "h-4 w-4",
-          active ? "text-[#c9ff5b]" : "text-white/65 group-hover:text-white/90",
+          active ? "text-[#29a270]" : "text-muted-foreground group-hover:text-foreground",
         )}
       />
       <span className="flex-1">{item.label}</span>
       {badge > 0 && (
-        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#c9ff5b] px-1 text-[9px] font-extrabold text-[#0b2e24]">
+        <span className="grid h-5 min-w-5 place-items-center rounded-full bg-primary px-1 text-[9px] font-extrabold text-primary-foreground">
           {badge > 9 ? "9+" : badge}
         </span>
       )}
-      {active && !badge && <span className="h-1.5 w-1.5 rounded-full bg-[#c9ff5b]" />}
+      {active && !badge ? <span className="h-1.5 w-1.5 rounded-full bg-[#29a270]" /> : null}
     </Link>
   );
 }
@@ -371,16 +366,16 @@ function MobileMenu({
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
       <button
-        className="absolute inset-0 bg-[#061a14]/55 backdrop-blur-sm"
+        className="absolute inset-0 bg-foreground/20 backdrop-blur-sm"
         onClick={onClose}
         aria-label="Fechar menu"
       />
-      <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,21rem)] flex-col overflow-y-auto bg-[#0b2e24] p-4 text-white shadow-2xl">
+      <aside className="absolute inset-y-0 left-0 flex w-[min(88vw,21rem)] flex-col overflow-y-auto bg-card p-4 text-foreground shadow-2xl">
         <div className="mb-5 flex items-center justify-between px-1 py-2">
-          <BrandLogo markSize="sm" textClassName="!text-white text-xl" />
+          <BrandLogo markSize="sm" textClassName="text-xl" />
           <button
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-xl bg-white/10"
+            className="grid h-9 w-9 place-items-center rounded-xl bg-muted"
             aria-label="Fechar menu"
           >
             <X className="h-4 w-4" />
@@ -388,14 +383,14 @@ function MobileMenu({
         </div>
         <button
           onClick={onAdd}
-          className="mb-6 flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-[#c9ff5b] text-sm font-bold text-[#0b2e24]"
+          className="mb-6 flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-bold text-primary-foreground"
         >
           <Plus className="h-4 w-4" /> Nova movimentação
         </button>
         <nav className="flex-1">
           {NAV_GROUPS.map((group) => (
             <div key={group.label} className="mb-5">
-              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">
+              <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground/70">
                 {group.label}
               </p>
               <div className="space-y-1">
@@ -410,22 +405,29 @@ function MobileMenu({
               </div>
             </div>
           ))}
-          <div className="my-4 h-px bg-white/10" />
+          <div className="my-4 h-px bg-border" />
           {UTILITY_NAV.map((item) => (
             <NavLink key={item.to} item={item} active={activePath === item.to} />
           ))}
         </nav>
-        <div className="mt-5 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#c9ff5b] text-xs font-bold text-[#0b2e24]">
+        <div className="mt-5 flex items-center gap-3 rounded-xl border border-border bg-background p-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">Aparência</p>
+            <p className="text-[11px] text-muted-foreground">Claro, escuro ou sistema</p>
+          </div>
+          <ThemeSelector className="h-9 w-9 shrink-0 bg-card" />
+        </div>
+        <div className="mt-5 flex items-center gap-3 rounded-xl border border-border bg-background p-3">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-[#e2f3e9] text-xs font-bold text-primary dark:bg-primary/15">
             {getInitials(user.name, user.email)}
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{user.name || "Minha conta"}</p>
-            <p className="truncate text-[11px] text-white/45">{user.email}</p>
+            <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
           </div>
           <button
             onClick={onLogout}
-            className="grid h-9 w-9 place-items-center rounded-xl text-white/50 hover:bg-white/10 hover:text-white"
+            className="grid h-9 w-9 place-items-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label="Sair"
           >
             <LogOut className="h-4 w-4" />
@@ -453,9 +455,9 @@ function MobileBottomNav({
   return (
     <nav
       aria-label="Navegação principal móvel"
-      className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] md:hidden"
+      className="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-30 mx-auto max-w-md md:hidden"
     >
-      <div className="mx-auto grid max-w-md grid-cols-5 items-end rounded-[1.4rem] border border-border/90 bg-card/94 p-1.5 shadow-[0_18px_48px_rgba(11,46,36,0.2)] backdrop-blur-xl supports-[backdrop-filter]:bg-card/88">
+      <div className="grid h-[4.4rem] grid-cols-5 items-center rounded-[1.35rem] border border-border/80 bg-card/95 px-2 shadow-[0_16px_45px_rgba(24,54,42,0.16)] backdrop-blur-xl">
         <MobileBottomLink
           to="/home"
           label="Início"
@@ -464,7 +466,7 @@ function MobileBottomNav({
         />
         <MobileBottomLink
           to="/transactions"
-          label="Movimentos"
+          label="Gastos"
           icon={ArrowLeftRight}
           active={isPathActive("/transactions")}
         />
@@ -473,11 +475,12 @@ function MobileBottomNav({
           type="button"
           aria-label="Nova movimentação"
           onClick={onAdd}
-          className="flex min-h-14 items-center justify-center"
+          className="flex min-h-16 -translate-y-2 flex-col items-center justify-center gap-1 text-primary"
         >
-          <span className="grid h-12 w-12 -translate-y-1 place-items-center rounded-2xl bg-[#c9ff5b] text-[#0b2e24] shadow-[0_12px_28px_rgba(11,46,36,0.28)] transition active:scale-95">
-            <Plus className="h-5 w-5 stroke-[2.6]" />
+          <span className="grid h-12 w-12 place-items-center rounded-full border-4 border-card bg-primary text-primary-foreground shadow-[0_10px_24px_rgba(47,148,105,0.34)] transition active:scale-95">
+            <Plus className="h-5 w-5 stroke-[2.7]" />
           </span>
+          <span className="text-[9px] font-semibold">Adicionar</span>
         </button>
 
         <MobileBottomLink
@@ -491,10 +494,8 @@ function MobileBottomNav({
           aria-label="Abrir mais opções"
           onClick={onMore}
           className={cn(
-            "relative flex min-h-14 items-center justify-center rounded-[1.05rem] px-1 transition",
-            moreActive
-              ? "bg-[#0b2e24] text-[#c9ff5b] dark:bg-[#c9ff5b] dark:text-[#0b2e24]"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            "relative flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-semibold transition",
+            moreActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
           )}
         >
           <span className="relative">
@@ -503,6 +504,7 @@ function MobileBottomNav({
               <span className="absolute -right-1.5 -top-1 h-2 w-2 rounded-full bg-[#ef6a57] ring-2 ring-card" />
             )}
           </span>
+          <span>Mais</span>
         </button>
       </div>
     </nav>
@@ -526,13 +528,12 @@ function MobileBottomLink({
       aria-label={label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-14 items-center justify-center rounded-[1.05rem] px-1 transition",
-        active
-          ? "bg-[#0b2e24] text-[#c9ff5b] dark:bg-[#c9ff5b] dark:text-[#0b2e24]"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        "flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[9px] font-semibold transition",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
-      <Icon className={cn("h-5 w-5", active && "stroke-[2.4]")} />
+      <Icon className={cn("h-5 w-5", active && "stroke-[2.5]")} />
+      <span>{label}</span>
     </Link>
   );
 }
@@ -545,12 +546,4 @@ function getInitials(name?: string | null, email?: string | null) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
-}
-
-function formatHeaderDate() {
-  return new Intl.DateTimeFormat("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-  }).format(new Date());
 }
