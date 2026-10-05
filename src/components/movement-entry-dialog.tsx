@@ -40,6 +40,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -531,9 +532,12 @@ export function MovementEntryDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent className="sm:max-w-xl">
+      <DialogContent className="sm:max-w-xl" preventOutsideDismiss>
         <DialogHeader>
           <DialogTitle>{editing ? "Editar lançamento" : "Novo lançamento"}</DialogTitle>
+          <DialogDescription className="sr-only">
+            Preencha os dados da movimentação. Para fechar, use o botão X ou pressione Esc.
+          </DialogDescription>
         </DialogHeader>
         <form
           className="space-y-4"
