@@ -581,7 +581,11 @@ export function MovementEntryDialog({
                 </Select>
               </div>
             )}
-            <div className="col-span-2 space-y-1.5 sm:col-span-1">
+            <div
+              className={
+                showsCategory ? "col-span-2 space-y-1.5" : "col-span-2 space-y-1.5 sm:col-span-1"
+              }
+            >
               <Label>Valor</Label>
               <CurrencyAmountInput
                 value={form.watch("amount")}
@@ -591,18 +595,7 @@ export function MovementEntryDialog({
               />
               <FieldError message={errors.amount?.message} />
             </div>
-            <div
-              className={
-                showsCategory ? "col-span-2 space-y-1.5 sm:col-span-1" : "col-span-2 space-y-1.5"
-              }
-            >
-              <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
-              <Input
-                type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"}
-                {...form.register("occurredAt")}
-              />
-              <FieldError message={errors.occurredAt?.message} />
-            </div>
+
             <div className="col-span-2 space-y-1.5">
               <Label>Descrição (opcional)</Label>
               <Input {...form.register("title")} placeholder="ex: Mercado, salário, farmácia" />
@@ -643,6 +636,144 @@ export function MovementEntryDialog({
                   <Input type="number" min={1} {...form.register("installmentCount")} />
                   <FieldError message={errors.installmentCount?.message} />
                 </div>
+              </>
+            )}
+            {kind === "CARD_PAYMENT" && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Cartão</Label>
+                  <Select
+                    value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
+                    onValueChange={(value) =>
+                      form.setValue("cardId", Number(value), {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeCards.map((card) => (
+                        <SelectItem key={card.id} value={String(card.id)}>
+                          {card.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError message={errors.cardId?.message} />
+                  {!activeCards.length && (
+                    <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Conta de pagamento</Label>
+                  <AccountSelect
+                    value={form.watch("accountId")}
+                    accounts={activeAccounts}
+                    onChange={(value) =>
+                      form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
+                    }
+                  />
+                  <FieldError message={errors.accountId?.message} />
+                  {!activeAccounts.length && (
+                    <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                  )}
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <Label>Fatura</Label>
+                  <Select
+                    value={`${form.watch("paymentMonth") ?? month}-${form.watch("paymentYear") ?? year}`}
+                    onValueChange={(value) => {
+                      const [paymentMonth, paymentYear] = value.split("-").map(Number);
+                      form.setValue("paymentMonth", paymentMonth, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                      form.setValue("paymentYear", paymentYear, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {monthOptions.map((option) => (
+                        <SelectItem key={option.key} value={option.key}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FieldError message={errors.paymentMonth?.message} />
+                </div>
+              </>
+            )}
+
+            {kind === "TRANSFER" && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Conta de origem</Label>
+                  <AccountSelect
+                    value={form.watch("accountId")}
+                    accounts={activeAccounts}
+                    onChange={(value) =>
+                      form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
+                    }
+                  />
+                  <FieldError message={errors.accountId?.message} />
+                  {!activeAccounts.length && (
+                    <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Conta de destino</Label>
+                  <AccountSelect
+                    value={form.watch("targetAccountId")}
+                    accounts={activeAccounts.filter(
+                      (account) => account.id !== form.watch("accountId"),
+                    )}
+                    onChange={(value) =>
+                      form.setValue("targetAccountId", value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
+                  />
+                  <FieldError message={errors.targetAccountId?.message} />
+                </div>
+              </>
+            )}
+
+            {(kind === "INCOME" || kind === "EXPENSE" || kind === "ADJUSTMENT") && (
+              <div className="space-y-1.5">
+                <Label>Conta</Label>
+                <AccountSelect
+                  value={form.watch("accountId")}
+                  accounts={activeAccounts}
+                  onChange={(value) =>
+                    form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
+                  }
+                />
+                <FieldError message={errors.accountId?.message} />
+                {!activeAccounts.length && (
+                  <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                )}
+              </div>
+            )}
+            <div className="col-span-2 space-y-1.5">
+              <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
+              <Input
+                type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"}
+                {...form.register("occurredAt")}
+              />
+              <FieldError message={errors.occurredAt?.message} />
+            </div>
+            {kind === "CARD_EXPENSE" && (
+              <>
                 <div className="col-span-2 rounded-lg border bg-muted/20 p-3">
                   <label className="flex cursor-pointer items-start gap-3">
                     <Checkbox
@@ -729,133 +860,6 @@ export function MovementEntryDialog({
                   )}
                 </div>
               </>
-            )}
-
-            {kind === "TRANSFER" && (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Conta de origem</Label>
-                  <AccountSelect
-                    value={form.watch("accountId")}
-                    accounts={activeAccounts}
-                    onChange={(value) =>
-                      form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
-                    }
-                  />
-                  <FieldError message={errors.accountId?.message} />
-                  {!activeAccounts.length && (
-                    <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Conta de destino</Label>
-                  <AccountSelect
-                    value={form.watch("targetAccountId")}
-                    accounts={activeAccounts.filter(
-                      (account) => account.id !== form.watch("accountId"),
-                    )}
-                    onChange={(value) =>
-                      form.setValue("targetAccountId", value, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }
-                  />
-                  <FieldError message={errors.targetAccountId?.message} />
-                </div>
-              </>
-            )}
-
-            {kind === "CARD_PAYMENT" && (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Cartão</Label>
-                  <Select
-                    value={form.watch("cardId") ? String(form.watch("cardId")) : undefined}
-                    onValueChange={(value) =>
-                      form.setValue("cardId", Number(value), {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {activeCards.map((card) => (
-                        <SelectItem key={card.id} value={String(card.id)}>
-                          {card.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldError message={errors.cardId?.message} />
-                  {!activeCards.length && (
-                    <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Conta de pagamento</Label>
-                  <AccountSelect
-                    value={form.watch("accountId")}
-                    accounts={activeAccounts}
-                    onChange={(value) =>
-                      form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
-                    }
-                  />
-                  <FieldError message={errors.accountId?.message} />
-                  {!activeAccounts.length && (
-                    <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
-                  )}
-                </div>
-                <div className="col-span-2 space-y-1.5">
-                  <Label>Fatura</Label>
-                  <Select
-                    value={`${form.watch("paymentMonth") ?? month}-${form.watch("paymentYear") ?? year}`}
-                    onValueChange={(value) => {
-                      const [paymentMonth, paymentYear] = value.split("-").map(Number);
-                      form.setValue("paymentMonth", paymentMonth, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                      form.setValue("paymentYear", paymentYear, {
-                        shouldDirty: true,
-                        shouldValidate: true,
-                      });
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {monthOptions.map((option) => (
-                        <SelectItem key={option.key} value={option.key}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FieldError message={errors.paymentMonth?.message} />
-                </div>
-              </>
-            )}
-
-            {(kind === "INCOME" || kind === "EXPENSE" || kind === "ADJUSTMENT") && (
-              <div className="space-y-1.5">
-                <Label>Conta</Label>
-                <AccountSelect
-                  value={form.watch("accountId")}
-                  accounts={activeAccounts}
-                  onChange={(value) =>
-                    form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
-                  }
-                />
-                <FieldError message={errors.accountId?.message} />
-                {!activeAccounts.length && (
-                  <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
-                )}
-              </div>
             )}
           </div>
           <DialogFooter>
