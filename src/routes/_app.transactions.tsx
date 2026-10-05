@@ -166,20 +166,6 @@ const schema = z
     paymentYear: z.coerce.number().int().min(2000).optional(),
   })
   .superRefine((values, ctx) => {
-    const title = values.title?.trim();
-    const requiresTitle =
-      values.kind === "INCOME" ||
-      values.kind === "EXPENSE" ||
-      values.kind === "CARD_EXPENSE" ||
-      values.kind === "ADJUSTMENT";
-
-    if (requiresTitle && !title) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["title"],
-        message: "Informe uma descrição",
-      });
-    }
     if (values.kind === "ADJUSTMENT" && values.amount === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -487,7 +473,7 @@ export default function TransactionsPage() {
           {
             method: editing?.kind === "card-expense" ? "PUT" : "POST",
             body: {
-              name: values.title?.trim(),
+              name: values.title?.trim() || "Compra no cartão",
               amount: values.amount,
               installmentCount: values.installmentCount || 1,
               purchaseDate: normalizeDateTime(values.occurredAt),
@@ -542,7 +528,7 @@ export default function TransactionsPage() {
           type: values.kind,
           amount: values.amount,
           occurredAt: normalizeDateTime(values.occurredAt),
-          description: values.title?.trim(),
+          description: values.title?.trim() || null,
           accountId: values.accountId,
           categoryId: values.kind === "ADJUSTMENT" ? null : values.categoryId || null,
         },
@@ -901,7 +887,7 @@ export default function TransactionsPage() {
                     )}
                   >
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
+                      <div className="col-span-2 space-y-1.5 sm:col-span-1">
                         <Label>Tipo</Label>
                         <Select
                           value={kind}
@@ -924,7 +910,36 @@ export default function TransactionsPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="space-y-1.5">
+                      {showsCategory && (
+                        <div className="col-span-2 space-y-1.5 sm:col-span-1">
+                          <Label>Categoria</Label>
+                          <Select
+                            value={
+                              form.watch("categoryId") ? String(form.watch("categoryId")) : "_none"
+                            }
+                            onValueChange={(value) =>
+                              form.setValue(
+                                "categoryId",
+                                value === "_none" ? undefined : Number(value),
+                                { shouldDirty: true },
+                              )
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="_none">Sem categoria</SelectItem>
+                              {filteredCategories.map((category) => (
+                                <SelectItem key={category.id} value={String(category.id)}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className="col-span-2 space-y-1.5 sm:col-span-1">
                         <Label>Valor</Label>
                         <CurrencyAmountInput
                           value={form.watch("amount")}
@@ -937,24 +952,27 @@ export default function TransactionsPage() {
                         />
                         <FieldError message={errors.amount?.message} />
                       </div>
-                      <div className="col-span-2 space-y-1.5">
-                        <Label>
-                          Descricao
-                          {kind === "TRANSFER" || kind === "CARD_PAYMENT" ? " (opcional)" : ""}
-                        </Label>
-                        <Input
-                          {...form.register("title")}
-                          placeholder="ex: Mercado, salario, farmacia"
-                        />
-                        <FieldError message={errors.title?.message} />
-                      </div>
-                      <div className="col-span-2 space-y-1.5">
+                      <div
+                        className={
+                          showsCategory
+                            ? "col-span-2 space-y-1.5 sm:col-span-1"
+                            : "col-span-2 space-y-1.5"
+                        }
+                      >
                         <Label>{kind === "CARD_PAYMENT" ? "Data do pagamento" : "Quando"}</Label>
                         <Input
                           type={kind === "CARD_PAYMENT" ? "date" : "datetime-local"}
                           {...form.register("occurredAt")}
                         />
                         <FieldError message={errors.occurredAt?.message} />
+                      </div>
+                      <div className="col-span-2 space-y-1.5">
+                        <Label>Descrição (opcional)</Label>
+                        <Input
+                          {...form.register("title")}
+                          placeholder="ex: Mercado, salario, farmacia"
+                        />
+                        <FieldError message={errors.title?.message} />
                       </div>
 
                       {kind === "CARD_EXPENSE" && (
@@ -1217,36 +1235,6 @@ export default function TransactionsPage() {
                           {!activeAccounts.length && (
                             <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
                           )}
-                        </div>
-                      )}
-
-                      {showsCategory && (
-                        <div className="space-y-1.5">
-                          <Label>Categoria</Label>
-                          <Select
-                            value={
-                              form.watch("categoryId") ? String(form.watch("categoryId")) : "_none"
-                            }
-                            onValueChange={(value) =>
-                              form.setValue(
-                                "categoryId",
-                                value === "_none" ? undefined : Number(value),
-                                { shouldDirty: true },
-                              )
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="_none">Sem categoria</SelectItem>
-                              {filteredCategories.map((category) => (
-                                <SelectItem key={category.id} value={String(category.id)}>
-                                  {category.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
                         </div>
                       )}
                     </div>
