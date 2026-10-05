@@ -6,12 +6,18 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { CreditCard as CardIcon, Pencil, Plus, Trash2, WalletCards } from "lucide-react";
-import { fetchAccounts, fetchCardStatement, fetchCards, fetchExpenses } from "@/lib/queries";
+import {
+  fetchAccounts,
+  fetchCardStatement,
+  fetchCardSummary,
+  fetchCards,
+  fetchExpenses,
+} from "@/lib/queries";
 import { api } from "@/lib/api";
 import { getBankBrand as getSharedBankBrand } from "@/lib/bank-brand";
 import { cardStatementStatusLabel } from "@/lib/card-labels";
 import type { Account, Card as CardType, Expense } from "@/lib/types";
-import { formatBRL, formatDate, todayIsoDate } from "@/lib/format";
+import { currentMonthYear, formatBRL, formatDate, todayIsoDate } from "@/lib/format";
 import { ConfirmAction } from "@/components/confirm-action";
 import { PeriodPicker } from "@/components/period-picker";
 import { Card, CardContent } from "@/components/ui/card";
@@ -74,6 +80,23 @@ const DEFAULT_CARD_VALUES: Values = {
 export default function CardsPage() {
   const { data, isLoading, reload } = useAsyncData(() => fetchCards(), [], { cacheKey: "cards" });
   const accounts = useAsyncData(() => fetchAccounts(), [], { cacheKey: "accounts" });
+  const [selectedPeriod, setSelectedPeriod] = useState<{ month: number; year: number } | null>(
+    null,
+  );
+  const period =
+    selectedPeriod ?? (data?.length ? currentOpenStatementPeriod(data[0]) : currentMonthYear());
+  const statementSummary = useAsyncData(
+    () => fetchCardSummary(period.month, period.year),
+    [period.month, period.year],
+    { cacheKey: `summary-cards:${period.month}:${period.year}` },
+  );
+  const totalStatementAmount =
+    statementSummary.data?.reduce((total, card) => total + Number(card.totalAmount ?? 0), 0) ?? 0;
+  const totalRemaining =
+    statementSummary.data?.reduce(
+      (total, card) => total + Math.max(0, Number(card.remainingAmount ?? 0)),
+      0,
+    ) ?? 0;
   const allExpenses = useAsyncData(() => fetchExpenses({}), [], {
     cacheKey: "expenses:all",
     staleMs: 60_000,
@@ -226,6 +249,40 @@ export default function CardsPage() {
         </Dialog>
       </div>
 
+      {!!data?.length && (
+        <Card className="border-border/70 shadow-sm">
+          <CardContent className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                <WalletCards className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs text-muted-foreground">Total das faturas</div>
+                <div className="text-xl font-semibold tabular-nums">
+                  {statementSummary.isLoading && !statementSummary.data
+                    ? "..."
+                    : formatBRL(totalStatementAmount)}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  Em aberto: {formatBRL(totalRemaining)}
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-3 sm:justify-end">
+              <span className="text-xs text-muted-foreground">
+                {statementSummary.data?.length ?? data.length} cartões
+              </span>
+              <PeriodPicker
+                month={period.month}
+                year={period.year}
+                onChange={setSelectedPeriod}
+                className="h-9 min-w-0 rounded-xl px-3 text-sm"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Carregando...</p>
       ) : !data?.length ? (
@@ -236,11 +293,12 @@ export default function CardsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           {data.map((card) => (
             <CardItem
               key={card.id}
               card={card}
+              period={period}
               accounts={accounts.data ?? []}
               cardExpenses={expensesByCard.get(card.id) ?? EMPTY_EXPENSES}
               onEdit={() => openEditDialog(card)}
@@ -256,6 +314,7 @@ export default function CardsPage() {
 
 function CardItem({
   card,
+  period,
   accounts,
   cardExpenses,
   onEdit,
@@ -263,13 +322,13 @@ function CardItem({
   onRefresh,
 }: {
   card: CardType;
+  period: { month: number; year: number };
   accounts: Account[];
   cardExpenses: Expense[];
   onEdit: () => void;
   onDelete: () => void;
   onRefresh: () => void;
 }) {
-  const [period, setPeriod] = useState(() => currentOpenStatementPeriod(card));
   const [paymentOpen, setPaymentOpen] = useState(false);
   const stmt = useAsyncData(
     () => fetchCardStatement(card.id, period.month, period.year),
@@ -323,38 +382,27 @@ function CardItem({
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
       <CardContent className="p-0">
-        <div
-          className={`relative min-h-56 overflow-hidden bg-gradient-to-br p-5 ${brand.className}`}
-        >
-          <div
-            className={`absolute -right-8 -top-10 h-36 w-36 rounded-full border ${brand.accentClassName}`}
-          />
-          <div
-            className={`absolute right-8 top-20 h-16 w-24 rounded-lg border shadow-inner ${brand.accentClassName}`}
-          />
+        <div className={`relative overflow-hidden bg-gradient-to-r p-3 sm:p-4 ${brand.className}`}>
           <div className="relative flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex h-10 max-w-40 items-center">
-                {brand.logo ? (
-                  <img
-                    src={brand.logo}
-                    alt={`${brand.label} logo`}
-                    className={`max-h-8 max-w-36 object-contain ${brand.logoClassName}`}
-                  />
-                ) : (
-                  <div className="text-sm font-semibold uppercase tracking-wide">
-                    {card.bankName}
-                  </div>
-                )}
-              </div>
-              <div className="mt-4 truncate text-2xl font-semibold tracking-tight">{card.name}</div>
-              <div className="mt-1 text-xs font-medium opacity-75">{card.bankName}</div>
+            <div className="flex h-7 min-w-0 items-center">
+              {brand.logo ? (
+                <img
+                  src={brand.logo}
+                  alt={`${brand.label} logo`}
+                  className={`max-h-6 max-w-28 object-contain ${brand.logoClassName}`}
+                />
+              ) : (
+                <div className="truncate text-xs font-semibold uppercase tracking-wide">
+                  {card.bankName}
+                </div>
+              )}
             </div>
-            <div className="relative flex gap-1">
+            <div className="relative flex shrink-0 gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
+                aria-label={`Editar ${card.name}`}
+                className="h-7 w-7 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
                 onClick={onEdit}
               >
                 <Pencil className="h-4 w-4" />
@@ -369,83 +417,79 @@ function CardItem({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
+                  aria-label={`Desativar ${card.name}`}
+                  className="h-7 w-7 text-current opacity-75 hover:bg-white/15 hover:opacity-100"
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </ConfirmAction>
             </div>
           </div>
-          <div className="relative mt-12 flex items-end justify-between gap-3">
-            <div>
-              <div className="text-xs font-medium uppercase opacity-60">Final</div>
-              <div className="font-mono text-xl tracking-widest opacity-90">
-                **** {card.lastFourDigits ?? "0000"}
+          <div className="relative mt-1 flex items-end justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-base font-semibold tracking-tight">{card.name}</div>
+              <div className="mt-0.5 flex items-center gap-2 text-xs font-medium opacity-80">
+                <span className="font-mono tracking-wider">
+                  •••• {card.lastFourDigits ?? "0000"}
+                </span>
+                <span aria-hidden="true">·</span>
+                <span className="truncate">{card.network || card.bankName}</span>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-xs font-medium uppercase opacity-60">
-                {card.network || "Cartão"}
-              </div>
-              <div className="text-sm font-semibold tabular-nums">
-                Limite {formatBRL(card.creditLimit)}
+            <div className="shrink-0 text-right">
+              <div className="text-[10px] font-medium uppercase opacity-70">Limite</div>
+              <div className="whitespace-nowrap text-xs font-semibold tabular-nums sm:text-sm">
+                {formatBRL(card.creditLimit)}
               </div>
             </div>
           </div>
         </div>
-        <div className="space-y-3 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-            <span className="text-muted-foreground">Fatura</span>
-            <PeriodPicker
-              month={period.month}
-              year={period.year}
-              onChange={setPeriod}
-              className="h-10 min-w-[10rem] px-4 text-sm"
-            />
-            {stmt.data && (
+        <div className="space-y-2.5 p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {stmt.data ? (
               <Badge variant={stmt.data.status === "PAID" ? "secondary" : "outline"}>
                 {cardStatementStatusLabel(stmt.data.status)}
               </Badge>
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                {stmt.isLoading ? "Carregando fatura..." : "Fatura do período"}
+              </span>
+            )}
+            {stmt.data && (
+              <div className="flex gap-3 text-xs text-muted-foreground">
+                <span>Fecha {formatDate(stmt.data.closingDate)}</span>
+                <span>Vence {formatDate(stmt.data.dueDate)}</span>
+              </div>
             )}
           </div>
-          <div className="grid gap-3 sm:grid-cols-[1.2fr_0.8fr]">
-            <div className="rounded-md border border-primary/25 bg-primary/5 p-3">
-              <div className="text-xs text-muted-foreground">Limite disponivel</div>
-              <div className="text-2xl font-semibold tabular-nums text-primary">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-muted-foreground">Limite disponível</div>
+              <div className="mt-0.5 whitespace-nowrap text-base font-semibold tabular-nums text-primary sm:text-lg">
                 {stmt.isLoading && !stmt.data ? "..." : formatBRL(availableLimit)}
               </div>
-              <div className="mt-1 text-xs text-muted-foreground">
+              <div className="text-[11px] text-muted-foreground">
                 de {formatBRL(card.creditLimit)}
               </div>
             </div>
-            <div className="rounded-md border border-border/70 bg-muted/20 p-3 sm:text-right">
+            <div className="min-w-0 text-right">
               <div className="text-xs text-muted-foreground">A pagar na fatura</div>
-              <div className="text-xl font-semibold tabular-nums">
+              <div className="mt-0.5 whitespace-nowrap text-base font-semibold tabular-nums sm:text-lg">
                 {formatBRL(stmt.data?.remainingAmount ?? 0)}
               </div>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+          <div className="space-y-1">
+            <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
               <span>Uso do limite</span>
               <span className="tabular-nums">
                 {stmt.isLoading && !stmt.data
                   ? "..."
-                  : `${formatBRL(displayedUsedLimit)} (${usedPct.toFixed(0)}%)`}
+                  : `${usedPct.toFixed(0)}% · ${formatBRL(displayedUsedLimit)}`}
               </span>
             </div>
-            <Progress value={usedPct} />
+            <Progress value={usedPct} className="h-1.5" />
           </div>
-          {stmt.data && (
-            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <span>Fecha {formatDate(stmt.data.closingDate)}</span>
-              <span>Vence {formatDate(stmt.data.dueDate)}</span>
-              <span>
-                Dia cadastro: fecha {card.closingDay}, vence {card.dueDay}
-              </span>
-            </div>
-          )}
-
           <div>
             <Dialog
               open={paymentOpen}
@@ -461,7 +505,7 @@ function CardItem({
               }}
             >
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full">
+                <Button variant="outline" size="sm" className="h-8 w-full">
                   <WalletCards className="h-4 w-4" /> Pagar
                 </Button>
               </DialogTrigger>
