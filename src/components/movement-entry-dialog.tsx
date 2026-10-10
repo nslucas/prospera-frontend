@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -85,7 +86,7 @@ export type MovementEntryEditingItem =
       amount: number;
       occurredAt: string;
       cardId: number;
-      accountId: number;
+      accountId: number | null;
       paymentMonth: number;
       paymentYear: number;
       transactionId?: number | null;
@@ -117,6 +118,7 @@ const schema = z
     participantAmount: z.coerce.number().optional(),
     paymentMonth: z.coerce.number().int().min(1).max(12).optional(),
     paymentYear: z.coerce.number().int().min(2000).optional(),
+    updateAccountBalance: z.boolean().optional(),
   })
   .superRefine((values, ctx) => {
     if (values.kind === "ADJUSTMENT" && values.amount === 0) {
@@ -218,7 +220,7 @@ const schema = z
           message: "Selecione um cartão",
         });
       }
-      if (!values.accountId) {
+      if (values.updateAccountBalance && !values.accountId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["accountId"],
@@ -332,7 +334,8 @@ export function MovementEntryDialog({
         title: editing.title,
         amount: editing.amount,
         occurredAt: editing.occurredAt.slice(0, 10),
-        accountId: editing.accountId,
+        accountId: editing.accountId ?? undefined,
+        updateAccountBalance: editing.accountId !== null,
         cardId: editing.cardId,
         paymentMonth: editing.paymentMonth,
         paymentYear: editing.paymentYear,
@@ -484,7 +487,7 @@ export function MovementEntryDialog({
         return api(`/cards/${cardId}/payments${paymentId ? `/${paymentId}` : ""}`, {
           method: paymentId ? "PUT" : "POST",
           body: {
-            accountId: values.accountId,
+            accountId: values.updateAccountBalance ? values.accountId : null,
             month: values.paymentMonth,
             year: values.paymentYear,
             amount: values.amount,
@@ -667,18 +670,38 @@ export function MovementEntryDialog({
                     <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
                   )}
                 </div>
-                <div className="space-y-1.5">
-                  <Label>Conta de pagamento</Label>
-                  <AccountSelect
-                    value={form.watch("accountId")}
-                    accounts={activeAccounts}
-                    onChange={(value) =>
-                      form.setValue("accountId", value, { shouldDirty: true, shouldValidate: true })
-                    }
-                  />
-                  <FieldError message={errors.accountId?.message} />
-                  {!activeAccounts.length && (
-                    <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="entry-update-balance">Atualizar saldo da conta</Label>
+                    <Switch
+                      id="entry-update-balance"
+                      checked={form.watch("updateAccountBalance") ?? false}
+                      onCheckedChange={(checked) => {
+                        form.setValue("updateAccountBalance", checked, { shouldDirty: true });
+                        if (!checked) form.setValue("accountId", undefined);
+                        form.clearErrors("accountId");
+                      }}
+                    />
+                  </div>
+                  {form.watch("updateAccountBalance") && (
+                    <div className="space-y-1.5">
+                      <Label>Conta de pagamento</Label>
+                      <AccountSelect
+                        value={form.watch("accountId")}
+                        accounts={activeAccounts}
+                        onChange={(value) =>
+                          form.setValue("accountId", value, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
+                      />
+                      <FieldError message={errors.accountId?.message} />
+                      <ResourceHint>O saldo registrado poderá ficar negativo.</ResourceHint>
+                      {!activeAccounts.length && (
+                        <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                      )}
+                    </div>
                   )}
                 </div>
                 <div className="col-span-2 space-y-1.5">
@@ -947,6 +970,7 @@ function movementDefaults(
     shareEnabled: false,
     paymentMonth: paymentPeriod.month,
     paymentYear: paymentPeriod.year,
+    updateAccountBalance: false,
   };
 
   if (kind === "EXPENSE") {

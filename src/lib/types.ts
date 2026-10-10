@@ -1,12 +1,7 @@
 // Domain types matching the Prospera REST API handoff.
 export type AccountType = "CHECKING" | "SAVINGS" | "CASH" | "OTHER";
 export type TransactionType =
-  | "INCOME"
-  | "EXPENSE"
-  | "TRANSFER_IN"
-  | "TRANSFER_OUT"
-  | "CARD_PAYMENT"
-  | "ADJUSTMENT";
+  "INCOME" | "EXPENSE" | "TRANSFER_IN" | "TRANSFER_OUT" | "CARD_PAYMENT" | "ADJUSTMENT";
 export type CategoryType = "INCOME" | "EXPENSE";
 export type BudgetStatus = "UNDER_BUDGET" | "NEAR_LIMIT" | "OVER_BUDGET";
 export type CardStatementStatus = "OPEN" | "PARTIALLY_PAID" | "PAID" | "OVERPAID";
@@ -17,7 +12,8 @@ export type RecurringOccurrenceStatus = "PENDING" | "MATERIALIZED" | "SKIPPED";
 export type ConnectionStatus = "PENDING" | "ACCEPTED" | "DECLINED";
 export type ExpenseShareStatus = "OPEN" | "SETTLED";
 export type SettlementDirection = "YOU_OWE" | "OWES_YOU";
-export type MovementKind = "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT" | "TRANSFER" | "CARD_PAYMENT";
+export type MovementKind =
+  "INCOME" | "EXPENSE" | "CARD_EXPENSE" | "ADJUSTMENT" | "TRANSFER" | "CARD_PAYMENT";
 export type AlertType =
   | "CARD_LIMIT_NEAR"
   | "BUDGET_NEAR_LIMIT"
@@ -28,9 +24,7 @@ export type AlertType =
 export type AlertSeverity = "WARNING" | "CRITICAL";
 export type NotificationCategory = "CONNECTION_REQUEST" | "SHARED_EXPENSE" | "FINANCIAL_DIGEST";
 export type NotificationType =
-  | "CONNECTION_REQUEST_RECEIVED"
-  | "SHARED_EXPENSE_RECEIVED"
-  | "FINANCIAL_ALERT_DIGEST";
+  "CONNECTION_REQUEST_RECEIVED" | "SHARED_EXPENSE_RECEIVED" | "FINANCIAL_ALERT_DIGEST";
 
 export interface Account {
   id: number;
@@ -90,7 +84,7 @@ export interface CardStatement {
 export interface CardPayment {
   id: number;
   cardId: number;
-  accountId: number;
+  accountId: number | null;
   month: number;
   year: number;
   amount: number;

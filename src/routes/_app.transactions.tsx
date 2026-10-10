@@ -82,6 +82,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencyAmountInput } from "@/components/currency-amount-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { PeriodPicker, monthName } from "@/components/period-picker";
 import { MovementEntryDialog } from "@/components/movement-entry-dialog";
@@ -120,7 +121,7 @@ type MovementItem =
       amount: number;
       occurredAt: string;
       cardId: number;
-      accountId: number;
+      accountId: number | null;
       paymentMonth: number;
       paymentYear: number;
       transactionId?: number | null;
@@ -164,6 +165,7 @@ const schema = z
     participantAmount: z.coerce.number().optional(),
     paymentMonth: z.coerce.number().int().min(1).max(12).optional(),
     paymentYear: z.coerce.number().int().min(2000).optional(),
+    updateAccountBalance: z.boolean().optional(),
   })
   .superRefine((values, ctx) => {
     if (values.kind === "ADJUSTMENT" && values.amount === 0) {
@@ -265,7 +267,7 @@ const schema = z
           message: "Selecione um cartão",
         });
       }
-      if (!values.accountId) {
+      if (values.updateAccountBalance && !values.accountId) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["accountId"],
@@ -511,7 +513,7 @@ export default function TransactionsPage() {
         return api(`/cards/${cardId}/payments${paymentId ? `/${paymentId}` : ""}`, {
           method: paymentId ? "PUT" : "POST",
           body: {
-            accountId: values.accountId,
+            accountId: values.updateAccountBalance ? values.accountId : null,
             month: values.paymentMonth,
             year: values.paymentYear,
             amount: values.amount,
@@ -757,7 +759,8 @@ export default function TransactionsPage() {
         title: item.title,
         amount: item.amount,
         occurredAt: item.occurredAt.slice(0, 10),
-        accountId: item.accountId,
+        accountId: item.accountId ?? undefined,
+        updateAccountBalance: item.accountId !== null,
         cardId: item.cardId,
         paymentMonth: item.paymentMonth,
         paymentYear: item.paymentYear,
@@ -1038,21 +1041,44 @@ export default function TransactionsPage() {
                               <ResourceHint>Nenhum cartão ativo disponível.</ResourceHint>
                             )}
                           </div>
-                          <div className="space-y-1.5">
-                            <Label>Conta de pagamento</Label>
-                            <AccountSelect
-                              value={form.watch("accountId")}
-                              accounts={activeAccounts}
-                              onChange={(value) =>
-                                form.setValue("accountId", value, {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                })
-                              }
-                            />
-                            <FieldError message={errors.accountId?.message} />
-                            {!activeAccounts.length && (
-                              <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <Label htmlFor="movement-update-balance">
+                                Atualizar saldo da conta
+                              </Label>
+                              <Switch
+                                id="movement-update-balance"
+                                checked={form.watch("updateAccountBalance") ?? false}
+                                onCheckedChange={(checked) => {
+                                  form.setValue("updateAccountBalance", checked, {
+                                    shouldDirty: true,
+                                  });
+                                  if (!checked) form.setValue("accountId", undefined);
+                                  form.clearErrors("accountId");
+                                }}
+                              />
+                            </div>
+                            {form.watch("updateAccountBalance") && (
+                              <div className="space-y-1.5">
+                                <Label>Conta de pagamento</Label>
+                                <AccountSelect
+                                  value={form.watch("accountId")}
+                                  accounts={activeAccounts}
+                                  onChange={(value) =>
+                                    form.setValue("accountId", value, {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                />
+                                <FieldError message={errors.accountId?.message} />
+                                <ResourceHint>
+                                  O saldo registrado poderá ficar negativo.
+                                </ResourceHint>
+                                {!activeAccounts.length && (
+                                  <ResourceHint>Nenhuma conta ativa disponível.</ResourceHint>
+                                )}
+                              </div>
                             )}
                           </div>
                           <div className="col-span-2 space-y-1.5">
@@ -1909,9 +1935,11 @@ function calculateCashFlowTotals(items: MovementItem[]) {
       }
 
       if (item.kind === "card-payment") {
-        totals.accountOutflow += amount;
+        if (item.accountId !== null) totals.accountOutflow += amount;
         return totals;
       }
+
+      if (item.kind === "transaction" && item.type === "ADJUSTMENT") return totals;
 
       if (item.kind === "settlement") {
         if (isPositiveMovement(item)) {
@@ -1989,6 +2017,7 @@ function movementDefaults(
     shareEnabled: false,
     paymentMonth: paymentPeriod.month,
     paymentYear: paymentPeriod.year,
+    updateAccountBalance: false,
   };
 
   if (kind === "EXPENSE") {
@@ -2150,7 +2179,11 @@ function movementMeta(
   if (item.kind === "card-expense") {
     return `${cardName(item.cardId)} - parcela ${item.installmentNumber}/${item.installmentCount} - fatura ${monthLabel(item.statementMonth, item.statementYear)}`;
   }
-  if (item.kind === "card-payment") return `Pagamento de fatura - ${accountName(item.accountId)}`;
+  if (item.kind === "card-payment") {
+    return item.accountId === null
+      ? "Pagamento de fatura · sem alteração de saldo"
+      : `Pagamento de fatura - ${accountName(item.accountId)}`;
+  }
   if (item.kind === "settlement") return settlementMovementMeta(item);
   if (item.type === "CARD_PAYMENT") return `Pagamento de fatura - ${accountName(item.accountId)}`;
   if (item.type === "TRANSFER_IN") return `Transferência recebida - ${accountName(item.accountId)}`;

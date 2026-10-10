@@ -41,7 +41,7 @@ const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
 const schema = z.object({
   name: z.string().min(1, "Informe um nome"),
   type: z.enum(["CHECKING", "SAVINGS", "CASH", "OTHER"]),
-  balance: z.coerce.number().min(0, "Saldo inicial deve ser ≥ 0"),
+  balance: z.coerce.number().finite("Informe um saldo válido"),
   currency: z.string().min(3).max(3),
 });
 type Values = z.infer<typeof schema>;
@@ -105,7 +105,12 @@ export default function AccountsPage() {
       editing
         ? api<Account>(`/accounts/${editing.id}`, {
             method: "PUT",
-            body: { name: v.name, type: v.type, currency: v.currency },
+            body: {
+              name: v.name,
+              type: v.type,
+              currency: v.currency,
+              ...(form.formState.dirtyFields.balance ? { balance: v.balance } : {}),
+            },
           })
         : api<Account>("/accounts", { method: "POST", body: v }),
     onSuccess: () => {
@@ -187,14 +192,19 @@ export default function AccountsPage() {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <Label>Saldo inicial</Label>
+                <Label>{editing ? "Saldo atual" : "Saldo inicial"}</Label>
                 <CurrencyAmountInput
                   value={form.watch("balance")}
-                  disabled={!!editing}
                   onChange={(value) =>
                     form.setValue("balance", value, { shouldDirty: true, shouldValidate: true })
                   }
                 />
+                {editing && (
+                  <p className="text-xs text-muted-foreground">
+                    Informe o saldo real da conta. A diferença será registrada como ajuste no
+                    histórico.
+                  </p>
+                )}
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={create.isPending}>

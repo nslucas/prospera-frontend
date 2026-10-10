@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -58,12 +59,18 @@ const schema = z.object({
 });
 type Values = z.infer<typeof schema>;
 
-const paymentSchema = z.object({
-  accountId: z.coerce.number().int().positive("Selecione uma conta"),
-  amount: z.coerce.number().positive("Valor deve ser > 0"),
-  paymentDate: z.string().min(1, "Informe a data"),
-  description: z.string().optional(),
-});
+const paymentSchema = z
+  .object({
+    updateAccountBalance: z.boolean(),
+    accountId: z.coerce.number().int().positive("Selecione uma conta").optional(),
+    amount: z.coerce.number().positive("Valor deve ser > 0"),
+    paymentDate: z.string().min(1, "Informe a data"),
+    description: z.string().optional(),
+  })
+  .refine((values) => !values.updateAccountBalance || values.accountId !== undefined, {
+    message: "Selecione uma conta",
+    path: ["accountId"],
+  });
 type PaymentValues = z.infer<typeof paymentSchema>;
 
 const EMPTY_EXPENSES: Expense[] = [];
@@ -352,7 +359,7 @@ function CardItem({
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
   const paymentForm = useForm<PaymentValues>({
     resolver: zodResolver(paymentSchema),
-    defaultValues: { paymentDate: todayIsoDate() },
+    defaultValues: { paymentDate: todayIsoDate(), updateAccountBalance: false },
   });
 
   const payStatement = useAsyncMutation({
@@ -360,18 +367,20 @@ function CardItem({
       api(`/cards/${card.id}/payments`, {
         method: "POST",
         body: {
-          ...values,
+          accountId: values.updateAccountBalance ? values.accountId : null,
+          amount: values.amount,
+          paymentDate: values.paymentDate,
           month: stmt.data?.month ?? period.month,
           year: stmt.data?.year ?? period.year,
           description: values.description || null,
         },
       }),
     onSuccess: () => {
-      toast.success("Pagamento registrado");
+      toast.success("Pagamento da fatura registrado");
       stmt.reload();
       onRefresh();
       setPaymentOpen(false);
-      paymentForm.reset({ paymentDate: todayIsoDate() });
+      paymentForm.reset({ paymentDate: todayIsoDate(), updateAccountBalance: false });
     },
     onError: (e) => toast.error(e.message),
   });
@@ -498,6 +507,7 @@ function CardItem({
                 if (next) {
                   paymentForm.reset({
                     amount: stmt.data?.remainingAmount ?? 0,
+                    updateAccountBalance: false,
                     paymentDate: todayIsoDate(),
                     description: `Pagamento ${card.name}`,
                   });
@@ -505,37 +515,70 @@ function CardItem({
               }}
             >
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 w-full">
-                  <WalletCards className="h-4 w-4" /> Pagar
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-full"
+                  disabled={stmt.isLoading || !stmt.data || stmt.data.remainingAmount <= 0}
+                >
+                  <WalletCards className="h-4 w-4" /> Marcar como paga
                 </Button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Pagar fatura de {card.name}</DialogTitle>
+                  <DialogTitle>Marcar fatura de {card.name} como paga</DialogTitle>
                 </DialogHeader>
                 <form
                   className="space-y-4"
                   onSubmit={paymentForm.handleSubmit((v) => payStatement.mutate(v))}
                 >
-                  <div className="space-y-1.5">
-                    <Label>Conta de pagamento</Label>
-                    <Select
-                      onValueChange={(v) =>
-                        paymentForm.setValue("accountId", Number(v), { shouldValidate: true })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {activeAccounts.map((account) => (
-                          <SelectItem key={account.id} value={String(account.id)}>
-                            {account.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <p className="text-sm text-muted-foreground">
+                    Registre o valor que já foi pago. Um pagamento parcial mantém o restante em
+                    aberto.
+                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor={`update-balance-${card.id}`}>Atualizar saldo da conta</Label>
+                    <Switch
+                      id={`update-balance-${card.id}`}
+                      checked={paymentForm.watch("updateAccountBalance")}
+                      onCheckedChange={(checked) => {
+                        paymentForm.setValue("updateAccountBalance", checked);
+                        if (!checked) paymentForm.setValue("accountId", undefined);
+                        paymentForm.clearErrors("accountId");
+                      }}
+                    />
                   </div>
+                  {paymentForm.watch("updateAccountBalance") && (
+                    <div className="space-y-1.5">
+                      <Label>Conta de pagamento</Label>
+                      <Select
+                        value={paymentForm.watch("accountId")?.toString() ?? ""}
+                        onValueChange={(v) =>
+                          paymentForm.setValue("accountId", Number(v), { shouldValidate: true })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {activeAccounts.map((account) => (
+                            <SelectItem key={account.id} value={String(account.id)}>
+                              {account.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        O valor será descontado do saldo registrado, que poderá ficar negativo.
+                        {!activeAccounts.length && " Cadastre uma conta ou desative esta opção."}
+                      </p>
+                    </div>
+                  )}
+                  {paymentForm.formState.errors.accountId && (
+                    <p className="text-xs text-destructive">
+                      {paymentForm.formState.errors.accountId.message}
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label>Valor</Label>
@@ -554,8 +597,13 @@ function CardItem({
                       <Input type="date" {...paymentForm.register("paymentDate")} />
                     </div>
                   </div>
+                  {paymentForm.formState.errors.amount && (
+                    <p className="text-xs text-destructive">
+                      {paymentForm.formState.errors.amount.message}
+                    </p>
+                  )}
                   <div className="space-y-1.5">
-                    <Label>Descricao</Label>
+                    <Label>Descrição</Label>
                     <Input {...paymentForm.register("description")} placeholder="opcional" />
                   </div>
                   <DialogFooter>
