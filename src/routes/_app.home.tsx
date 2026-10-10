@@ -40,7 +40,23 @@ import { cn } from "@/lib/utils";
 export default function HomePage() {
   const { user } = useAuth();
   const [valuesHidden, setValuesHidden] = React.useState(false);
-  const { month, year } = currentMonthYear();
+  const [{ month, year }, setPeriod] = React.useState(currentMonthYear);
+  React.useEffect(() => {
+    const refreshPeriod = () => {
+      const next = currentMonthYear();
+      setPeriod((previous) =>
+        previous.month === next.month && previous.year === next.year ? previous : next,
+      );
+    };
+    const interval = window.setInterval(refreshPeriod, 60_000);
+    window.addEventListener("focus", refreshPeriod);
+    document.addEventListener("visibilitychange", refreshPeriod);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshPeriod);
+      document.removeEventListener("visibilitychange", refreshPeriod);
+    };
+  }, []);
   const summary = useAsyncData(() => fetchMonthlySummary(month, year), [month, year], {
     cacheKey: `summary-monthly:${month}:${year}`,
   });
@@ -49,23 +65,15 @@ export default function HomePage() {
   const cardsReady = !cards.isLoading && Boolean(cards.data);
   const statementCacheKey = React.useMemo(
     () =>
-      `dashboard-statements:${(cards.data ?? [])
-        .map((card) => {
-          const period = currentOpenStatementPeriod(card);
-          return `${card.id}-${period.month}-${period.year}`;
-        })
+      `dashboard-statements:${month}:${year}:${(cards.data ?? [])
+        .map((card) => card.id)
         .join("|")}`,
-    [cards.data],
+    [cards.data, month, year],
   );
   const statements = useAsyncData(
     () =>
-      Promise.all(
-        (cards.data ?? []).map((card) => {
-          const period = currentOpenStatementPeriod(card);
-          return fetchCardStatement(card.id, period.month, period.year);
-        }),
-      ),
-    [cards.data],
+      Promise.all((cards.data ?? []).map((card) => fetchCardStatement(card.id, month, year))),
+    [cards.data, month, year],
     { enabled: cardsReady, initialData: [], cacheKey: statementCacheKey },
   );
   const alerts = useAsyncData(() => fetchAlerts({ month, year }), [month, year], {
@@ -89,16 +97,21 @@ export default function HomePage() {
   });
 
   const data = summary.data;
-  const statementTotals = React.useMemo(
-    () => buildStatementTotalsByCardId(cards.data ?? [], statements.data ?? []),
-    [cards.data, statements.data],
+  const monthlyStatements = React.useMemo(
+    () =>
+      (statements.data ?? []).filter(
+        (statement) => statement.month === month && statement.year === year,
+      ),
+    [statements.data, month, year],
   );
-  const openBillsTotal = statements.data?.length
-    ? statements.data.reduce(
-        (total, statement) => total + Number(statement.remainingAmount ?? 0),
-        0,
-      )
-    : (data?.cardBillsRemaining ?? data?.cardBillsTotal ?? 0);
+  const statementTotals = React.useMemo(
+    () => buildStatementTotalsByCardId(cards.data ?? [], monthlyStatements),
+    [cards.data, monthlyStatements],
+  );
+  const openBillsTotal = monthlyStatements.reduce(
+    (total, statement) => total + Number(statement.remainingAmount ?? 0),
+    0,
+  );
   const monthlyExpenses = (data?.accountExpenseTotal ?? 0) + (data?.cardPaymentsTotal ?? 0);
   const savingsRate = data?.incomeTotal
     ? Math.round(((data.incomeTotal - monthlyExpenses) / data.incomeTotal) * 100)
@@ -203,7 +216,9 @@ export default function HomePage() {
               </span>
             </div>
             <div className="mt-6">
-              <p className="text-xs text-muted-foreground">Saldo pendente total</p>
+              <p className="text-xs text-muted-foreground">
+                Saldo pendente de {formatPeriod(month, year)}
+              </p>
               <p className="mt-1 font-display text-3xl font-extrabold tracking-[-0.04em]">
                 {statements.isLoading ? "—" : valuesHidden ? "R$ ••••" : formatBRL(openBillsTotal)}
               </p>
@@ -673,30 +688,6 @@ function accountTypeLabel(type: Account["type"]) {
       type
     ] ?? "Conta"
   );
-}
-
-function currentOpenStatementPeriod(card: CreditCardModel): { month: number; year: number } {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const statementMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-  let dueMonth = statementDueMonth(statementMonth, card);
-  const dueDate = atConfiguredDay(dueMonth.getFullYear(), dueMonth.getMonth(), card.dueDay);
-  if (today > dueDate) {
-    statementMonth.setMonth(statementMonth.getMonth() + 1);
-    dueMonth = statementDueMonth(statementMonth, card);
-  }
-  return { month: dueMonth.getMonth() + 1, year: dueMonth.getFullYear() };
-}
-
-function statementDueMonth(statementMonth: Date, card: CreditCardModel) {
-  const dueMonth = new Date(statementMonth);
-  if (card.dueDay <= card.closingDay) dueMonth.setMonth(dueMonth.getMonth() + 1);
-  return dueMonth;
-}
-
-function atConfiguredDay(year: number, zeroBasedMonth: number, day: number) {
-  const lastDay = new Date(year, zeroBasedMonth + 1, 0).getDate();
-  return new Date(year, zeroBasedMonth, Math.min(day, lastDay));
 }
 
 function buildStatementTotalsByCardId(cards: CreditCardModel[], statements: CardStatement[]) {
